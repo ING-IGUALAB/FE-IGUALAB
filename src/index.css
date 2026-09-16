@@ -1,0 +1,147 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  background: #f8faf9;
+  color: #191c1c;
+  font-family: "Inter", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.material-symbols-outlined {
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+  user-select: none;
+}
+.material-symbols-outlined.filled {
+  font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;
+}
+
+.ambient-shadow {
+  box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.04);
+}
+.ambient-shadow-hover:hover {
+  box-shadow: 0px 8px 24px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+  transition: all 0.3s ease;
+}
+
+.bg-grid-pattern {
+  background-image:
+    linear-gradient(to right, #e2e8e5 1px, transparent 1px),
+    linear-gradient(to bottom, #e2e8e5 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.chat-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #bec9bf transparent;
+}
+.chat-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.chat-scroll::-webkit-scrollbar-thumb {
+  background-color: #bec9bf;
+  border-radius: 9999px;
+}
+
+.dropzone-active {
+  border-color: #006038 !important;
+  background-color: rgba(0, 96, 56, 0.05);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  color: #3f4941;
+  transition: all 0.2s ease;
+}
+.nav-item:hover {
+  background-color: #f2f4f3;
+}
+.nav-item.active {
+  color: #006038;
+  font-weight: 700;
+  border-right: 4px solid #006038;
+  background-color: rgba(0, 96, 56, 0.05);
+}
+
+.typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: #6f7a71;
+  animation: typing-bounce 1.2s infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.typing-dot:nth-child(3) { animation-delay: 0.3s; }
+@keyframes typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.toast-enter { animation: toast-in 0.25s ease; }
+
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+.modal-enter { animation: modal-in 0.2s ease; }
+
+/* Entrada suave de páginas */
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.page-enter { animation: page-in 0.28s ease both; }
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.fade-in { animation: fade-in 0.4s ease both; }
+
+/* Shake para errores de formulario */
+@keyframes shake {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(2px); }
+  30%, 50%, 70% { transform: translateX(-4px); }
+  40%, 60% { transform: translateX(4px); }
+}
+.shake { animation: shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }
+
+
+/* Skeleton shimmer */
+.skeleton {
+  background: linear-gradient(90deg, #eceeed 25%, #f2f4f3 50%, #eceeed 75%);
+  background-size: 200% 100%;
+  animation: skeleton-wave 1.2s infinite;
+  border-radius: 6px;
+}
+@keyframes skeleton-wave {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media print {
+  body * { visibility: hidden; }
+  #print-area, #print-area * { visibility: visible; }
+  #print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+}
