@@ -10,6 +10,7 @@ interface AuthCtx {
   rol: Rol | null;
   iniciarSesion: (correo: string, password: string) => Promise<SesionActual>;
   cerrarSesion: () => Promise<void>;
+  actualizarRol: (rol: Rol) => void;
 }
 
 const Ctx = createContext<AuthCtx | null>(null);
@@ -33,6 +34,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return s;
   }
 
+  // RF-050: aplicar el rol vigente en la sesión activa (p. ej. tras transferir
+  // el SuperAdmin) sin obligar a un nuevo login.
+  function actualizarRol(rol: Rol) {
+    setSesion((prev) => {
+      if (!prev) return prev;
+      const s: SesionActual = { ...prev, rol };
+      guardarSesion(s);
+      return s;
+    });
+  }
+
   async function cerrarSesion() {
     try {
       await authApi.logout();
@@ -51,6 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         rol: sesion?.rol ?? null,
         iniciarSesion,
         cerrarSesion,
+        actualizarRol,
       }}
     >
       {children}

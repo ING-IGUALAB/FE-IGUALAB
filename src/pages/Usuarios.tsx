@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import SectionHeader from "../components/SectionHeader";
 import Badge from "../components/Badge";
 import Modal from "../components/Modal";
 import { useToast } from "../components/ToastProvider";
 import Spinner from "../components/Spinner";
+import { useAuth } from "../auth/AuthContext";
 import { mensajeError } from "../api/client";
 import * as usuariosApi from "../api/usuarios";
 import { REGLAS_PASSWORD } from "../lib/password";
@@ -125,7 +127,7 @@ export default function Usuarios() {
 
       <CrearUsuarioModal open={crearOpen} onClose={() => setCrearOpen(false)} onCreado={cargar} />
       <ToggleModal usuario={toggle} onClose={() => setToggle(null)} onHecho={cargar} />
-      <TransferirModal usuario={transferir} onClose={() => setTransferir(null)} onHecho={cargar} />
+      <TransferirModal usuario={transferir} onClose={() => setTransferir(null)} />
     </>
   );
 }
@@ -243,8 +245,10 @@ function ToggleModal({ usuario, onClose, onHecho }: { usuario: Usuario | null; o
   );
 }
 
-function TransferirModal({ usuario, onClose, onHecho }: { usuario: Usuario | null; onClose: () => void; onHecho: () => void }) {
+function TransferirModal({ usuario, onClose }: { usuario: Usuario | null; onClose: () => void }) {
   const toast = useToast();
+  const navigate = useNavigate();
+  const { actualizarRol } = useAuth();
   const [cargando, setCargando] = useState(false);
   if (!usuario) return null;
 
@@ -252,12 +256,14 @@ function TransferirModal({ usuario, onClose, onHecho }: { usuario: Usuario | nul
     setCargando(true);
     try {
       await usuariosApi.transferirSuperadmin(usuario!.id);
-      toast(`Rol SuperAdmin transferido a ${usuario!.nombre}.`, "success");
+      // Tras la transferencia, la cuenta actual pasa a Administrador (RF-050).
+      toast(`Rol SuperAdmin transferido a ${usuario!.nombre}. Ahora eres Administrador.`, "success");
+      actualizarRol("administrador"); // actualiza sesión + localStorage
       onClose();
-      onHecho();
+      // Ya no tiene permiso sobre /usuarios: no re-consultar; redirigir a /ia.
+      navigate("/ia", { replace: true });
     } catch (err) {
       toast(mensajeError(err, "No se pudo transferir el rol."), "error");
-    } finally {
       setCargando(false);
     }
   }

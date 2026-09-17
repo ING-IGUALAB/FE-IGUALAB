@@ -1,5 +1,17 @@
 export type Rol = "superadmin" | "administrador";
 
+// Contrato de errores del backend: { error: { code, message, details, request_id } }
+export interface BackendError {
+  code: string;
+  message: string;
+  details: unknown;
+  request_id: string;
+}
+
+export interface BackendErrorResponse {
+  error: BackendError;
+}
+
 export interface Usuario {
   id: string;
   nombre: string;
