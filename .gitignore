@@ -2,5 +2,13 @@ node_modules
 dist
 dist-ssr
 *.local
-.env
 .DS_Store
+
+# Variables de entorno reales: las provee cada dev / Jenkins por entorno.
+# Solo se versionan las plantillas *.example
+.env
+.env.*
+!.env.example
+!.env.development.example
+!.env.qa.example
+!.env.uat.example

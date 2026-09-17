@@ -12,6 +12,8 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Config inyectada en runtime por el contenedor (docker-entrypoint genera env.js). -->
+    <script src="/env.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -8,13 +8,22 @@ conectado al backend de la API.
 - Node 18+ (recomendado 20+)
 - Backend de Igualab corriendo (por defecto `http://localhost:8000`)
 
-## Configuración
+## Configuración (variables de entorno)
 
-Crea un `.env` a partir de `.env.example`:
+`.env` NO se versiona (lo provee cada dev / Jenkins). Cópialo desde la plantilla:
 
+```bash
+cp .env.development.example .env   # desarrollo local
 ```
-VITE_API_URL=http://localhost:8000
-```
+
+Variable disponible:
+
+| Variable | Descripción |
+|---|---|
+| `VITE_API_URL` | URL base del backend (p. ej. `http://localhost:8000`). Es **pública** (viaja al navegador): no poner secretos. |
+
+Plantillas por entorno versionadas: `.env.development.example`, `.env.qa.example`,
+`.env.uat.example`. Cada dev crea su `.env.<entorno>` real a partir de ellas.
 
 ## Scripts
 
@@ -24,6 +33,32 @@ npm run dev      # servidor de desarrollo (http://localhost:5173)
 npm run build    # typecheck + build de producción (dist/)
 npm run preview  # sirve el build de producción
 ```
+
+## Docker (reproducible con docker compose)
+
+La app se sirve con Nginx y **consume la variable de entorno en runtime**: una sola
+imagen sirve para development/qa/uat. Al arrancar, `docker-entrypoint.sh` genera
+`/env.js` con el `VITE_API_URL` que reciba el contenedor (docker compose / Jenkins).
+
+```bash
+# Levantar con el .env del directorio (docker compose lo carga automáticamente)
+docker compose up --build            # -> http://localhost:5173
+
+# Otro entorno, mismo Dockerfile:
+docker compose --env-file .env.qa up --build
+
+# Solo con docker (sin compose):
+docker build -t fe-igualab .
+docker run -p 5173:80 -e VITE_API_URL="https://qa-api-igualab.dominio" fe-igualab
+```
+
+Notas para el pipeline:
+- Las variables las inyecta **Jenkins** al contenedor (no se hornean en el build),
+  así que la imagen es la misma para todos los entornos.
+- Nginx hace fallback SPA (`try_files … /index.html`) para que las rutas de
+  react-router funcionen al recargar.
+- `env.js` se sirve con `Cache-Control: no-store` para que el cambio de entorno
+  tome efecto sin caché.
 
 ## Estado de integración con el backend
 

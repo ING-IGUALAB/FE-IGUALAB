@@ -1,0 +1,18 @@
+# Reproducible con: docker compose up --build
+# Consume un archivo .env (VITE_API_URL). En los despliegues, Jenkins provee ese
+# .env por entorno (.env.development / .env.qa / .env.uat) o inyecta la variable.
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: fe-igualab:latest
+    container_name: fe-igualab
+    ports:
+      - "5173:80"
+    # docker compose carga automáticamente el archivo .env del directorio para
+    # interpolar ${VITE_API_URL}. Para otro entorno:
+    #   docker compose --env-file .env.qa up --build
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+    restart: unless-stopped
