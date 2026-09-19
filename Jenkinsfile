@@ -12,29 +12,26 @@ pipeline {
             }
         }
 
-        stage('Test (En Contenedor Python)') {
-            when {
-                branch 'test'
-            }
+        // Frontend: build + typecheck en un contenedor Node (equivalente al test del backend).
+        stage('Build & Typecheck (Contenedor Node)') {
             agent {
                 docker {
-                    image 'python:3.13-slim'
+                    image 'node:20-alpine'
                     reuseNode true
                 }
             }
             steps {
                 sh '''
-                    python -m venv venv
-                    . venv/bin/activate
-                    pip install --no-cache-dir -r requirements.txt
-                    pytest tests/ --cov=app --cov-report=xml:coverage.xml
+                    npm ci
+                    npm run typecheck
+                    npm run build
                 '''
             }
         }
 
         stage('SonarQube Analysis') {
             when {
-                branch 'test'
+                branch 'development'
             }
             environment {
                 scannerHome = tool 'SonarScanner'
@@ -48,26 +45,11 @@ pipeline {
 
         stage('Quality Gate') {
             when {
-                branch 'test'
+                branch 'development'
             }
             steps {
                 timeout(time: 1, unit: 'HOURS') {
                     waitForQualityGate abortPipeline: true
-                }
-            }
-        }
-
-        stage('Deploy Test (Docker Compose)') {
-            when {
-                branch 'test'
-            }
-            steps {
-                withCredentials([file(credentialsId: 'TEST_JENKINS_TEST', variable: 'SECRET_FILE')]) {
-                    sh '''
-                        cp "$SECRET_FILE" .env.test
-                        docker compose -f docker-compose.test.yml down
-                        docker compose -f docker-compose.test.yml up -d --build
-                    '''
                 }
             }
         }
@@ -82,6 +64,36 @@ pipeline {
                         cp "$SECRET_FILE" .env
                         docker compose -f docker-compose.dev.yml down
                         docker compose -f docker-compose.dev.yml up -d --build
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy QA (Docker Compose)') {
+            when {
+                branch 'qa'
+            }
+            steps {
+                withCredentials([file(credentialsId: 'TEST_JENKINS_QA', variable: 'SECRET_FILE')]) {
+                    sh '''
+                        cp "$SECRET_FILE" .env
+                        docker compose -f docker-compose.qa.yml down
+                        docker compose -f docker-compose.qa.yml up -d --build
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy UAT (Docker Compose)') {
+            when {
+                branch 'development'
+            }
+            steps {
+                withCredentials([file(credentialsId: 'TEST_JENKINS_UAT', variable: 'SECRET_FILE')]) {
+                    sh '''
+                        cp "$SECRET_FILE" .env
+                        docker compose -f docker-compose.uat.yml down
+                        docker compose -f docker-compose.uat.yml up -d --build
                     '''
                 }
             }

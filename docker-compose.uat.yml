@@ -1,0 +1,16 @@
+# Deploy UAT del frontend (Jenkins, rama uat).
+# Sin puertos expuestos, un solo servicio, salida a proxy_net (external).
+name: igualab-frontend-uat
+services:
+  frontend:
+    build: .
+    container_name: igualab-frontend-uat
+    env_file:
+      - .env
+    networks:
+      - proxy_net
+    restart: unless-stopped
+
+networks:
+  proxy_net:
+    external: true
