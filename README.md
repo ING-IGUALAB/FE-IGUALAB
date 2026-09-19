@@ -13,8 +13,12 @@ conectado al backend de la API.
 `.env` NO se versiona (lo provee cada dev / Jenkins). Cópialo desde la plantilla:
 
 ```bash
-cp .env.development.example .env   # desarrollo local
+cp .env.example .env   # backend LOCAL (http://localhost:8000)
 ```
+
+> Los archivos `.env.<entorno>.example` apuntan a los backends **desplegados**
+> (dev/qa/uat). Úsalos para esos ambientes; para desarrollo local contra tu
+> propio backend usa `.env.example` (localhost).
 
 Variable disponible:
 
