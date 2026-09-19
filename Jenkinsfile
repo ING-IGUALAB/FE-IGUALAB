@@ -31,7 +31,7 @@ pipeline {
 
         stage('SonarQube Analysis') {
             when {
-                branch 'development'
+                branch 'qa'
             }
             environment {
                 scannerHome = tool 'SonarScanner'
@@ -45,7 +45,7 @@ pipeline {
 
         stage('Quality Gate') {
             when {
-                branch 'development'
+                branch 'qa'
             }
             steps {
                 timeout(time: 1, unit: 'HOURS') {
@@ -86,7 +86,7 @@ pipeline {
 
         stage('Deploy UAT (Docker Compose)') {
             when {
-                branch 'development'
+                branch 'uat'
             }
             steps {
                 withCredentials([file(credentialsId: 'TEST_JENKINS_UAT', variable: 'SECRET_FILE')]) {
