@@ -61,6 +61,7 @@ pipeline {
             steps {
                 withCredentials([file(credentialsId: 'TEST_JENKINS_DEV', variable: 'SECRET_FILE')]) {
                     sh '''
+                        rm -f .env
                         cp "$SECRET_FILE" .env
                         docker compose -f docker-compose.dev.yml down
                         docker compose -f docker-compose.dev.yml up -d --build
@@ -76,6 +77,7 @@ pipeline {
             steps {
                 withCredentials([file(credentialsId: 'TEST_JENKINS_QA', variable: 'SECRET_FILE')]) {
                     sh '''
+                        rm -f .env
                         cp "$SECRET_FILE" .env
                         docker compose -f docker-compose.qa.yml down
                         docker compose -f docker-compose.qa.yml up -d --build
@@ -91,6 +93,7 @@ pipeline {
             steps {
                 withCredentials([file(credentialsId: 'TEST_JENKINS_UAT', variable: 'SECRET_FILE')]) {
                     sh '''
+                        rm -f .env
                         cp "$SECRET_FILE" .env
                         docker compose -f docker-compose.uat.yml down
                         docker compose -f docker-compose.uat.yml up -d --build
