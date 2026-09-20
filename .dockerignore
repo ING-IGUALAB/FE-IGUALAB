@@ -9,5 +9,7 @@ dist-ssr
 *.log
 .DS_Store
 Dockerfile
-docker-compose.yml
+docker-compose*.yml
+Jenkinsfile
+sonar-project.properties
 README.md

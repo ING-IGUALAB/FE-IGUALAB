@@ -13,8 +13,12 @@ conectado al backend de la API.
 `.env` NO se versiona (lo provee cada dev / Jenkins). Cópialo desde la plantilla:
 
 ```bash
-cp .env.development.example .env   # desarrollo local
+cp .env.example .env   # backend LOCAL (http://localhost:8000)
 ```
+
+> Los archivos `.env.<entorno>.example` apuntan a los backends **desplegados**
+> (dev/qa/uat). Úsalos para esos ambientes; para desarrollo local contra tu
+> propio backend usa `.env.example` (localhost).
 
 Variable disponible:
 
@@ -34,29 +38,30 @@ npm run build    # typecheck + build de producción (dist/)
 npm run preview  # sirve el build de producción
 ```
 
-## Docker (reproducible con docker compose)
+## Docker y despliegue
 
-La app se sirve con Nginx y **consume la variable de entorno en runtime**: una sola
-imagen sirve para development/qa/uat. Al arrancar, `docker-entrypoint.sh` genera
-`/env.js` con el `VITE_API_URL` que reciba el contenedor (docker compose / Jenkins).
+La app se sirve con Nginx y **consume `VITE_API_URL` en runtime**: una sola imagen
+sirve para dev/qa/uat. Al arrancar, `docker-entrypoint.sh` genera `/env.js` con el
+valor que reciba el contenedor (vía `env_file`/entorno provisto por Jenkins).
 
-```bash
-# Levantar con el .env del directorio (docker compose lo carga automáticamente)
-docker compose up --build            # -> http://localhost:5173
+Los despliegues usan un compose por entorno, **sin puertos expuestos** y con salida
+a la red externa `proxy_net` (un reverse proxy enruta el dominio al contenedor:80):
 
-# Otro entorno, mismo Dockerfile:
-docker compose --env-file .env.qa up --build
+- `docker-compose.dev.yml` (rama `development` → dev-igualab.ingsoftware.lat)
+- `docker-compose.qa.yml`  (rama `qa` → qa-igualab.ingsoftware.lat)
+- `docker-compose.uat.yml` (rama `uat` → uat-igualab.ingsoftware.lat)
 
-# Solo con docker (sin compose):
-docker build -t fe-igualab .
-docker run -p 5173:80 -e VITE_API_URL="https://qa-api-igualab.dominio" fe-igualab
-```
+Jenkins hace, por rama: `cp <secreto> .env` y `docker compose -f docker-compose.<env>.yml up -d --build`.
 
-Notas para el pipeline:
-- Las variables las inyecta **Jenkins** al contenedor (no se hornean en el build),
-  así que la imagen es la misma para todos los entornos.
-- Nginx hace fallback SPA (`try_files … /index.html`) para que las rutas de
-  react-router funcionen al recargar.
+**Para desarrollo local NO uses Docker**: corre `npm run dev` (con `.env` apuntando
+a `http://localhost:8000`). No se versiona ningún compose con puertos, por política
+del despliegue.
+
+Notas:
+- Las variables las inyecta **Jenkins** al contenedor (no se hornean en el build):
+  la imagen es la misma para todos los entornos.
+- Nginx hace fallback SPA (`try_files … /index.html`) para que react-router
+  funcione al recargar.
 - `env.js` se sirve con `Cache-Control: no-store` para que el cambio de entorno
   tome efecto sin caché.
 
