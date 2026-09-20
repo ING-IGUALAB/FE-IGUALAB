@@ -38,8 +38,8 @@ pipeline {
                 }
             }
             agent {
-                docker {
-                    image 'node:24-alpine'
+                dockerfile {
+                    filename 'Dockerfile.ci'
                     reuseNode true
                 }
             }
@@ -52,6 +52,7 @@ pipeline {
 
                     withEnv(["SONAR_USER_HOME=${sonarUserHome}"]) {
                         sh 'node --version'
+                        sh 'java --version'
 
                         if (env.BRANCH_NAME == 'qa') {
                             withSonarQubeEnv('SonarQube-Server') {
