@@ -16,7 +16,7 @@ pipeline {
         stage('Build & Typecheck (Contenedor Node)') {
             agent {
                 docker {
-                    image 'node:20-alpine'
+                    image 'node:22-alpine'
                     reuseNode true
                 }
             }
@@ -41,14 +41,16 @@ pipeline {
                 scannerHome = tool 'SonarScanner'
             }
             steps {
-                script {
-                    if (env.BRANCH_NAME == 'qa') {
-                        withSonarQubeEnv('SonarQube-Server') {
-                            sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=FE-IGUALAB-QA"
-                        }
-                    } else {
-                        withSonarQubeEnv('SonarQube-Server') {
-                            sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=FE-IGUALAB-UAT"
+                nodejs(nodeJSInstallationName: 'NODE24') {
+                    script {
+                        if (env.BRANCH_NAME == 'qa') {
+                            withSonarQubeEnv('SonarQube-Server') {
+                                sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=FE-IGUALAB-QA"
+                            }
+                        } else {
+                            withSonarQubeEnv('SonarQube-Server') {
+                                sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=FE-IGUALAB-UAT"
+                            }
                         }
                     }
                 }
