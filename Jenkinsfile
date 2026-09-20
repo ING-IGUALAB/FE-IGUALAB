@@ -24,6 +24,7 @@ pipeline {
                 sh '''
                     npm ci
                     npm run typecheck
+                    npm run test:coverage
                     npm run build
                 '''
             }
@@ -31,21 +32,27 @@ pipeline {
 
         stage('SonarQube Analysis') {
             when {
-                branch 'qa'
+                anyOf {
+                    branch 'qa'
+                    branch 'uat'
+                }
             }
             environment {
                 scannerHome = tool 'SonarScanner'
             }
             steps {
                 withSonarQubeEnv('SonarQube-Server') {
-                    sh "${scannerHome}/bin/sonar-scanner"
+                    sh "${scannerHome}/bin/sonar-scanner -Dsonar.branch.name=${BRANCH_NAME}"
                 }
             }
         }
 
         stage('Quality Gate') {
             when {
-                branch 'qa'
+                anyOf {
+                    branch 'qa'
+                    branch 'uat'
+                }
             }
             steps {
                 timeout(time: 1, unit: 'HOURS') {
