@@ -37,24 +37,29 @@ pipeline {
                     branch 'uat'
                 }
             }
+            agent {
+                docker {
+                    image 'node:24-alpine'
+                    reuseNode true
+                }
+            }
             environment {
                 scannerHome = tool 'SonarScanner'
             }
             steps {
                 script {
-                    def nodeHome = tool 'NODE24'
                     def sonarUserHome = "${env.WORKSPACE}/.sonar"
 
-                    withEnv(["PATH+NODEJS=${nodeHome}/bin", "SONAR_USER_HOME=${sonarUserHome}"]) {
-                        sh "${nodeHome}/bin/node --version"
+                    withEnv(["SONAR_USER_HOME=${sonarUserHome}"]) {
+                        sh 'node --version'
 
                         if (env.BRANCH_NAME == 'qa') {
                             withSonarQubeEnv('SonarQube-Server') {
-                                sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=FE-IGUALAB-QA -Dsonar.nodejs.executable=${nodeHome}/bin/node -Dsonar.userHome=${sonarUserHome}"
+                                sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=FE-IGUALAB-QA -Dsonar.nodejs.executable=/usr/local/bin/node -Dsonar.userHome=${sonarUserHome}"
                             }
                         } else {
                             withSonarQubeEnv('SonarQube-Server') {
-                                sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=FE-IGUALAB-UAT -Dsonar.nodejs.executable=${nodeHome}/bin/node -Dsonar.userHome=${sonarUserHome}"
+                                sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=FE-IGUALAB-UAT -Dsonar.nodejs.executable=/usr/local/bin/node -Dsonar.userHome=${sonarUserHome}"
                             }
                         }
                     }
