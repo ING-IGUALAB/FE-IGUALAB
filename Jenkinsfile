@@ -74,7 +74,7 @@ pipeline {
                 branch 'development'
             }
             steps {
-                withCredentials([file(credentialsId: 'TEST_JENKINS_DEV', variable: 'SECRET_FILE')]) {
+                withCredentials([file(credentialsId: 'IGUALAB_FRONTEND_DEV', variable: 'SECRET_FILE')]) {
                     sh '''
                         rm -f .env
                         cp "$SECRET_FILE" .env
@@ -90,7 +90,7 @@ pipeline {
                 branch 'qa'
             }
             steps {
-                withCredentials([file(credentialsId: 'TEST_JENKINS_QA', variable: 'SECRET_FILE')]) {
+                withCredentials([file(credentialsId: 'IGUALAB_FRONTEND_QA', variable: 'SECRET_FILE')]) {
                     sh '''
                         rm -f .env
                         cp "$SECRET_FILE" .env
@@ -106,7 +106,7 @@ pipeline {
                 branch 'uat'
             }
             steps {
-                withCredentials([file(credentialsId: 'TEST_JENKINS_UAT', variable: 'SECRET_FILE')]) {
+                withCredentials([file(credentialsId: 'IGUALAB_FRONTEND_UAT', variable: 'SECRET_FILE')]) {
                     sh '''
                         rm -f .env
                         cp "$SECRET_FILE" .env
