@@ -43,11 +43,11 @@ pipeline {
             steps {
                 script {
                     if (env.BRANCH_NAME == 'qa') {
-                        withSonarQubeEnv('SonarQube-QA') {
+                        withSonarQubeEnv('SonarQube-Server') {
                             sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=FE-IGUALAB-QA"
                         }
                     } else {
-                        withSonarQubeEnv('SonarQube-UAT') {
+                        withSonarQubeEnv('SonarQube-Server') {
                             sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=FE-IGUALAB-UAT"
                         }
                     }
