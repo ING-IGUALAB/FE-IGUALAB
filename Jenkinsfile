@@ -41,8 +41,16 @@ pipeline {
                 scannerHome = tool 'SonarScanner'
             }
             steps {
-                withSonarQubeEnv('SonarQube-Server') {
-                    sh "${scannerHome}/bin/sonar-scanner -Dsonar.branch.name=${BRANCH_NAME}"
+                script {
+                    if (env.BRANCH_NAME == 'qa') {
+                        withSonarQubeEnv('SonarQube-QA') {
+                            sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=FE-IGUALAB-QA"
+                        }
+                    } else {
+                        withSonarQubeEnv('SonarQube-UAT') {
+                            sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=FE-IGUALAB-UAT"
+                        }
+                    }
                 }
             }
         }
