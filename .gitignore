@@ -58,6 +58,7 @@ lib-cov
 
 # Coverage directory used by tools like istanbul
 coverage
+.sonar
 *.lcov
 
 # nyc test coverage
