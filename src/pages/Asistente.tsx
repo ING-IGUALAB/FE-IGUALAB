@@ -8,7 +8,7 @@ import { PendienteBanner } from "./Ingesta";
 
 interface Mensaje {
   autor: "user" | "bot";
-  html: string;
+  texto: string;
   fuentes?: string[];
   typing?: boolean;
 }
@@ -53,45 +53,45 @@ export default function Asistente() {
       return;
     }
     const t = pregunta.toLowerCase();
-    setMensajes((xs) => [...xs, { autor: "user", html: pregunta }, { autor: "bot", html: "", typing: true }]);
+    setMensajes((xs) => [...xs, { autor: "user", texto: pregunta }, { autor: "bot", texto: "", typing: true }]);
     scrollLog();
 
     setTimeout(() => {
       const a = getAnalisis(empresa.id, anio);
-      let html = "";
+      let texto = "";
       let fuentes: string[] = [];
       if (!a) {
-        html = "No hay análisis persistido para este contexto.";
+        texto = "No hay análisis persistido para este contexto.";
       } else if (!esDominio(t)) {
-        html = "Solo puedo responder consultas sobre <strong>sostenibilidad empresarial, indicadores GRI, sanciones económicas</strong> o el contenido de los documentos ingestados (RN-037).";
+        texto = "Solo puedo responder consultas sobre sostenibilidad empresarial, indicadores GRI, sanciones económicas o el contenido de los documentos ingestados (RN-037).";
       } else if (t.includes("sanci") || t.includes("multa")) {
         if (!a.sanciones.length) {
-          html = `No identifico sanciones para <strong>${empresa.nombre}</strong> en ${anio} dentro del corpus. La ausencia de hallazgo no equivale a ausencia de evidencia (RN-031).`;
+          texto = `No identifico sanciones para ${empresa.nombre} en ${anio} dentro del corpus. La ausencia de hallazgo no equivale a ausencia de evidencia (RN-031).`;
         } else {
           const res = resumenSanciones(a.sanciones);
-          html = `Para <strong>${empresa.nombre}</strong> (${anio}) identifico ${a.sanciones.length} sanción(es): ` +
-            a.sanciones.map((s) => `${s.entidad} — ${s.monto != null ? money(s.monto) : "<em>no cuantificada</em>"}`).join("; ") +
-            `. Total cuantificado: <strong>${money(res.total)}</strong>${res.sinMonto ? `, con ${res.sinMonto} sin monto determinado` : ""}.`;
+          texto = `Para ${empresa.nombre} (${anio}) identifico ${a.sanciones.length} sanción(es): ` +
+            a.sanciones.map((s) => `${s.entidad} — ${s.monto != null ? money(s.monto) : "no cuantificada"}`).join("; ") +
+            `. Total cuantificado: ${money(res.total)}${res.sinMonto ? `, con ${res.sinMonto} sin monto determinado` : ""}.`;
           fuentes = [...new Set(a.sanciones.map((s) => s.doc))];
         }
       } else if (t.includes("brecha") || t.includes("gri") || t.includes("sub-reportad") || t.includes("sub reportad")) {
         const brechas = a.gri.filter((g) => g.estado !== "OK");
         if (!brechas.length) {
-          html = `Todos los códigos GRI evaluados de <strong>${empresa.nombre}</strong> (${anio}) están en estado OK.`;
+          texto = `Todos los códigos GRI evaluados de ${empresa.nombre} (${anio}) están en estado OK.`;
         } else {
-          html = `Brechas GRI de <strong>${empresa.nombre}</strong> (${anio}): ` + brechas.map((g) => `<strong>${g.codigo}</strong> (${g.tema}) — ${g.estado}`).join("; ") + ".";
+          texto = `Brechas GRI de ${empresa.nombre} (${anio}): ` + brechas.map((g) => `${g.codigo} (${g.tema}) — ${g.estado}`).join("; ") + ".";
           fuentes = [...new Set(brechas.map((g) => g.doc))];
         }
       } else {
         const e = esgScore(a.gri);
         const c = conteoEstados(a.gri);
-        html = `Resumen de <strong>${empresa.nombre}</strong> (${anio}): puntaje ESG <strong>${e}/100</strong>; ${c["OK"]} códigos OK, ${c["Baja sustancia"]} de baja sustancia y ${c["Sub-reportado"]} sub-reportados. ${a.sanciones.length ? `Con ${a.sanciones.length} sanción(es) registrada(s).` : "Sin sanciones registradas."}`;
+        texto = `Resumen de ${empresa.nombre} (${anio}): puntaje ESG ${e}/100; ${c["OK"]} códigos OK, ${c["Baja sustancia"]} de baja sustancia y ${c["Sub-reportado"]} sub-reportados. ${a.sanciones.length ? `Con ${a.sanciones.length} sanción(es) registrada(s).` : "Sin sanciones registradas."}`;
         fuentes = [...new Set(a.gri.map((g) => g.doc))];
       }
 
       setMensajes((xs) => {
         const sinTyping = xs.filter((m) => !m.typing);
-        return [...sinTyping, { autor: "bot", html, fuentes }];
+        return [...sinTyping, { autor: "bot", texto, fuentes }];
       });
       pushAudit(sesion!.nombre, "Consulta IA", `Consulta RAG · ${empresa.nombre} (${anio}): '${pregunta.slice(0, 50)}'`);
       scrollLog();
@@ -150,7 +150,7 @@ export default function Asistente() {
             m.autor === "user" ? (
               <div key={i} className="flex gap-lg max-w-4xl self-end flex-row-reverse">
                 <div className="w-10 h-10 rounded-full bg-surface-container-highest border border-outline-variant flex items-center justify-center shrink-0"><span className="material-symbols-outlined text-on-surface-variant">person</span></div>
-                <div className="bg-primary-container p-lg rounded-xl rounded-tr-sm shadow-sm text-on-primary-container"><p className="text-body-md">{m.html}</p></div>
+                <div className="bg-primary-container p-lg rounded-xl rounded-tr-sm shadow-sm text-on-primary-container"><p className="text-body-md">{m.texto}</p></div>
               </div>
             ) : m.typing ? (
               <div key={i} className="flex gap-lg">
@@ -162,7 +162,7 @@ export default function Asistente() {
                 <Avatar />
                 <div className="bg-surface-container-lowest border border-secondary-fixed p-lg rounded-xl rounded-tl-sm shadow-sm relative overflow-hidden w-full">
                   <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-secondary-fixed" />
-                  <div className="text-body-md text-on-surface" dangerouslySetInnerHTML={{ __html: m.html }} />
+                  <p className="text-body-md text-on-surface whitespace-pre-line">{m.texto}</p>
                   {m.fuentes && m.fuentes.length > 0 && (
                     <div className="flex items-center gap-sm mt-lg pt-md border-t border-outline-variant flex-wrap">
                       <span className="text-label-sm text-on-surface-variant uppercase">Fuentes citadas:</span>
