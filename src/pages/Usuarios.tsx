@@ -12,8 +12,17 @@ import { REGLAS_PASSWORD } from "../lib/password";
 import { fechaCorta } from "../lib/format";
 import type { Usuario } from "../types";
 
+const SKELETON_ROWS = ["r1", "r2", "r3", "r4"];
+const SKELETON_CELLS = [
+  { id: "nombre", w: "60%" },
+  { id: "correo", w: "80%" },
+  { id: "estado", w: "80%" },
+  { id: "rol", w: "80%" },
+  { id: "creado", w: "80%" },
+  { id: "acciones", w: "40%" },
+];
+
 export default function Usuarios() {
-  const toast = useToast();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [cargando, setCargando] = useState(true);
   const [errorCarga, setErrorCarga] = useState("");
@@ -69,54 +78,63 @@ export default function Usuarios() {
               </tr>
             </thead>
             <tbody className="text-body-md">
-              {cargando ? (
-                Array.from({ length: 4 }).map((_, i) => (
-                  <tr key={i} className="border-b border-surface-variant">
-                    {Array.from({ length: 6 }).map((__, j) => (
-                      <td key={j} className="py-md px-md"><div className="skeleton h-4" style={{ width: j === 0 ? "60%" : j === 5 ? "40%" : "80%" }} /></td>
-                    ))}
-                  </tr>
-                ))
-              ) : usuarios.length === 0 ? (
+              {cargando && SKELETON_ROWS.map((rowId) => (
+                <tr key={rowId} className="border-b border-surface-variant">
+                  {SKELETON_CELLS.map((c) => (
+                    <td key={`${rowId}-${c.id}`} className="py-md px-md"><div className="skeleton h-4" style={{ width: c.w }} /></td>
+                  ))}
+                </tr>
+              ))}
+              {!cargando && usuarios.length === 0 && (
                 <tr><td colSpan={6} className="py-xl text-center text-on-surface-variant">Sin usuarios.</td></tr>
-              ) : (
-                usuarios.map((u) => {
-                  const esSuper = u.rol === "superadmin";
-                  return (
-                    <tr key={u.id} className="border-b border-surface-variant hover:bg-surface/50 transition-colors">
-                      <td className="py-md px-md font-medium">{u.nombre}</td>
-                      <td className="py-md px-md text-on-surface-variant">{u.correo}</td>
-                      <td className="py-md px-md"><Badge estado={u.habilitado ? "Activo" : "Inactivo"} /></td>
-                      <td className="py-md px-md">
-                        <span className={`text-label-md ${esSuper ? "text-tertiary font-bold" : "text-secondary font-bold"}`}>
-                          {esSuper ? "SuperAdmin" : "Administrador"}
-                        </span>
-                      </td>
-                      <td className="py-md px-md text-on-surface-variant">{fechaCorta(u.creado_en)}</td>
-                      <td className="py-md px-md text-right">
-                        <div className="flex justify-end gap-xs">
-                          <button
-                            onClick={() => setToggle(u)}
-                            disabled={esSuper}
-                            title={esSuper ? "El SuperAdmin no puede deshabilitarse" : u.habilitado ? "Deshabilitar" : "Habilitar"}
-                            className={`p-1.5 rounded-lg ${esSuper ? "text-outline-variant cursor-not-allowed" : "text-on-surface-variant hover:text-tertiary hover:bg-tertiary-fixed/20"}`}
-                          >
-                            <span className="material-symbols-outlined text-[18px]">{u.habilitado ? "person_off" : "how_to_reg"}</span>
-                          </button>
-                          <button
-                            onClick={() => setTransferir(u)}
-                            disabled={esSuper || !u.habilitado}
-                            title={esSuper ? "Ya es SuperAdmin" : !u.habilitado ? "Requiere cuenta habilitada" : "Transferir rol SuperAdmin"}
-                            className={`p-1.5 rounded-lg ${esSuper || !u.habilitado ? "text-outline-variant cursor-not-allowed" : "text-on-surface-variant hover:text-tertiary hover:bg-tertiary-fixed/20"}`}
-                          >
-                            <span className="material-symbols-outlined text-[18px]">swap_horiz</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
               )}
+              {!cargando && usuarios.map((u) => {
+                const esSuper = u.rol === "superadmin";
+                const transferDisabled = esSuper || !u.habilitado;
+                const disabledCls = "text-outline-variant cursor-not-allowed";
+                const activeCls = "text-on-surface-variant hover:text-tertiary hover:bg-tertiary-fixed/20";
+                let toggleTitle: string;
+                if (esSuper) toggleTitle = "El SuperAdmin no puede deshabilitarse";
+                else if (u.habilitado) toggleTitle = "Deshabilitar";
+                else toggleTitle = "Habilitar";
+                let transferTitle: string;
+                if (esSuper) transferTitle = "Ya es SuperAdmin";
+                else if (u.habilitado) transferTitle = "Transferir rol SuperAdmin";
+                else transferTitle = "Requiere cuenta habilitada";
+                return (
+                  <tr key={u.id} className="border-b border-surface-variant hover:bg-surface/50 transition-colors">
+                    <td className="py-md px-md font-medium">{u.nombre}</td>
+                    <td className="py-md px-md text-on-surface-variant">{u.correo}</td>
+                    <td className="py-md px-md"><Badge estado={u.habilitado ? "Activo" : "Inactivo"} /></td>
+                    <td className="py-md px-md">
+                      <span className={`text-label-md ${esSuper ? "text-tertiary font-bold" : "text-secondary font-bold"}`}>
+                        {esSuper ? "SuperAdmin" : "Administrador"}
+                      </span>
+                    </td>
+                    <td className="py-md px-md text-on-surface-variant">{fechaCorta(u.creado_en)}</td>
+                    <td className="py-md px-md text-right">
+                      <div className="flex justify-end gap-xs">
+                        <button
+                          onClick={() => setToggle(u)}
+                          disabled={esSuper}
+                          title={toggleTitle}
+                          className={`p-1.5 rounded-lg ${esSuper ? disabledCls : activeCls}`}
+                        >
+                          <span className="material-symbols-outlined text-[18px]">{u.habilitado ? "person_off" : "how_to_reg"}</span>
+                        </button>
+                        <button
+                          onClick={() => setTransferir(u)}
+                          disabled={transferDisabled}
+                          title={transferTitle}
+                          className={`p-1.5 rounded-lg ${transferDisabled ? disabledCls : activeCls}`}
+                        >
+                          <span className="material-symbols-outlined text-[18px]">swap_horiz</span>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -132,7 +150,7 @@ export default function Usuarios() {
   );
 }
 
-function CrearUsuarioModal({ open, onClose, onCreado }: { open: boolean; onClose: () => void; onCreado: () => void }) {
+function CrearUsuarioModal({ open, onClose, onCreado }: Readonly<{ open: boolean; onClose: () => void; onCreado: () => void }>) {
   const toast = useToast();
   const [nombre, setNombre] = useState("");
   const [correo, setCorreo] = useState("");
@@ -172,17 +190,19 @@ function CrearUsuarioModal({ open, onClose, onCreado }: { open: boolean; onClose
           <span className="material-symbols-outlined text-primary">person_add</span> Crear usuario
         </h3>
         <div className="space-y-md">
-          <div className="flex flex-col gap-xs">
-            <label className="text-label-md text-on-surface-variant">Nombre completo</label>
+          <label className="flex flex-col gap-xs">
+            <span className="text-label-md text-on-surface-variant">Nombre completo</span>
             <input value={nombre} onChange={(e) => setNombre(e.target.value)} className="rounded-xl border border-outline-variant py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" placeholder="Ej. Ana García" />
-          </div>
-          <div className="flex flex-col gap-xs">
-            <label className="text-label-md text-on-surface-variant">Correo electrónico</label>
+          </label>
+          <label className="flex flex-col gap-xs">
+            <span className="text-label-md text-on-surface-variant">Correo electrónico</span>
             <input type="email" value={correo} onChange={(e) => setCorreo(e.target.value)} className="rounded-xl border border-outline-variant py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" placeholder="ana@igualab.com" />
-          </div>
+          </label>
           <div className="flex flex-col gap-xs">
-            <label className="text-label-md text-on-surface-variant">Contraseña</label>
-            <input type="text" value={password} onChange={(e) => setPassword(e.target.value)} className="rounded-xl border border-outline-variant py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" placeholder="Mín. 8 · mayús., minús., dígito y símbolo" />
+            <label className="flex flex-col gap-xs">
+              <span className="text-label-md text-on-surface-variant">Contraseña</span>
+              <input type="text" value={password} onChange={(e) => setPassword(e.target.value)} className="rounded-xl border border-outline-variant py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" placeholder="Mín. 8 · mayús., minús., dígito y símbolo" />
+            </label>
             <ul className="grid grid-cols-2 gap-xs text-label-sm mt-xs">
               {reglas.map((r) => (
                 <li key={r.msg} className={`flex items-center gap-xs ${r.ok ? "text-primary" : "text-on-surface-variant"}`}>
@@ -207,7 +227,7 @@ function CrearUsuarioModal({ open, onClose, onCreado }: { open: boolean; onClose
   );
 }
 
-function ToggleModal({ usuario, onClose, onHecho }: { usuario: Usuario | null; onClose: () => void; onHecho: () => void }) {
+function ToggleModal({ usuario, onClose, onHecho }: Readonly<{ usuario: Usuario | null; onClose: () => void; onHecho: () => void }>) {
   const toast = useToast();
   const [cargando, setCargando] = useState(false);
   if (!usuario) return null;
@@ -245,7 +265,7 @@ function ToggleModal({ usuario, onClose, onHecho }: { usuario: Usuario | null; o
   );
 }
 
-function TransferirModal({ usuario, onClose }: { usuario: Usuario | null; onClose: () => void }) {
+function TransferirModal({ usuario, onClose }: Readonly<{ usuario: Usuario | null; onClose: () => void }>) {
   const toast = useToast();
   const navigate = useNavigate();
   const { actualizarRol } = useAuth();

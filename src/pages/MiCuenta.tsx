@@ -46,18 +46,18 @@ export default function MiCuenta() {
       <SectionHeader titulo="Mi cuenta" sub={`Sesión de ${sesion?.nombre}. Actualiza tu contraseña.`} />
       <div className="max-w-lg bg-surface-container-lowest rounded-xl border border-surface-variant p-lg ambient-shadow">
         <form onSubmit={onSubmit} className="flex flex-col gap-md">
-          <div className="flex flex-col gap-xs">
-            <label className="text-label-md text-on-surface-variant">Contraseña actual</label>
+          <label className="flex flex-col gap-xs">
+            <span className="text-label-md text-on-surface-variant">Contraseña actual</span>
             <input type="password" value={actual} onChange={(e) => setActual(e.target.value)} className="h-[44px] rounded-xl border border-outline-variant px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" />
-          </div>
-          <div className="flex flex-col gap-xs">
-            <label className="text-label-md text-on-surface-variant">Nueva contraseña</label>
+          </label>
+          <label className="flex flex-col gap-xs">
+            <span className="text-label-md text-on-surface-variant">Nueva contraseña</span>
             <input type="password" value={nueva} onChange={(e) => setNueva(e.target.value)} className="h-[44px] rounded-xl border border-outline-variant px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" />
-          </div>
-          <div className="flex flex-col gap-xs">
-            <label className="text-label-md text-on-surface-variant">Confirmar nueva contraseña</label>
+          </label>
+          <label className="flex flex-col gap-xs">
+            <span className="text-label-md text-on-surface-variant">Confirmar nueva contraseña</span>
             <input type="password" value={conf} onChange={(e) => setConf(e.target.value)} className="h-[44px] rounded-xl border border-outline-variant px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" />
-          </div>
+          </label>
           <ul className="grid grid-cols-2 gap-xs text-label-sm">
             {reglas.map((r) => (
               <li key={r.msg} className={`flex items-center gap-xs ${r.ok ? "text-primary" : "text-on-surface-variant"}`}>

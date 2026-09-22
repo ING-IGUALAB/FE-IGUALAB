@@ -8,7 +8,7 @@ interface Props {
   width?: string;
 }
 
-export default function Modal({ open, onClose, children, width = "max-w-lg" }: Props) {
+export default function Modal({ open, onClose, children, width = "max-w-lg" }: Readonly<Props>) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();

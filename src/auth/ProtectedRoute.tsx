@@ -6,10 +6,10 @@ import type { Rol } from "../types";
 export default function ProtectedRoute({
   children,
   rol,
-}: {
+}: Readonly<{
   children: ReactNode;
   rol?: Rol;
-}) {
+}>) {
   const { autenticado, rol: rolActual } = useAuth();
   const location = useLocation();
 

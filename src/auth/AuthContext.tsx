@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Rol, SesionActual } from "../types";
 import { guardarSesion, leerSesion, limpiarSesion } from "../lib/token";
 import { AUTH_401_EVENT } from "../api/client";
@@ -15,37 +15,35 @@ interface AuthCtx {
 
 const Ctx = createContext<AuthCtx | null>(null);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   const [sesion, setSesion] = useState<SesionActual | null>(() => leerSesion());
 
   useEffect(() => {
-    function onExpira() {
-      setSesion(null);
-    }
-    window.addEventListener(AUTH_401_EVENT, onExpira);
-    return () => window.removeEventListener(AUTH_401_EVENT, onExpira);
+    const onExpira = () => setSesion(null);
+    globalThis.addEventListener(AUTH_401_EVENT, onExpira);
+    return () => globalThis.removeEventListener(AUTH_401_EVENT, onExpira);
   }, []);
 
-  async function iniciarSesion(correo: string, password: string) {
+  const iniciarSesion = useCallback(async (correo: string, password: string) => {
     const r = await authApi.login(correo, password);
     const s: SesionActual = { token: r.access_token, rol: r.rol, nombre: r.nombre };
     guardarSesion(s);
     setSesion(s);
     return s;
-  }
+  }, []);
 
   // RF-050: aplicar el rol vigente en la sesión activa (p. ej. tras transferir
   // el SuperAdmin) sin obligar a un nuevo login.
-  function actualizarRol(rol: Rol) {
+  const actualizarRol = useCallback((rol: Rol) => {
     setSesion((prev) => {
       if (!prev) return prev;
       const s: SesionActual = { ...prev, rol };
       guardarSesion(s);
       return s;
     });
-  }
+  }, []);
 
-  async function cerrarSesion() {
+  const cerrarSesion = useCallback(async () => {
     try {
       await authApi.logout();
     } catch {
@@ -53,22 +51,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     limpiarSesion();
     setSesion(null);
-  }
+  }, []);
 
-  return (
-    <Ctx.Provider
-      value={{
-        sesion,
-        autenticado: !!sesion,
-        rol: sesion?.rol ?? null,
-        iniciarSesion,
-        cerrarSesion,
-        actualizarRol,
-      }}
-    >
-      {children}
-    </Ctx.Provider>
+  const value = useMemo(
+    () => ({
+      sesion,
+      autenticado: !!sesion,
+      rol: sesion?.rol ?? null,
+      iniciarSesion,
+      cerrarSesion,
+      actualizarRol,
+    }),
+    [sesion, iniciarSesion, cerrarSesion, actualizarRol]
   );
+
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
 export function useAuth() {

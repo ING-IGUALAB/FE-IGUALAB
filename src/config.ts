@@ -12,12 +12,11 @@
  * Nota: cualquier valor aquí es PÚBLICO (viaja al navegador). No poner secretos.
  */
 declare global {
-  interface Window {
-    __ENV__?: { VITE_API_URL?: string };
-  }
+  // eslint-disable-next-line no-var
+  var __ENV__: { VITE_API_URL?: string } | undefined;
 }
 
-const runtimeEnv = typeof window !== "undefined" ? window.__ENV__ : undefined;
+const runtimeEnv = typeof globalThis === "undefined" ? undefined : globalThis.__ENV__;
 
 export const config = {
   /** URL base del backend de Igualab. */

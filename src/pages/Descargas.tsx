@@ -21,7 +21,7 @@ export default function Descargas() {
     if (!ver || !empresa) return;
     pushAudit(sesion!.nombre, "Descarga", `Descargó reporte de prospección · ${empresa.nombre} (${ver.anio})`);
     toast("Reporte descargado (simulado con impresión).", "success");
-    setTimeout(() => window.print(), 300);
+    setTimeout(() => globalThis.print(), 300);
   }
 
   return (

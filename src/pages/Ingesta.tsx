@@ -84,7 +84,7 @@ export default function Ingesta() {
       estado: sinContenido ? "Rechazado" : "Éxito",
       fecha: new Date().toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" }),
       cuenta: sesion!.nombre,
-      hash: "sha256:" + Math.random().toString(16).slice(2, 6) + "…" + Math.random().toString(16).slice(2, 6),
+      hash: "sha256:" + crypto.randomUUID().replace(/-/g, "").slice(0, 4) + "…" + crypto.randomUUID().replace(/-/g, "").slice(0, 4),
       tamano: (f.size / 1e6).toFixed(1) + " MB",
     };
     if (sinContenido) {
@@ -118,7 +118,7 @@ export default function Ingesta() {
               </Campo>
               <div className="grid grid-cols-2 gap-sm">
                 <Campo label="Año">
-                  <input type="number" min={2000} max={2030} value={anio} onChange={(e) => setAnio(parseInt(e.target.value, 10) || 0)} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" />
+                  <input type="number" min={2000} max={2030} value={anio} onChange={(e) => setAnio(Number.parseInt(e.target.value, 10) || 0)} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" />
                 </Campo>
                 <Campo label="Tipo (RN-011)">
                   <select value={tipo} onChange={(e) => setTipo(e.target.value as TipoDocumento)} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
@@ -136,7 +136,7 @@ export default function Ingesta() {
                 <span className="material-symbols-outlined text-[36px] text-primary">cloud_upload</span>
                 <span className="text-body-md text-on-background font-medium">Arrastra el .md aquí o haz clic para seleccionar</span>
                 <span className="text-label-sm text-outline">Sólo Markdown (.md) · hasta 50 MB (RNF-014)</span>
-                <input ref={inputRef} type="file" multiple accept=".md,text/markdown" className="hidden" onChange={(e) => { if (e.target.files?.length) setPendientes(Array.from(e.target.files)); e.target.value = ""; }} />
+                <input ref={inputRef} type="file" multiple accept=".md,text/markdown" className="hidden" onChange={(e) => { if (e.target.files?.length) { setPendientes(Array.from(e.target.files)); } e.target.value = ""; }} />
               </label>
 
               {pendientes.length > 0 && (
@@ -224,7 +224,7 @@ export default function Ingesta() {
   );
 }
 
-function Campo({ label, children }: { label: string; children: ReactNode }) {
+function Campo({ label, children }: Readonly<{ label: string; children: ReactNode }>) {
   return (
     <div className="flex flex-col gap-xs">
       <label className="text-label-md text-on-surface-variant">{label}</label>
@@ -242,7 +242,7 @@ export function PendienteBanner() {
   );
 }
 
-function AgregarEmpresaModal({ open, onClose, onCreada }: { open: boolean; onClose: () => void; onCreada: (nombre: string, sector: Sector) => boolean }) {
+function AgregarEmpresaModal({ open, onClose, onCreada }: Readonly<{ open: boolean; onClose: () => void; onCreada: (nombre: string, sector: Sector) => boolean }>) {
   const [nombre, setNombre] = useState("");
   const [sector, setSector] = useState<Sector>(SECTORES[0]);
   const [error, setError] = useState("");
