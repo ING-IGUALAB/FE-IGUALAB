@@ -232,6 +232,7 @@ function ToggleModal({ usuario, onClose, onHecho }: Readonly<{ usuario: Usuario 
   const [cargando, setCargando] = useState(false);
   if (!usuario) return null;
   const habilitar = !usuario.habilitado;
+  const accion = habilitar ? "Habilitar" : "Deshabilitar";
 
   async function confirmar() {
     setCargando(true);
@@ -258,7 +259,7 @@ function ToggleModal({ usuario, onClose, onHecho }: Readonly<{ usuario: Usuario 
         </p>
         <div className="flex justify-center gap-sm mt-lg">
           <button onClick={onClose} className="px-lg py-sm rounded-lg border border-outline-variant text-body-md text-on-surface-variant">Cancelar</button>
-          <button onClick={confirmar} disabled={cargando} className={`px-lg py-sm rounded-lg text-label-md font-semibold disabled:opacity-60 flex items-center gap-sm ${habilitar ? "bg-primary text-on-primary" : "bg-tertiary text-on-tertiary"}`}>{cargando && <Spinner size={16} />}{cargando ? "Procesando…" : habilitar ? "Habilitar" : "Deshabilitar"}</button>
+          <button onClick={confirmar} disabled={cargando} className={`px-lg py-sm rounded-lg text-label-md font-semibold disabled:opacity-60 flex items-center gap-sm ${habilitar ? "bg-primary text-on-primary" : "bg-tertiary text-on-tertiary"}`}>{cargando && <Spinner size={16} />}{cargando ? "Procesando…" : accion}</button>
         </div>
       </div>
     </Modal>

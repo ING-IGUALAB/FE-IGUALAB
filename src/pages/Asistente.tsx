@@ -24,7 +24,10 @@ const SUGERENCIAS = [
 const DOMINIO = ["sanci", "gri", "brecha", "emision", "sosten", "esg", "reporte", "memoria", "residuo", "agua", "comunidad", "energ", "resumen", "desempeñ", "ambiental", "gobernanza", "multa", "biodivers"];
 
 let msgSeq = 0;
-const nuevoId = () => `m${(msgSeq += 1)}`;
+function nuevoId(): string {
+  msgSeq += 1;
+  return `m${msgSeq}`;
+}
 
 function esDominio(t: string): boolean {
   return DOMINIO.some((k) => t.includes(k));
