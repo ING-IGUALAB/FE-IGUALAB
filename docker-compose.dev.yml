@@ -1,0 +1,19 @@
+# Deploy DEV del frontend (usado por Jenkins en la rama development).
+# Cumple: sin puertos expuestos, un solo servicio, salida a proxy_net (external).
+# El reverse proxy en proxy_net enruta dev-igualab.ingsoftware.lat -> este contenedor:80.
+name: igualab-frontend-dev
+services:
+  frontend:
+    build: .
+    container_name: igualab-frontend-dev
+    # Jenkins copia el secreto a .env (cp "$SECRET_FILE" .env). Aquí se inyecta al
+    # contenedor; el entrypoint genera /env.js en runtime con VITE_API_URL.
+    env_file:
+      - .env
+    networks:
+      - proxy_net
+    restart: unless-stopped
+
+networks:
+  proxy_net:
+    external: true

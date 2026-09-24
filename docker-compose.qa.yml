@@ -1,0 +1,16 @@
+# Deploy QA del frontend (Jenkins, rama qa).
+# Sin puertos expuestos, un solo servicio, salida a proxy_net (external).
+name: igualab-frontend-qa
+services:
+  frontend:
+    build: .
+    container_name: igualab-frontend-qa
+    env_file:
+      - .env
+    networks:
+      - proxy_net
+    restart: unless-stopped
+
+networks:
+  proxy_net:
+    external: true

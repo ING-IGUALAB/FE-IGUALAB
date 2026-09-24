@@ -1,0 +1,4 @@
+FROM node:24-alpine
+
+# SonarScanner CLI necesita Java y el analizador JS/TS usa el Node de esta imagen.
+RUN apk add --no-cache openjdk21-jre

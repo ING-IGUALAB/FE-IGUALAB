@@ -1,0 +1,75 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import type { Rol, SesionActual } from "../types";
+import { guardarSesion, leerSesion, limpiarSesion } from "../lib/token";
+import { AUTH_401_EVENT } from "../api/client";
+import * as authApi from "../api/auth";
+
+interface AuthCtx {
+  sesion: SesionActual | null;
+  autenticado: boolean;
+  rol: Rol | null;
+  iniciarSesion: (correo: string, password: string) => Promise<SesionActual>;
+  cerrarSesion: () => Promise<void>;
+  actualizarRol: (rol: Rol) => void;
+}
+
+const Ctx = createContext<AuthCtx | null>(null);
+
+export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
+  const [sesion, setSesion] = useState<SesionActual | null>(() => leerSesion());
+
+  useEffect(() => {
+    const onExpira = () => setSesion(null);
+    globalThis.addEventListener(AUTH_401_EVENT, onExpira);
+    return () => globalThis.removeEventListener(AUTH_401_EVENT, onExpira);
+  }, []);
+
+  const iniciarSesion = useCallback(async (correo: string, password: string) => {
+    const r = await authApi.login(correo, password);
+    const s: SesionActual = { token: r.access_token, rol: r.rol, nombre: r.nombre };
+    guardarSesion(s);
+    setSesion(s);
+    return s;
+  }, []);
+
+  // RF-050: aplicar el rol vigente en la sesión activa (p. ej. tras transferir
+  // el SuperAdmin) sin obligar a un nuevo login.
+  const actualizarRol = useCallback((rol: Rol) => {
+    setSesion((prev) => {
+      if (!prev) return prev;
+      const s: SesionActual = { ...prev, rol };
+      guardarSesion(s);
+      return s;
+    });
+  }, []);
+
+  const cerrarSesion = useCallback(async () => {
+    try {
+      await authApi.logout();
+    } catch {
+      /* aunque falle, limpiamos localmente */
+    }
+    limpiarSesion();
+    setSesion(null);
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      sesion,
+      autenticado: !!sesion,
+      rol: sesion?.rol ?? null,
+      iniciarSesion,
+      cerrarSesion,
+      actualizarRol,
+    }),
+    [sesion, iniciarSesion, cerrarSesion, actualizarRol]
+  );
+
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
+
+export function useAuth() {
+  const ctx = useContext(Ctx);
+  if (!ctx) throw new Error("useAuth debe usarse dentro de <AuthProvider>");
+  return ctx;
+}
