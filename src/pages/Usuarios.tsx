@@ -10,6 +10,7 @@ import { mensajeError } from "../api/client";
 import * as usuariosApi from "../api/usuarios";
 import { REGLAS_PASSWORD } from "../lib/password";
 import { fechaCorta } from "../lib/format";
+import { esCorreoValido } from "../lib/validacion";
 import type { Usuario } from "../types";
 
 const SKELETON_ROWS = ["r1", "r2", "r3", "r4"];
@@ -167,7 +168,7 @@ function CrearUsuarioModal({ open, onClose, onCreado }: Readonly<{ open: boolean
   async function guardar() {
     setError("");
     if (!nombre.trim() || !correo.trim()) return setError("Nombre y correo son obligatorios.");
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) return setError("Formato de correo inválido.");
+    if (!esCorreoValido(correo)) return setError("Formato de correo inválido.");
     if (!reglas.every((r) => r.ok)) return setError("La contraseña no cumple la política de seguridad.");
     setCargando(true);
     try {
