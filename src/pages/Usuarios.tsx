@@ -151,25 +151,37 @@ export default function Usuarios() {
   );
 }
 
+type ErroresCampo = { nombre?: string; correo?: string; password?: string };
+
+const claseInput = (invalido: boolean) =>
+  `rounded-xl border py-sm px-md text-body-md focus:ring-1 focus:ring-primary outline-none ${
+    invalido ? "border-error focus:border-error" : "border-outline-variant focus:border-primary"
+  }`;
+
 function CrearUsuarioModal({ open, onClose, onCreado }: Readonly<{ open: boolean; onClose: () => void; onCreado: () => void }>) {
   const toast = useToast();
   const [nombre, setNombre] = useState("");
   const [correo, setCorreo] = useState("");
   const [password, setPassword] = useState("");
+  const [errs, setErrs] = useState<ErroresCampo>({});
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
 
   const reglas = useMemo(() => REGLAS_PASSWORD.map((r) => ({ msg: r.msg, ok: r.ok(password, correo) })), [password, correo]);
 
   function reset() {
-    setNombre(""); setCorreo(""); setPassword(""); setError("");
+    setNombre(""); setCorreo(""); setPassword(""); setErrs({}); setError("");
   }
 
   async function guardar() {
     setError("");
-    if (!nombre.trim() || !correo.trim()) return setError("Nombre y correo son obligatorios.");
-    if (!esCorreoValido(correo)) return setError("Formato de correo inválido.");
-    if (!reglas.every((r) => r.ok)) return setError("La contraseña no cumple la política de seguridad.");
+    const e: ErroresCampo = {};
+    if (!nombre.trim()) e.nombre = "Este campo es obligatorio.";
+    if (!correo.trim()) e.correo = "Este campo es obligatorio.";
+    else if (!esCorreoValido(correo)) e.correo = "El formato del correo es incorrecto.";
+    if (!reglas.every((r) => r.ok)) e.password = "La contraseña debe cumplir todos los requisitos.";
+    setErrs(e);
+    if (Object.keys(e).length > 0) return;
     setCargando(true);
     try {
       await usuariosApi.crearUsuario({ nombre: nombre.trim(), correo: correo.trim(), password });
@@ -193,17 +205,43 @@ function CrearUsuarioModal({ open, onClose, onCreado }: Readonly<{ open: boolean
         <div className="space-y-md">
           <label className="flex flex-col gap-xs">
             <span className="text-label-md text-on-surface-variant">Nombre completo</span>
-            <input value={nombre} onChange={(e) => setNombre(e.target.value)} className="rounded-xl border border-outline-variant py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" placeholder="Ej. Ana García" />
+            <input
+              value={nombre}
+              onChange={(e) => { setNombre(e.target.value); setErrs((p) => ({ ...p, nombre: undefined })); }}
+              aria-invalid={!!errs.nombre}
+              aria-describedby={errs.nombre ? "cu-err-nombre" : undefined}
+              className={claseInput(!!errs.nombre)}
+              placeholder="Ej. Ana García"
+            />
+            {errs.nombre && <span id="cu-err-nombre" className="text-label-sm text-error">{errs.nombre}</span>}
           </label>
           <label className="flex flex-col gap-xs">
             <span className="text-label-md text-on-surface-variant">Correo electrónico</span>
-            <input type="email" value={correo} onChange={(e) => setCorreo(e.target.value)} className="rounded-xl border border-outline-variant py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" placeholder="ana@igualab.com" />
+            <input
+              type="email"
+              value={correo}
+              onChange={(e) => { setCorreo(e.target.value); setErrs((p) => ({ ...p, correo: undefined })); }}
+              aria-invalid={!!errs.correo}
+              aria-describedby={errs.correo ? "cu-err-correo" : undefined}
+              className={claseInput(!!errs.correo)}
+              placeholder="ana@igualab.com"
+            />
+            {errs.correo && <span id="cu-err-correo" className="text-label-sm text-error">{errs.correo}</span>}
           </label>
           <div className="flex flex-col gap-xs">
             <label className="flex flex-col gap-xs">
               <span className="text-label-md text-on-surface-variant">Contraseña</span>
-              <input type="text" value={password} onChange={(e) => setPassword(e.target.value)} className="rounded-xl border border-outline-variant py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" placeholder="Mín. 8 · mayús., minús., dígito y símbolo" />
+              <input
+                type="text"
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setErrs((p) => ({ ...p, password: undefined })); }}
+                aria-invalid={!!errs.password}
+                aria-describedby={errs.password ? "cu-err-password" : undefined}
+                className={claseInput(!!errs.password)}
+                placeholder="Mín. 8 · mayús., minús., dígito y símbolo"
+              />
             </label>
+            {errs.password && <span id="cu-err-password" className="text-label-sm text-error">{errs.password}</span>}
             <ul className="grid grid-cols-2 gap-xs text-label-sm mt-xs">
               {reglas.map((r) => (
                 <li key={r.msg} className={`flex items-center gap-xs ${r.ok ? "text-primary" : "text-on-surface-variant"}`}>
