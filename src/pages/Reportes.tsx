@@ -61,7 +61,7 @@ export default function Reportes() {
     agregarReporte({ id: "r" + Date.now(), empresaId: empresa.id, empresa: empresa.nombre, sector: empresa.sector, anio: anioSel, generadoPor: sesion!.nombre, fecha: new Date().toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" }) });
     pushAudit(sesion!.nombre, "Generación de reporte", `Generó reporte de prospección · ${empresa.nombre} (${anioSel})`);
     toast("Reporte generado, registrado en auditoría e inmutable (RN-026).", "success");
-    setTimeout(() => window.print(), 400);
+    setTimeout(() => globalThis.print(), 400);
   }
 
   return (
@@ -85,7 +85,7 @@ export default function Reportes() {
                 </select>
               </Campo>
               <Campo label="3 · Año">
-                <select value={anioSel || ""} onChange={(e) => { setAnio(parseInt(e.target.value, 10)); setPreview(false); }} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
+                <select value={anioSel || ""} onChange={(e) => { setAnio(Number.parseInt(e.target.value, 10)); setPreview(false); }} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
                   {anios.map((a) => <option key={a}>{a}</option>)}
                 </select>
               </Campo>
@@ -106,7 +106,7 @@ export default function Reportes() {
           <div className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
             <div className="p-lg border-b border-outline-variant bg-surface-bright flex justify-between items-center">
               <h3 className="text-title-lg text-on-surface">Estados de códigos GRI (asignación manual)</h3>
-              <span className="text-label-sm text-on-surface-variant">{esg != null ? `Puntaje ESG: ${esg}/100 · OK=100 · Baja=50 · Sub=0 (RF-051)` : ""}</span>
+              <span className="text-label-sm text-on-surface-variant">{esg == null ? "" : `Puntaje ESG: ${esg}/100 · OK=100 · Baja=50 · Sub=0 (RF-051)`}</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
@@ -138,7 +138,7 @@ export default function Reportes() {
             </div>
           </div>
 
-          {preview && empresa && anioSel && (
+          {preview && empresa && anioSel != null && (
             <div id="rep-preview" className="bg-surface-container-low rounded-xl border border-surface-variant p-lg">
               <div className="flex justify-between items-center mb-sm">
                 <h3 className="text-label-md text-on-surface-variant uppercase tracking-wider">Vista previa del documento</h3>
@@ -183,7 +183,7 @@ export default function Reportes() {
   );
 }
 
-function Campo({ label, children }: { label: string; children: ReactNode }) {
+function Campo({ label, children }: Readonly<{ label: string; children: ReactNode }>) {
   return (
     <div className="flex flex-col gap-xs">
       <label className="text-label-md text-on-surface-variant">{label}</label>

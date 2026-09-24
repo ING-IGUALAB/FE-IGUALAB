@@ -16,7 +16,7 @@ export function iniciales(nombre: string): string {
 export function fechaCorta(iso?: string): string {
   if (!iso) return "";
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
+  if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" });
 }
 

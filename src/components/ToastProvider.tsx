@@ -7,7 +7,7 @@ type ToastTipo = "success" | "error" | "info" | "warn";
  * Envuelve la app con el Toaster de sonner. `useToast()` devuelve una función
  * compatible con el resto del código: toast(mensaje, tipo).
  */
-export function ToastProvider({ children }: { children: ReactNode }) {
+export function ToastProvider({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <>
       {children}

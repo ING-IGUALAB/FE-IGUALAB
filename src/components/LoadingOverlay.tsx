@@ -15,37 +15,39 @@ export default function LoadingOverlay() {
   const [visible, setVisible] = useState(false);
   const activos = useRef(0);
   const shownAt = useRef(0);
+  const visibleRef = useRef(false);
   const showTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    const show = () => {
+      shownAt.current = Date.now();
+      visibleRef.current = true;
+      setVisible(true);
+    };
+    const hide = () => {
+      visibleRef.current = false;
+      setVisible(false);
+    };
     const start = () => {
       activos.current += 1;
-      if (activos.current === 1) {
-        if (hideTimer.current) { clearTimeout(hideTimer.current); hideTimer.current = null; }
-        showTimer.current = setTimeout(() => {
-          shownAt.current = Date.now();
-          setVisible(true);
-        }, DELAY);
-      }
+      if (activos.current !== 1) return;
+      if (hideTimer.current) { clearTimeout(hideTimer.current); hideTimer.current = null; }
+      showTimer.current = setTimeout(show, DELAY);
     };
     const end = () => {
       activos.current = Math.max(0, activos.current - 1);
-      if (activos.current === 0) {
-        if (showTimer.current) { clearTimeout(showTimer.current); showTimer.current = null; }
-        setVisible((v) => {
-          if (!v) return false;
-          const restante = Math.max(0, MIN_VISIBLE - (Date.now() - shownAt.current));
-          hideTimer.current = setTimeout(() => setVisible(false), restante);
-          return v;
-        });
-      }
+      if (activos.current !== 0) return;
+      if (showTimer.current) { clearTimeout(showTimer.current); showTimer.current = null; }
+      if (!visibleRef.current) return;
+      const restante = Math.max(0, MIN_VISIBLE - (Date.now() - shownAt.current));
+      hideTimer.current = setTimeout(hide, restante);
     };
-    window.addEventListener(LOADING_START, start);
-    window.addEventListener(LOADING_END, end);
+    globalThis.addEventListener(LOADING_START, start);
+    globalThis.addEventListener(LOADING_END, end);
     return () => {
-      window.removeEventListener(LOADING_START, start);
-      window.removeEventListener(LOADING_END, end);
+      globalThis.removeEventListener(LOADING_START, start);
+      globalThis.removeEventListener(LOADING_END, end);
       if (showTimer.current) clearTimeout(showTimer.current);
       if (hideTimer.current) clearTimeout(hideTimer.current);
     };

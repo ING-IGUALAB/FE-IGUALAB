@@ -59,14 +59,14 @@ export default function Restablecer() {
         )}
 
         <form onSubmit={onSubmit} className="w-full flex flex-col gap-md" noValidate>
-          <div className="flex flex-col gap-xs">
-            <label className="text-label-md text-on-surface-variant">Nueva contraseña</label>
+          <label className="flex flex-col gap-xs">
+            <span className="text-label-md text-on-surface-variant">Nueva contraseña</span>
             <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} className="h-[48px] rounded-xl border border-outline-variant px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" />
-          </div>
-          <div className="flex flex-col gap-xs">
-            <label className="text-label-md text-on-surface-variant">Confirmar contraseña</label>
+          </label>
+          <label className="flex flex-col gap-xs">
+            <span className="text-label-md text-on-surface-variant">Confirmar contraseña</span>
             <input type="password" value={conf} onChange={(e) => setConf(e.target.value)} className="h-[48px] rounded-xl border border-outline-variant px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" />
-          </div>
+          </label>
 
           <ul className="grid grid-cols-2 gap-xs text-label-sm">
             {reglas.map((r) => (

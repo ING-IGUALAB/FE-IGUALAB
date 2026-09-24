@@ -134,7 +134,7 @@ export default function Login() {
               </>
             ) : (
               <>
-                Iniciar sesión
+                Iniciar sesión{" "}
                 <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
               </>
             )}
