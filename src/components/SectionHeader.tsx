@@ -6,7 +6,7 @@ interface Props {
   acciones?: ReactNode;
 }
 
-export default function SectionHeader({ titulo, sub, acciones }: Props) {
+export default function SectionHeader({ titulo, sub, acciones }: Readonly<Props>) {
   return (
     <div className="flex flex-col md:flex-row md:items-end justify-between gap-md">
       <div>

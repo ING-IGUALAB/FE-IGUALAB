@@ -7,10 +7,21 @@ interface Props {
   extra?: string;
 }
 
-export default function KpiCard({ titulo, valor, icono, color = "primary", pie = 75, extra }: Props) {
-  const barCls = color === "secondary" ? "bg-secondary" : color === "tertiary" ? "bg-tertiary" : "bg-primary";
-  const iconCls =
-    color === "secondary" ? "text-secondary bg-secondary/10" : color === "tertiary" ? "text-tertiary bg-tertiary/10" : "text-primary bg-primary/10";
+const BAR_CLS = {
+  primary: "bg-primary",
+  secondary: "bg-secondary",
+  tertiary: "bg-tertiary",
+} as const;
+
+const ICON_CLS = {
+  primary: "text-primary bg-primary/10",
+  secondary: "text-secondary bg-secondary/10",
+  tertiary: "text-tertiary bg-tertiary/10",
+} as const;
+
+export default function KpiCard({ titulo, valor, icono, color = "primary", pie = 75, extra }: Readonly<Props>) {
+  const barCls = BAR_CLS[color];
+  const iconCls = ICON_CLS[color];
   return (
     <div className="bg-surface-container-lowest rounded-xl border border-surface-variant p-lg ambient-shadow ambient-shadow-hover relative overflow-hidden">
       <div className="flex justify-between items-start mb-md">

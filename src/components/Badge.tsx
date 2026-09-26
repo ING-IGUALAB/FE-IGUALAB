@@ -19,7 +19,7 @@ const MAPA: Record<string, string> = {
   "Baja sustancia": "bg-tertiary-fixed text-on-tertiary-fixed",
 };
 
-export default function Badge({ estado }: { estado: string }) {
+export default function Badge({ estado }: Readonly<{ estado: string }>) {
   const cls = MAPA[estado] || "bg-surface-variant text-on-surface-variant";
   return (
     <span className={`inline-flex items-center px-2 py-1 rounded-full text-label-sm ${cls}`}>{estado}</span>

@@ -46,18 +46,18 @@ export async function api<T>(path: string, opts: Opts = {}): Promise<T> {
   const token = getToken();
   if (auth && token) headers["Authorization"] = `Bearer ${token}`;
 
-  window.dispatchEvent(new CustomEvent(LOADING_START));
+  globalThis.dispatchEvent(new CustomEvent(LOADING_START));
   let res: Response;
   try {
     res = await fetch(`${API}${path}`, {
       method,
       headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
     throw new ApiError(0, { code: "NETWORK_ERROR", message: "No se pudo conectar con el servidor." });
   } finally {
-    window.dispatchEvent(new CustomEvent(LOADING_END));
+    globalThis.dispatchEvent(new CustomEvent(LOADING_END));
   }
 
   if (res.status === 204) return null as T;
@@ -76,7 +76,7 @@ export async function api<T>(path: string, opts: Opts = {}): Promise<T> {
     // Cierre de sesión SOLO ante sesión inválida o expirada (no ante cualquier 401).
     if (be?.code && CODIGOS_CIERRE_SESION.has(be.code)) {
       limpiarSesion();
-      window.dispatchEvent(new CustomEvent(AUTH_401_EVENT));
+      globalThis.dispatchEvent(new CustomEvent(AUTH_401_EVENT));
     }
     throw apiErr;
   }

@@ -27,7 +27,14 @@ interface DomainCtx {
 
 const Ctx = createContext<DomainCtx | null>(null);
 
-export function DomainProvider({ children }: { children: ReactNode }) {
+// Secuencia incremental para ids de auditoría (evita PRNG / Math.random).
+let auditSeq = 1000;
+function siguienteAuditId(): number {
+  auditSeq += 1;
+  return auditSeq;
+}
+
+export function DomainProvider({ children }: Readonly<{ children: ReactNode }>) {
   const [empresas, setEmpresas] = useState<Empresa[]>(() => structuredClone(EMPRESAS_SEED));
   const [documentos, setDocumentos] = useState<Documento[]>(() => structuredClone(DOCUMENTOS_SEED));
   const [reportes, setReportes] = useState<Reporte[]>(() => structuredClone(REPORTES_SEED));
@@ -38,7 +45,7 @@ export function DomainProvider({ children }: { children: ReactNode }) {
     setAudit((xs) => [
       ...xs,
       {
-        id: Date.now() + Math.floor(Math.random() * 1000),
+        id: siguienteAuditId(),
         fecha: new Date().toLocaleString("es-PE", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).replace(",", ""),
         usuario,
         tipo,

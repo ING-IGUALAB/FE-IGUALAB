@@ -3,7 +3,7 @@ import { conteoEstados, esgScore, resumenSanciones } from "../data/seed";
 import { money } from "../lib/format";
 import Badge from "./Badge";
 
-export default function ReporteA4({ empresa, anio, analisis }: { empresa: Empresa; anio: number; analisis: Analisis | null }) {
+export default function ReporteA4({ empresa, anio, analisis }: Readonly<{ empresa: Empresa; anio: number; analisis: Analisis | null }>) {
   const a = analisis || { gri: [], sanciones: [], evidencia: { gri: false, sanciones: false } };
   const esg = esgScore(a.gri);
   const conteo = conteoEstados(a.gri);
@@ -32,7 +32,7 @@ export default function ReporteA4({ empresa, anio, analisis }: { empresa: Empres
         <div>
           <h2 className="text-headline-md text-primary mb-3 flex items-center gap-2"><span className="material-symbols-outlined text-primary">summarize</span> Resumen ejecutivo</h2>
           <div className="grid grid-cols-3 gap-3 mb-4">
-            <div className="border border-surface-variant rounded p-3 border-t-4 border-t-primary"><div className="text-label-sm text-outline uppercase">Puntaje ESG</div><div className="text-headline-md text-on-surface">{esg == null ? "—" : esg}<span className="text-title-lg text-outline">/100</span></div></div>
+            <div className="border border-surface-variant rounded p-3 border-t-4 border-t-primary"><div className="text-label-sm text-outline uppercase">Puntaje ESG</div><div className="text-headline-md text-on-surface">{esg ?? "—"}<span className="text-title-lg text-outline">/100</span></div></div>
             <div className="border border-surface-variant rounded p-3 border-t-4 border-t-tertiary"><div className="text-label-sm text-outline uppercase">Total sanciones (S/)</div><div className="text-headline-md text-on-surface">{resSan.total ? money(resSan.total).replace("S/ ", "") : "0"}</div></div>
             <div className="border border-surface-variant rounded p-3 border-t-4 border-t-outline"><div className="text-label-sm text-outline uppercase">Sin monto</div><div className="text-headline-md text-on-surface">{resSan.sinMonto}</div></div>
           </div>
@@ -70,10 +70,10 @@ export default function ReporteA4({ empresa, anio, analisis }: { empresa: Empres
         {/* Sanciones (RF-039) + totales (RF-040) */}
         <div>
           <h2 className="text-headline-md text-primary mb-3 flex items-center gap-2"><span className="material-symbols-outlined text-primary">gavel</span> Sanciones identificadas</h2>
-          {a.sanciones.length ? a.sanciones.map((s, i) => (
-            <div key={i} className="flex justify-between items-start border border-surface-variant rounded-lg p-3 mb-2 gap-4">
+          {a.sanciones.length ? a.sanciones.map((s) => (
+            <div key={`${s.entidad}-${s.pagina}`} className="flex justify-between items-start border border-surface-variant rounded-lg p-3 mb-2 gap-4">
               <div><p className="text-body-md font-medium text-on-surface">{s.entidad}</p><p className="text-label-sm text-on-surface-variant">{s.motivo} · <span className="italic">{s.pagina}</span></p></div>
-              {s.monto != null ? <p className="text-title-lg text-error font-bold whitespace-nowrap">{money(s.monto)}</p> : <span className="inline-flex items-center px-2 py-1 rounded-full bg-surface-variant text-on-surface-variant text-label-sm whitespace-nowrap">No cuantificada</span>}
+              {s.monto == null ? <span className="inline-flex items-center px-2 py-1 rounded-full bg-surface-variant text-on-surface-variant text-label-sm whitespace-nowrap">No cuantificada</span> : <p className="text-title-lg text-error font-bold whitespace-nowrap">{money(s.monto)}</p>}
             </div>
           )) : <p className="text-body-md text-on-surface-variant">Sin sanciones identificadas en los documentos del año analizado.</p>}
           <div className="mt-3 border border-surface-variant rounded-lg p-3 bg-surface-container-low flex justify-between">

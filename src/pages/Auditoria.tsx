@@ -111,7 +111,7 @@ export default function Auditoria() {
   );
 }
 
-function Filtro({ label, children }: { label: string; children: ReactNode }) {
+function Filtro({ label, children }: Readonly<{ label: string; children: ReactNode }>) {
   return (
     <div className="flex flex-col gap-xs">
       <label className="text-label-sm text-on-surface-variant uppercase">{label}</label>

@@ -10,10 +10,20 @@ import { mensajeError } from "../api/client";
 import * as usuariosApi from "../api/usuarios";
 import { REGLAS_PASSWORD } from "../lib/password";
 import { fechaCorta } from "../lib/format";
+import { esCorreoValido } from "../lib/validacion";
 import type { Usuario } from "../types";
 
+const SKELETON_ROWS = ["r1", "r2", "r3", "r4"];
+const SKELETON_CELLS = [
+  { id: "nombre", w: "60%" },
+  { id: "correo", w: "80%" },
+  { id: "estado", w: "80%" },
+  { id: "rol", w: "80%" },
+  { id: "creado", w: "80%" },
+  { id: "acciones", w: "40%" },
+];
+
 export default function Usuarios() {
-  const toast = useToast();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [cargando, setCargando] = useState(true);
   const [errorCarga, setErrorCarga] = useState("");
@@ -69,54 +79,63 @@ export default function Usuarios() {
               </tr>
             </thead>
             <tbody className="text-body-md">
-              {cargando ? (
-                Array.from({ length: 4 }).map((_, i) => (
-                  <tr key={i} className="border-b border-surface-variant">
-                    {Array.from({ length: 6 }).map((__, j) => (
-                      <td key={j} className="py-md px-md"><div className="skeleton h-4" style={{ width: j === 0 ? "60%" : j === 5 ? "40%" : "80%" }} /></td>
-                    ))}
-                  </tr>
-                ))
-              ) : usuarios.length === 0 ? (
+              {cargando && SKELETON_ROWS.map((rowId) => (
+                <tr key={rowId} className="border-b border-surface-variant">
+                  {SKELETON_CELLS.map((c) => (
+                    <td key={`${rowId}-${c.id}`} className="py-md px-md"><div className="skeleton h-4" style={{ width: c.w }} /></td>
+                  ))}
+                </tr>
+              ))}
+              {!cargando && usuarios.length === 0 && (
                 <tr><td colSpan={6} className="py-xl text-center text-on-surface-variant">Sin usuarios.</td></tr>
-              ) : (
-                usuarios.map((u) => {
-                  const esSuper = u.rol === "superadmin";
-                  return (
-                    <tr key={u.id} className="border-b border-surface-variant hover:bg-surface/50 transition-colors">
-                      <td className="py-md px-md font-medium">{u.nombre}</td>
-                      <td className="py-md px-md text-on-surface-variant">{u.correo}</td>
-                      <td className="py-md px-md"><Badge estado={u.habilitado ? "Activo" : "Inactivo"} /></td>
-                      <td className="py-md px-md">
-                        <span className={`text-label-md ${esSuper ? "text-tertiary font-bold" : "text-secondary font-bold"}`}>
-                          {esSuper ? "SuperAdmin" : "Administrador"}
-                        </span>
-                      </td>
-                      <td className="py-md px-md text-on-surface-variant">{fechaCorta(u.creado_en)}</td>
-                      <td className="py-md px-md text-right">
-                        <div className="flex justify-end gap-xs">
-                          <button
-                            onClick={() => setToggle(u)}
-                            disabled={esSuper}
-                            title={esSuper ? "El SuperAdmin no puede deshabilitarse" : u.habilitado ? "Deshabilitar" : "Habilitar"}
-                            className={`p-1.5 rounded-lg ${esSuper ? "text-outline-variant cursor-not-allowed" : "text-on-surface-variant hover:text-tertiary hover:bg-tertiary-fixed/20"}`}
-                          >
-                            <span className="material-symbols-outlined text-[18px]">{u.habilitado ? "person_off" : "how_to_reg"}</span>
-                          </button>
-                          <button
-                            onClick={() => setTransferir(u)}
-                            disabled={esSuper || !u.habilitado}
-                            title={esSuper ? "Ya es SuperAdmin" : !u.habilitado ? "Requiere cuenta habilitada" : "Transferir rol SuperAdmin"}
-                            className={`p-1.5 rounded-lg ${esSuper || !u.habilitado ? "text-outline-variant cursor-not-allowed" : "text-on-surface-variant hover:text-tertiary hover:bg-tertiary-fixed/20"}`}
-                          >
-                            <span className="material-symbols-outlined text-[18px]">swap_horiz</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
               )}
+              {!cargando && usuarios.map((u) => {
+                const esSuper = u.rol === "superadmin";
+                const transferDisabled = esSuper || !u.habilitado;
+                const disabledCls = "text-outline-variant cursor-not-allowed";
+                const activeCls = "text-on-surface-variant hover:text-tertiary hover:bg-tertiary-fixed/20";
+                let toggleTitle: string;
+                if (esSuper) toggleTitle = "El SuperAdmin no puede deshabilitarse";
+                else if (u.habilitado) toggleTitle = "Deshabilitar";
+                else toggleTitle = "Habilitar";
+                let transferTitle: string;
+                if (esSuper) transferTitle = "Ya es SuperAdmin";
+                else if (u.habilitado) transferTitle = "Transferir rol SuperAdmin";
+                else transferTitle = "Requiere cuenta habilitada";
+                return (
+                  <tr key={u.id} className="border-b border-surface-variant hover:bg-surface/50 transition-colors">
+                    <td className="py-md px-md font-medium">{u.nombre}</td>
+                    <td className="py-md px-md text-on-surface-variant">{u.correo}</td>
+                    <td className="py-md px-md"><Badge estado={u.habilitado ? "Activo" : "Inactivo"} /></td>
+                    <td className="py-md px-md">
+                      <span className={`text-label-md ${esSuper ? "text-tertiary font-bold" : "text-secondary font-bold"}`}>
+                        {esSuper ? "SuperAdmin" : "Administrador"}
+                      </span>
+                    </td>
+                    <td className="py-md px-md text-on-surface-variant">{fechaCorta(u.creado_en)}</td>
+                    <td className="py-md px-md text-right">
+                      <div className="flex justify-end gap-xs">
+                        <button
+                          onClick={() => setToggle(u)}
+                          disabled={esSuper}
+                          title={toggleTitle}
+                          className={`p-1.5 rounded-lg ${esSuper ? disabledCls : activeCls}`}
+                        >
+                          <span className="material-symbols-outlined text-[18px]">{u.habilitado ? "person_off" : "how_to_reg"}</span>
+                        </button>
+                        <button
+                          onClick={() => setTransferir(u)}
+                          disabled={transferDisabled}
+                          title={transferTitle}
+                          className={`p-1.5 rounded-lg ${transferDisabled ? disabledCls : activeCls}`}
+                        >
+                          <span className="material-symbols-outlined text-[18px]">swap_horiz</span>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -132,25 +151,37 @@ export default function Usuarios() {
   );
 }
 
-function CrearUsuarioModal({ open, onClose, onCreado }: { open: boolean; onClose: () => void; onCreado: () => void }) {
+type ErroresCampo = { nombre?: string; correo?: string; password?: string };
+
+const claseInput = (invalido: boolean) =>
+  `rounded-xl border py-sm px-md text-body-md focus:ring-1 focus:ring-primary outline-none ${
+    invalido ? "border-error focus:border-error" : "border-outline-variant focus:border-primary"
+  }`;
+
+function CrearUsuarioModal({ open, onClose, onCreado }: Readonly<{ open: boolean; onClose: () => void; onCreado: () => void }>) {
   const toast = useToast();
   const [nombre, setNombre] = useState("");
   const [correo, setCorreo] = useState("");
   const [password, setPassword] = useState("");
+  const [errs, setErrs] = useState<ErroresCampo>({});
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
 
   const reglas = useMemo(() => REGLAS_PASSWORD.map((r) => ({ msg: r.msg, ok: r.ok(password, correo) })), [password, correo]);
 
   function reset() {
-    setNombre(""); setCorreo(""); setPassword(""); setError("");
+    setNombre(""); setCorreo(""); setPassword(""); setErrs({}); setError("");
   }
 
   async function guardar() {
     setError("");
-    if (!nombre.trim() || !correo.trim()) return setError("Nombre y correo son obligatorios.");
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) return setError("Formato de correo inválido.");
-    if (!reglas.every((r) => r.ok)) return setError("La contraseña no cumple la política de seguridad.");
+    const e: ErroresCampo = {};
+    if (!nombre.trim()) e.nombre = "Este campo es obligatorio.";
+    if (!correo.trim()) e.correo = "Este campo es obligatorio.";
+    else if (!esCorreoValido(correo)) e.correo = "El formato del correo es incorrecto.";
+    if (!reglas.every((r) => r.ok)) e.password = "La contraseña debe cumplir todos los requisitos.";
+    setErrs(e);
+    if (Object.keys(e).length > 0) return;
     setCargando(true);
     try {
       await usuariosApi.crearUsuario({ nombre: nombre.trim(), correo: correo.trim(), password });
@@ -172,17 +203,45 @@ function CrearUsuarioModal({ open, onClose, onCreado }: { open: boolean; onClose
           <span className="material-symbols-outlined text-primary">person_add</span> Crear usuario
         </h3>
         <div className="space-y-md">
+          <label className="flex flex-col gap-xs">
+            <span className="text-label-md text-on-surface-variant">Nombre completo</span>
+            <input
+              value={nombre}
+              onChange={(e) => { setNombre(e.target.value); setErrs((p) => ({ ...p, nombre: undefined })); }}
+              aria-invalid={!!errs.nombre}
+              aria-describedby={errs.nombre ? "cu-err-nombre" : undefined}
+              className={claseInput(!!errs.nombre)}
+              placeholder="Ej. Ana García"
+            />
+            {errs.nombre && <span id="cu-err-nombre" className="text-label-sm text-error">{errs.nombre}</span>}
+          </label>
+          <label className="flex flex-col gap-xs">
+            <span className="text-label-md text-on-surface-variant">Correo electrónico</span>
+            <input
+              type="email"
+              value={correo}
+              onChange={(e) => { setCorreo(e.target.value); setErrs((p) => ({ ...p, correo: undefined })); }}
+              aria-invalid={!!errs.correo}
+              aria-describedby={errs.correo ? "cu-err-correo" : undefined}
+              className={claseInput(!!errs.correo)}
+              placeholder="ana@igualab.com"
+            />
+            {errs.correo && <span id="cu-err-correo" className="text-label-sm text-error">{errs.correo}</span>}
+          </label>
           <div className="flex flex-col gap-xs">
-            <label className="text-label-md text-on-surface-variant">Nombre completo</label>
-            <input value={nombre} onChange={(e) => setNombre(e.target.value)} className="rounded-xl border border-outline-variant py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" placeholder="Ej. Ana García" />
-          </div>
-          <div className="flex flex-col gap-xs">
-            <label className="text-label-md text-on-surface-variant">Correo electrónico</label>
-            <input type="email" value={correo} onChange={(e) => setCorreo(e.target.value)} className="rounded-xl border border-outline-variant py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" placeholder="ana@igualab.com" />
-          </div>
-          <div className="flex flex-col gap-xs">
-            <label className="text-label-md text-on-surface-variant">Contraseña</label>
-            <input type="text" value={password} onChange={(e) => setPassword(e.target.value)} className="rounded-xl border border-outline-variant py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" placeholder="Mín. 8 · mayús., minús., dígito y símbolo" />
+            <label className="flex flex-col gap-xs">
+              <span className="text-label-md text-on-surface-variant">Contraseña</span>
+              <input
+                type="text"
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setErrs((p) => ({ ...p, password: undefined })); }}
+                aria-invalid={!!errs.password}
+                aria-describedby={errs.password ? "cu-err-password" : undefined}
+                className={claseInput(!!errs.password)}
+                placeholder="Mín. 8 · mayús., minús., dígito y símbolo"
+              />
+            </label>
+            {errs.password && <span id="cu-err-password" className="text-label-sm text-error">{errs.password}</span>}
             <ul className="grid grid-cols-2 gap-xs text-label-sm mt-xs">
               {reglas.map((r) => (
                 <li key={r.msg} className={`flex items-center gap-xs ${r.ok ? "text-primary" : "text-on-surface-variant"}`}>
@@ -207,11 +266,12 @@ function CrearUsuarioModal({ open, onClose, onCreado }: { open: boolean; onClose
   );
 }
 
-function ToggleModal({ usuario, onClose, onHecho }: { usuario: Usuario | null; onClose: () => void; onHecho: () => void }) {
+function ToggleModal({ usuario, onClose, onHecho }: Readonly<{ usuario: Usuario | null; onClose: () => void; onHecho: () => void }>) {
   const toast = useToast();
   const [cargando, setCargando] = useState(false);
   if (!usuario) return null;
   const habilitar = !usuario.habilitado;
+  const accion = habilitar ? "Habilitar" : "Deshabilitar";
 
   async function confirmar() {
     setCargando(true);
@@ -238,14 +298,14 @@ function ToggleModal({ usuario, onClose, onHecho }: { usuario: Usuario | null; o
         </p>
         <div className="flex justify-center gap-sm mt-lg">
           <button onClick={onClose} className="px-lg py-sm rounded-lg border border-outline-variant text-body-md text-on-surface-variant">Cancelar</button>
-          <button onClick={confirmar} disabled={cargando} className={`px-lg py-sm rounded-lg text-label-md font-semibold disabled:opacity-60 flex items-center gap-sm ${habilitar ? "bg-primary text-on-primary" : "bg-tertiary text-on-tertiary"}`}>{cargando && <Spinner size={16} />}{cargando ? "Procesando…" : habilitar ? "Habilitar" : "Deshabilitar"}</button>
+          <button onClick={confirmar} disabled={cargando} className={`px-lg py-sm rounded-lg text-label-md font-semibold disabled:opacity-60 flex items-center gap-sm ${habilitar ? "bg-primary text-on-primary" : "bg-tertiary text-on-tertiary"}`}>{cargando && <Spinner size={16} />}{cargando ? "Procesando…" : accion}</button>
         </div>
       </div>
     </Modal>
   );
 }
 
-function TransferirModal({ usuario, onClose }: { usuario: Usuario | null; onClose: () => void }) {
+function TransferirModal({ usuario, onClose }: Readonly<{ usuario: Usuario | null; onClose: () => void }>) {
   const toast = useToast();
   const navigate = useNavigate();
   const { actualizarRol } = useAuth();

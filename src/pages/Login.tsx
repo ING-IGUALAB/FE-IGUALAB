@@ -7,6 +7,7 @@ import Modal from "../components/Modal";
 import Spinner from "../components/Spinner";
 import { mensajeError } from "../api/client";
 import { recuperarContrasena } from "../api/auth";
+import { esCorreoValido } from "../lib/validacion";
 
 export default function Login() {
   const { iniciarSesion } = useAuth();
@@ -26,7 +27,7 @@ export default function Login() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) {
+    if (!esCorreoValido(correo)) {
       setError("Ingrese un correo válido.");
       return;
     }
@@ -134,7 +135,7 @@ export default function Login() {
               </>
             ) : (
               <>
-                Iniciar sesión
+                Iniciar sesión{" "}
                 <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
               </>
             )}
