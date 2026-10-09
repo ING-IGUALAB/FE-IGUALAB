@@ -34,6 +34,24 @@ describe("api/empresas", () => {
     expect(JSON.parse(opts.body)).toEqual({ nombre: "Minera X", sector: "ENERGIA" });
   });
 
+  it("obtenerEmpresa hace GET a /empresas/{id}", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(ok({ id: "e1" }));
+    vi.stubGlobal("fetch", fetchMock);
+    await empresasApi.obtenerEmpresa("e1");
+    expect(fetchMock.mock.calls[0][0]).toContain("/empresas/e1");
+    expect(fetchMock.mock.calls[0][1].method ?? "GET").toBe("GET");
+  });
+
+  it("editarEmpresa hace PATCH con el payload", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(ok({ id: "e1" }));
+    vi.stubGlobal("fetch", fetchMock);
+    await empresasApi.editarEmpresa("e1", { nombre: "Nuevo", sector: "PETROLEO" });
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url).toContain("/empresas/e1");
+    expect(opts.method).toBe("PATCH");
+    expect(JSON.parse(opts.body)).toEqual({ nombre: "Nuevo", sector: "PETROLEO" });
+  });
+
   it("activar/desactivar usan PATCH en la ruta correcta", async () => {
     const fetchMock = vi.fn().mockResolvedValue(ok({ id: "e1" }));
     vi.stubGlobal("fetch", fetchMock);
