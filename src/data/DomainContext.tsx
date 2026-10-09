@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
-import type { Analisis, Documento, Empresa, EstadoGri, EventoAuditoria, Reporte, Sector } from "../types";
+import type { Analisis, Documento, Empresa, EstadoGri, EventoAuditoria, Reporte } from "../types";
 import {
   ANALISIS_SEED,
   AUDIT_SEED,
@@ -15,8 +15,6 @@ interface DomainCtx {
   reportes: Reporte[];
   analisis: Record<string, Analisis>;
   audit: EventoAuditoria[];
-  agregarEmpresa: (nombre: string, sector: Sector) => { ok: boolean; error?: string };
-  agregarDocumento: (doc: Documento) => void;
   setEstadoGri: (empresaId: string, anio: number, index: number, estado: EstadoGri) => void;
   agregarReporte: (r: Reporte) => void;
   pushAudit: (usuario: string, tipo: string, accion: string) => void;
@@ -35,8 +33,11 @@ function siguienteAuditId(): number {
 }
 
 export function DomainProvider({ children }: Readonly<{ children: ReactNode }>) {
-  const [empresas, setEmpresas] = useState<Empresa[]>(() => structuredClone(EMPRESAS_SEED));
-  const [documentos, setDocumentos] = useState<Documento[]>(() => structuredClone(DOCUMENTOS_SEED));
+  // Empresas y documentos de demostración para los módulos que aún no tienen backend
+  // (Asistente de IA, Reportes y Descargas). La Ingesta ya NO usa estos datos: consume
+  // /empresas y /documentos del backend real.
+  const [empresas] = useState<Empresa[]>(() => structuredClone(EMPRESAS_SEED));
+  const [documentos] = useState<Documento[]>(() => structuredClone(DOCUMENTOS_SEED));
   const [reportes, setReportes] = useState<Reporte[]>(() => structuredClone(REPORTES_SEED));
   const [analisis, setAnalisis] = useState<Record<string, Analisis>>(() => structuredClone(ANALISIS_SEED));
   const [audit, setAudit] = useState<EventoAuditoria[]>(() => structuredClone(AUDIT_SEED));
@@ -52,19 +53,6 @@ export function DomainProvider({ children }: Readonly<{ children: ReactNode }>) 
         accion,
       },
     ]);
-  }
-
-  function agregarEmpresa(nombre: string, sector: Sector) {
-    if (empresas.some((e) => e.nombre.toLowerCase() === nombre.toLowerCase())) {
-      return { ok: false, error: "Ya existe una empresa con ese nombre." };
-    }
-    const id = nombre.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 12) + Date.now().toString().slice(-3);
-    setEmpresas((xs) => [...xs, { id, nombre, sector, activa: true }]);
-    return { ok: true };
-  }
-
-  function agregarDocumento(doc: Documento) {
-    setDocumentos((xs) => [doc, ...xs]);
   }
 
   function setEstadoGri(empresaId: string, anio: number, index: number, estado: EstadoGri) {
@@ -104,8 +92,6 @@ export function DomainProvider({ children }: Readonly<{ children: ReactNode }>) 
       reportes,
       analisis,
       audit,
-      agregarEmpresa,
-      agregarDocumento,
       setEstadoGri,
       agregarReporte,
       pushAudit,

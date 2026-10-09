@@ -1,6 +1,6 @@
 import { api } from "./client";
 import type {
-  DocumentoResumen,
+  DocumentoDetalle,
   EstadoProgreso,
   Operacion,
   OperacionCreada,
@@ -60,5 +60,5 @@ export function listarDocumentos(filtros: FiltrosDocumentos = {}) {
 }
 
 export function detalleDocumento(id: string) {
-  return api<DocumentoResumen>(`/documentos/${id}`);
+  return api<DocumentoDetalle>(`/documentos/${id}`);
 }

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import SectionHeader from "../components/SectionHeader";
 import Badge from "../components/Badge";
 import Spinner from "../components/Spinner";
+import Modal from "../components/Modal";
 import { useToast } from "../components/ToastProvider";
 import * as empresasApi from "../api/empresas";
 import * as documentosApi from "../api/documentos";
@@ -17,6 +18,7 @@ import {
   validarArchivoIngesta,
 } from "../lib/dominio";
 import type {
+  DocumentoDetalle,
   DocumentoResumen,
   EmpresaApi,
   EstadoProgreso,
@@ -48,6 +50,7 @@ export default function Ingesta() {
   const [fEstado, setFEstado] = useState<"" | EstadoProgreso>("");
   const [fTipo, setFTipo] = useState<"" | TipoDocumentoApi>("");
   const [pagina, setPagina] = useState(1);
+  const [detalleId, setDetalleId] = useState<string | null>(null);
 
   useEffect(() => {
     empresasApi
@@ -230,20 +233,20 @@ export default function Ingesta() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-surface-container-low border-b border-outline-variant">
-                  {["Documento", "Año", "Tipo", "Estado", "Análisis", "Fecha"].map((h) => (
-                    <th key={h} className="py-sm px-md text-label-sm text-on-surface-variant uppercase tracking-wider">{h}</th>
+                  {["Documento", "Año", "Tipo", "Estado", "Análisis", "Fecha", ""].map((h) => (
+                    <th key={h || "acciones"} className="py-sm px-md text-label-sm text-on-surface-variant uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="text-body-md">
                 {cargandoDocs && ["r1", "r2", "r3"].map((k) => (
-                  <tr key={k} className="border-b border-surface-variant"><td colSpan={6} className="py-md px-md"><div className="h-5 bg-surface-variant rounded animate-pulse" /></td></tr>
+                  <tr key={k} className="border-b border-surface-variant"><td colSpan={7} className="py-md px-md"><div className="h-5 bg-surface-variant rounded animate-pulse" /></td></tr>
                 ))}
                 {!cargandoDocs && docs.length === 0 && (
-                  <tr><td colSpan={6} className="py-xl px-md text-center text-on-surface-variant">Aún no hay documentos ingestados.</td></tr>
+                  <tr><td colSpan={7} className="py-xl px-md text-center text-on-surface-variant">Aún no hay documentos ingestados.</td></tr>
                 )}
                 {!cargandoDocs && docs.map((d) => (
-                  <tr key={d.id} className="border-b border-surface-variant hover:bg-surface/50 transition-colors">
+                  <tr key={d.id} onClick={() => setDetalleId(d.id)} className="border-b border-surface-variant hover:bg-surface/50 transition-colors cursor-pointer">
                     <td className="py-md px-md">
                       <div className="flex items-center gap-sm">
                         <span className={`material-symbols-outlined ${d.tipo === "REPORTE_SOSTENIBILIDAD_GRI" ? "text-secondary" : "text-primary"}`}>{d.tipo === "REPORTE_SOSTENIBILIDAD_GRI" ? "eco" : "description"}</span>
@@ -258,6 +261,9 @@ export default function Ingesta() {
                     <td className="py-md px-md"><Badge estado={etiquetaEstado(d.estado)} /></td>
                     <td className="py-md px-md text-on-surface-variant">{etiquetaAnalisis(d.resultado_analisis)}</td>
                     <td className="py-md px-md text-on-surface-variant whitespace-nowrap">{fechaHora(d.creado_en)}</td>
+                    <td className="py-md px-md text-right">
+                      <span className="inline-flex items-center gap-xs text-primary text-label-md"><span className="material-symbols-outlined text-[18px]">visibility</span> Ver</span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -272,6 +278,7 @@ export default function Ingesta() {
           )}
         </div>
       </div>
+      <DetalleDocumentoModal id={detalleId} onClose={() => setDetalleId(null)} />
     </>
   );
 }
@@ -287,6 +294,96 @@ function Campo({ label, children }: Readonly<{ label: string; children: ReactNod
       <label className="text-label-md text-on-surface-variant">{label}</label>
       {children}
     </div>
+  );
+}
+
+function Dato({ label, children }: Readonly<{ label: string; children: ReactNode }>) {
+  return (
+    <div className="flex flex-col gap-xs">
+      <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">{label}</span>
+      <span className="text-body-md text-on-background break-words">{children}</span>
+    </div>
+  );
+}
+
+function DetalleDocumentoModal({ id, onClose }: Readonly<{ id: string | null; onClose: () => void }>) {
+  const toast = useToast();
+  const [doc, setDoc] = useState<DocumentoDetalle | null>(null);
+  const [cargando, setCargando] = useState(false);
+
+  useEffect(() => {
+    if (id === null) {
+      setDoc(null);
+      return;
+    }
+    setCargando(true);
+    documentosApi
+      .detalleDocumento(id)
+      .then(setDoc)
+      .catch((err) => {
+        toast(mensajeError(err, "No se pudo cargar el detalle."), "error");
+        onClose();
+      })
+      .finally(() => setCargando(false));
+  }, [id, toast, onClose]);
+
+  const analisisJson = doc?.analisis && Object.keys(doc.analisis).length > 0 ? JSON.stringify(doc.analisis, null, 2) : null;
+
+  return (
+    <Modal open={id !== null} onClose={onClose}>
+      <div className="p-xl max-h-[80vh] overflow-y-auto">
+        <h3 className="text-title-lg text-on-background mb-lg flex items-center gap-sm">
+          <span className="material-symbols-outlined text-primary">description</span> Detalle del documento
+        </h3>
+
+        {cargando && <div className="flex items-center gap-sm text-on-surface-variant"><Spinner size={18} /> Cargando…</div>}
+
+        {!cargando && doc && (
+          <div className="space-y-lg">
+            <div className="grid grid-cols-2 gap-md">
+              <Dato label="Empresa">{doc.empresa_nombre}</Dato>
+              <Dato label="Sector">{etiquetaSector(doc.sector)}</Dato>
+              <Dato label="Año">{doc.anio}</Dato>
+              <Dato label="Tipo">{etiquetaTipo(doc.tipo)}</Dato>
+              <Dato label="Estado"><Badge estado={etiquetaEstado(doc.estado)} /></Dato>
+              <Dato label="Análisis">{etiquetaAnalisis(doc.resultado_analisis)}</Dato>
+              <Dato label="Disponible para RAG">{doc.disponible_para_rag ? "Sí" : "No"}</Dato>
+              <Dato label="Fragmentos">{doc.fragmentos_procesados}{typeof doc.fragmentos_total === "number" ? ` / ${doc.fragmentos_total}` : ""}</Dato>
+              <Dato label="Etapa">{doc.etapa || "—"}</Dato>
+              <Dato label="Advertencias">{doc.cantidad_advertencias}</Dato>
+            </div>
+
+            <div className="grid grid-cols-1 gap-md border-t border-surface-variant pt-md">
+              <Dato label="Archivo">{doc.nombre_archivo} · {formatearTamano(doc.tamano_bytes)}</Dato>
+              <Dato label="SHA-256"><code className="text-label-sm">{doc.sha256}</code></Dato>
+              <div className="grid grid-cols-2 gap-md">
+                <Dato label="Cargado por">{doc.cargado_por}</Dato>
+                <Dato label="Creado">{fechaHora(doc.creado_en)}</Dato>
+                <Dato label="Actualizado">{fechaHora(doc.actualizado_en)}</Dato>
+                <Dato label="Completado">{doc.completado_en ? fechaHora(doc.completado_en) : "—"}</Dato>
+              </div>
+            </div>
+
+            {doc.error && (
+              <div className="rounded-lg bg-error-container text-on-error-container px-md py-sm text-body-md">
+                <strong>{doc.error.code}:</strong> {doc.error.message}
+              </div>
+            )}
+
+            {analisisJson && (
+              <div>
+                <p className="text-label-sm text-on-surface-variant uppercase tracking-wider mb-xs">Análisis (crudo)</p>
+                <pre className="rounded-lg bg-surface-container-low border border-outline-variant p-sm text-label-sm overflow-x-auto max-h-64">{analisisJson}</pre>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex justify-end mt-lg">
+          <button onClick={onClose} className="px-lg py-sm rounded-lg border border-outline-variant text-body-md text-on-surface-variant hover:bg-surface-container-low">Cerrar</button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

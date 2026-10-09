@@ -195,3 +195,13 @@ export interface PaginaDocumentos {
   tamano: number;
   paginas: number;
 }
+
+export interface DocumentoDetalle extends DocumentoResumen {
+  etapa: string;
+  fragmentos_procesados: number;
+  advertencias: unknown[];
+  publicacion_reintentable: boolean;
+  error?: ErrorOperacion | null;
+  analisis?: Record<string, unknown> | null;
+  actualizado_en: string;
+}
