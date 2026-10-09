@@ -15,6 +15,7 @@ interface Item {
 const MENUS: Record<Rol, Item[]> = {
   superadmin: [
     { to: "/usuarios", label: "Usuarios y roles", icon: "group" },
+    { to: "/empresas", label: "Catálogo de empresas", icon: "apartment" },
     { to: "/ingesta", label: "Ingesta de documentos", icon: "upload_file" },
     { to: "/auditoria", label: "Auditoría", icon: "history" },
   ],
@@ -25,7 +26,7 @@ const MENUS: Record<Rol, Item[]> = {
   ],
 };
 
-const INACTIVIDAD_MIN = 30; // minutos de inactividad para cerrar sesión (RN-036)
+const INACTIVIDAD_MIN = 1; // PRUEBA: 1 min para verificar el cierre por inactividad (oficial: 30)
 
 export default function Layout() {
   const { sesion, rol, cerrarSesion } = useAuth();

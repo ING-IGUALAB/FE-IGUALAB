@@ -5,6 +5,7 @@ import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import Restablecer from "./pages/Restablecer";
 import Usuarios from "./pages/Usuarios";
+import Empresas from "./pages/Empresas";
 import Ingesta from "./pages/Ingesta";
 import Auditoria from "./pages/Auditoria";
 import Asistente from "./pages/Asistente";
@@ -33,6 +34,7 @@ export default function App() {
       >
         {/* SuperAdmin */}
         <Route path="/usuarios" element={<ProtectedRoute rol="superadmin"><Usuarios /></ProtectedRoute>} />
+        <Route path="/empresas" element={<ProtectedRoute rol="superadmin"><Empresas /></ProtectedRoute>} />
         <Route path="/ingesta" element={<ProtectedRoute rol="superadmin"><Ingesta /></ProtectedRoute>} />
         <Route path="/auditoria" element={<ProtectedRoute rol="superadmin"><Auditoria /></ProtectedRoute>} />
         {/* Administrador */}
