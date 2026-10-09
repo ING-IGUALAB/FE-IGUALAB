@@ -9,6 +9,7 @@ import * as empresasApi from "../api/empresas";
 import * as documentosApi from "../api/documentos";
 import { mensajeError } from "../api/client";
 import {
+  SECTORES_API,
   TIPOS_API,
   etiquetaAnalisis,
   etiquetaEstado,
@@ -24,6 +25,7 @@ import type {
   EstadoProgreso,
   Operacion,
   ResultadoIngesta,
+  SectorApi,
   TipoDocumentoApi,
 } from "../types";
 
@@ -35,6 +37,7 @@ export default function Ingesta() {
   const navigate = useNavigate();
 
   const [empresas, setEmpresas] = useState<EmpresaApi[]>([]);
+  const [sector, setSector] = useState<SectorApi>(SECTORES_API[0]);
   const [empresaId, setEmpresaId] = useState("");
   const [anio, setAnio] = useState(ANIO_ACTUAL - 1);
   const [tipo, setTipo] = useState<TipoDocumentoApi>(TIPOS_API[0]);
@@ -51,6 +54,8 @@ export default function Ingesta() {
   const [fTipo, setFTipo] = useState<"" | TipoDocumentoApi>("");
   const [pagina, setPagina] = useState(1);
   const [detalleId, setDetalleId] = useState<string | null>(null);
+
+  const empresasSector = empresas.filter((e) => e.sector === sector);
 
   useEffect(() => {
     empresasApi
@@ -165,13 +170,23 @@ export default function Ingesta() {
               </button>
             </div>
             <div className="space-y-md">
+              <Campo label="Sector (RN-019)">
+                <select value={sector} onChange={(e) => { setSector(e.target.value as SectorApi); setEmpresaId(""); }} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
+                  {SECTORES_API.map((s) => (
+                    <option key={s} value={s}>{etiquetaSector(s)}</option>
+                  ))}
+                </select>
+              </Campo>
               <Campo label="Empresa (RN-014)">
                 <select value={empresaId} onChange={(e) => setEmpresaId(e.target.value)} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
                   <option value="">— Selecciona una empresa —</option>
-                  {empresas.map((e) => (
-                    <option key={e.id} value={e.id}>{e.nombre} · {etiquetaSector(e.sector)}</option>
+                  {empresasSector.map((e) => (
+                    <option key={e.id} value={e.id}>{e.nombre}</option>
                   ))}
                 </select>
+                {empresasSector.length === 0 && (
+                  <span className="text-label-sm text-on-surface-variant">No hay empresas activas en este sector. Regístralas en el Catálogo de empresas.</span>
+                )}
               </Campo>
               <div className="grid grid-cols-2 gap-sm">
                 <Campo label="Año">
