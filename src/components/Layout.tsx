@@ -15,6 +15,7 @@ interface Item {
 const MENUS: Record<Rol, Item[]> = {
   superadmin: [
     { to: "/usuarios", label: "Usuarios y roles", icon: "group" },
+    { to: "/empresas", label: "Catálogo de empresas", icon: "apartment" },
     { to: "/ingesta", label: "Ingesta de documentos", icon: "upload_file" },
     { to: "/auditoria", label: "Auditoría", icon: "history" },
   ],

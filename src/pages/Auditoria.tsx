@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import SectionHeader from "../components/SectionHeader";
 import { useDomain } from "../data/DomainContext";
-import { PendienteBanner } from "./Ingesta";
+import PendienteBanner from "../components/PendienteBanner";
 
 const TIPOS = [
   "Inicio de sesión",

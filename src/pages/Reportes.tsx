@@ -5,7 +5,7 @@ import { useDomain } from "../data/DomainContext";
 import { useAuth } from "../auth/AuthContext";
 import { useToast } from "../components/ToastProvider";
 import { ESTADOS_GRI, esgScore } from "../data/seed";
-import { PendienteBanner } from "./Ingesta";
+import PendienteBanner from "../components/PendienteBanner";
 import type { EstadoGri } from "../types";
 
 export default function Reportes() {

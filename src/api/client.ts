@@ -42,18 +42,22 @@ interface Opts {
 
 export async function api<T>(path: string, opts: Opts = {}): Promise<T> {
   const { method = "GET", body, auth = true } = opts;
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  // En multipart (FormData) dejamos que el navegador fije el Content-Type con su boundary.
+  const esFormData = typeof FormData !== "undefined" && body instanceof FormData;
+  const headers: Record<string, string> = {};
+  if (!esFormData) headers["Content-Type"] = "application/json";
   const token = getToken();
   if (auth && token) headers["Authorization"] = `Bearer ${token}`;
+
+  let payload: BodyInit | undefined;
+  if (body === undefined) payload = undefined;
+  else if (esFormData) payload = body as FormData;
+  else payload = JSON.stringify(body);
 
   globalThis.dispatchEvent(new CustomEvent(LOADING_START));
   let res: Response;
   try {
-    res = await fetch(`${API}${path}`, {
-      method,
-      headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    res = await fetch(`${API}${path}`, { method, headers, body: payload });
   } catch {
     throw new ApiError(0, { code: "NETWORK_ERROR", message: "No se pudo conectar con el servidor." });
   } finally {

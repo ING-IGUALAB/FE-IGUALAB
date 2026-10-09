@@ -102,3 +102,96 @@ export interface EventoAuditoria {
   tipo: string;
   accion: string;
 }
+
+// ---- Catálogo de empresas e ingesta de datos (backend real) ----
+export type SectorApi = "MINERIA" | "PETROLEO" | "ENERGIA";
+export type TipoDocumentoApi = "MEMORIA_ANUAL" | "REPORTE_SOSTENIBILIDAD_GRI";
+export type EstadoProgreso =
+  | "EN_PROCESO"
+  | "PUBLICACION_PENDIENTE"
+  | "COMPLETADO"
+  | "FALLIDO_LIMPIEZA_PENDIENTE"
+  | "FALLIDO";
+export type EstadoOperacion =
+  | "CREADA"
+  | "VALIDANDO"
+  | "INTERRUMPIDA"
+  | "RECHAZADA"
+  | "EN_PROCESO"
+  | "PUBLICACION_PENDIENTE"
+  | "COMPLETADO"
+  | "FALLIDO"
+  | "FALLIDO_LIMPIEZA_PENDIENTE";
+export type ResultadoAnalisis = "CON_HALLAZGOS" | "OBSERVADO";
+
+export interface EmpresaApi {
+  id: string;
+  nombre: string;
+  sector: SectorApi;
+  activa: boolean;
+  creada_en: string;
+}
+
+export interface ErrorOperacion {
+  code: string;
+  message: string;
+}
+
+export interface OperacionCreada {
+  operacion_id: string;
+  estado: EstadoOperacion;
+  creada_en: string;
+  ingesta_url: string;
+  progreso_url: string;
+}
+
+export interface Operacion {
+  operacion_id: string;
+  estado: EstadoOperacion;
+  terminal: boolean;
+  exitosa: boolean;
+  etapa?: string | null;
+  documento_id?: string | null;
+  fragmentos_procesados: number;
+  fragmentos_total?: number | null;
+  advertencias: unknown[];
+  resultado_analisis?: ResultadoAnalisis | null;
+  publicacion_reintentable: boolean;
+  error?: ErrorOperacion | null;
+  creada_en: string;
+  actualizada_en: string;
+}
+
+export interface ResultadoIngesta extends Operacion {
+  motivos?: string[];
+  fragmentos?: number;
+}
+
+export interface DocumentoResumen {
+  id: string;
+  operacion_id?: string | null;
+  empresa_id: string;
+  empresa_nombre: string;
+  sector: SectorApi;
+  anio: number;
+  tipo: TipoDocumentoApi;
+  nombre_archivo: string;
+  sha256: string;
+  tamano_bytes: number;
+  estado: EstadoProgreso;
+  resultado_analisis?: ResultadoAnalisis | null;
+  disponible_para_rag: boolean;
+  fragmentos_total?: number | null;
+  cantidad_advertencias: number;
+  cargado_por: string;
+  creado_en: string;
+  completado_en?: string | null;
+}
+
+export interface PaginaDocumentos {
+  items: DocumentoResumen[];
+  total: number;
+  pagina: number;
+  tamano: number;
+  paginas: number;
+}
