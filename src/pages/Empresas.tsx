@@ -73,7 +73,7 @@ export default function Empresas() {
           </Campo>
           <label className="flex items-center gap-sm text-body-md text-on-surface-variant pb-sm cursor-pointer">
             <input type="checkbox" checked={soloActivas} onChange={(e) => setSoloActivas(e.target.checked)} className="accent-primary w-4 h-4" />
-            Sólo activas
+            <span>Sólo activas</span>
           </label>
         </div>
         <button

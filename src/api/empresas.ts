@@ -6,7 +6,8 @@ export function listarEmpresas(filtros: { soloActivas?: boolean; sector?: Sector
   if (filtros.soloActivas) qs.set("solo_activas", "true");
   if (filtros.sector) qs.set("sector", filtros.sector);
   const query = qs.toString();
-  return api<EmpresaApi[]>(`/empresas${query ? `?${query}` : ""}`);
+  const sufijo = query ? `?${query}` : "";
+  return api<EmpresaApi[]>(`/empresas${sufijo}`);
 }
 
 export function crearEmpresa(payload: { nombre: string; sector: SectorApi }) {
