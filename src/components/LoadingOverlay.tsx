@@ -5,6 +5,7 @@ import { LOADING_END, LOADING_START } from "../api/client";
 
 const DELAY = 150; // ms antes de mostrar (evita parpadeo en requests instantáneos)
 const MIN_VISIBLE = 550; // ms mínimo visible una vez mostrado
+const MAX_VISIBLE = 20000; // ms máximo: watchdog que apaga el overlay si una petición se cuelga
 
 /**
  * Indicador de carga centrado en pantalla. Escucha los eventos del cliente HTTP
@@ -18,16 +19,21 @@ export default function LoadingOverlay() {
   const visibleRef = useRef(false);
   const showTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const safetyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    const hide = () => {
+      visibleRef.current = false;
+      setVisible(false);
+      if (safetyTimer.current) { clearTimeout(safetyTimer.current); safetyTimer.current = null; }
+    };
     const show = () => {
       shownAt.current = Date.now();
       visibleRef.current = true;
       setVisible(true);
-    };
-    const hide = () => {
-      visibleRef.current = false;
-      setVisible(false);
+      // Watchdog: si algo deja el contador "colgado", forzamos el cierre.
+      if (safetyTimer.current) clearTimeout(safetyTimer.current);
+      safetyTimer.current = setTimeout(() => { activos.current = 0; hide(); }, MAX_VISIBLE);
     };
     const start = () => {
       activos.current += 1;
@@ -50,6 +56,7 @@ export default function LoadingOverlay() {
       globalThis.removeEventListener(LOADING_END, end);
       if (showTimer.current) clearTimeout(showTimer.current);
       if (hideTimer.current) clearTimeout(hideTimer.current);
+      if (safetyTimer.current) clearTimeout(safetyTimer.current);
     };
   }, []);
 

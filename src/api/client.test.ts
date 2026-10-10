@@ -97,6 +97,17 @@ describe("api", () => {
     expect(localStorage.getItem("igualab.sesion")).not.toBeNull();
   });
 
+  it("envía FormData sin fijar Content-Type manual", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(resp(201, { ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
+    const fd = new FormData();
+    fd.append("a", "1");
+    await api("/x", { method: "POST", body: fd });
+    const opts = fetchMock.mock.calls[0][1];
+    expect(opts.body).toBeInstanceOf(FormData);
+    expect(opts.headers["Content-Type"]).toBeUndefined();
+  });
+
   it("lanza NETWORK_ERROR si fetch falla", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("down")));
     await expect(api("/x")).rejects.toMatchObject({ code: "NETWORK_ERROR", status: 0 });

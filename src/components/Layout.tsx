@@ -15,6 +15,7 @@ interface Item {
 const MENUS: Record<Rol, Item[]> = {
   superadmin: [
     { to: "/usuarios", label: "Usuarios y roles", icon: "group" },
+    { to: "/empresas", label: "Catálogo de empresas", icon: "apartment" },
     { to: "/ingesta", label: "Ingesta de documentos", icon: "upload_file" },
     { to: "/auditoria", label: "Auditoría", icon: "history" },
   ],
@@ -25,7 +26,7 @@ const MENUS: Record<Rol, Item[]> = {
   ],
 };
 
-const INACTIVIDAD_MIN = 30; // minutos de inactividad para cerrar sesión (RN-036)
+const INACTIVIDAD_MIN = 120; // 2 horas de inactividad para cerrar sesión (RF-005)
 
 export default function Layout() {
   const { sesion, rol, cerrarSesion } = useAuth();
@@ -58,8 +59,10 @@ export default function Layout() {
     };
   }, [cerrarSesion, navigate, toast]);
 
-  const mm = Math.floor(restante / 60);
+  const hh = Math.floor(restante / 3600);
+  const mm = Math.floor((restante % 3600) / 60);
   const ss = String(restante % 60).padStart(2, "0");
+  const reloj = hh > 0 ? `${hh}:${String(mm).padStart(2, "0")}:${ss}` : `${mm}:${ss}`;
 
   async function onLogout() {
     await cerrarSesion();
@@ -123,7 +126,7 @@ export default function Layout() {
           <img src="/logo.webp" alt="Igualab" className="h-7 md:hidden object-contain" />
           <div className="hidden md:block" />
           <div className="flex items-center gap-md">
-            <span className="hidden lg:inline text-label-sm text-outline">Sesión activa · {mm}:{ss}</span>
+            <span className="hidden lg:inline text-label-sm text-outline">Sesión activa · {reloj}</span>
             <div className="h-8 w-px bg-outline-variant mx-sm" />
             <div className="flex items-center gap-sm">
               <div className="w-8 h-8 rounded-full bg-tertiary-container text-on-tertiary-container flex items-center justify-center font-semibold">

@@ -4,7 +4,7 @@ import { useAuth } from "../auth/AuthContext";
 import { useToast } from "../components/ToastProvider";
 import { SECTORES, conteoEstados, esgScore, resumenSanciones } from "../data/seed";
 import { money } from "../lib/format";
-import { PendienteBanner } from "./Ingesta";
+import PendienteBanner from "../components/PendienteBanner";
 import type { Analisis } from "../types";
 
 interface Mensaje {

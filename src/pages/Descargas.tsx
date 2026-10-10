@@ -5,7 +5,7 @@ import ReporteA4 from "../components/ReporteA4";
 import { useDomain } from "../data/DomainContext";
 import { useAuth } from "../auth/AuthContext";
 import { useToast } from "../components/ToastProvider";
-import { PendienteBanner } from "./Ingesta";
+import PendienteBanner from "../components/PendienteBanner";
 import type { Reporte } from "../types";
 
 export default function Descargas() {

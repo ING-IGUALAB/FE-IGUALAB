@@ -23,11 +23,16 @@ export function ToastProvider({ children }: Readonly<{ children: ReactNode }>) {
   );
 }
 
+// Referencia ESTABLE: sonner es un singleton de módulo, así que la función no
+// necesita recrearse por render. Devolver siempre la misma referencia evita que
+// los `useEffect`/`useCallback` que dependen de `toast` entren en bucle infinito.
+function emitirToast(msg: string, tipo: ToastTipo = "info") {
+  if (tipo === "success") return sonner.success(msg);
+  if (tipo === "error") return sonner.error(msg);
+  if (tipo === "warn") return sonner.warning(msg);
+  return sonner.info(msg);
+}
+
 export function useToast() {
-  return (msg: string, tipo: ToastTipo = "info") => {
-    if (tipo === "success") return sonner.success(msg);
-    if (tipo === "error") return sonner.error(msg);
-    if (tipo === "warn") return sonner.warning(msg);
-    return sonner.info(msg);
-  };
+  return emitirToast;
 }

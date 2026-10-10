@@ -8,6 +8,11 @@ const MAPA: Record<string, string> = {
   "Éxito": "bg-primary-container text-on-primary-container",
   "En proceso": "bg-tertiary-fixed text-on-tertiary-fixed",
   Rechazado: "bg-error-container text-on-error-container",
+  // Estados de progreso del backend (EstadoProgreso)
+  Completado: "bg-primary-container text-on-primary-container",
+  "Publicación pendiente": "bg-tertiary-fixed text-on-tertiary-fixed",
+  Fallido: "bg-error-container text-on-error-container",
+  "Fallido (limpieza pendiente)": "bg-error-container text-on-error-container",
   // Riesgo derivado del ESG
   Alto: "bg-error-container text-on-error-container",
   Medio: "bg-tertiary-fixed text-on-tertiary-fixed",

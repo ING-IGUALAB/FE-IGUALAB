@@ -40,20 +40,42 @@ interface Opts {
   auth?: boolean;
 }
 
+// Construye el ApiError desde el contrato del backend y, si corresponde, cierra la sesión.
+function lanzarErrorApi(status: number, data: unknown): never {
+  const be: BackendError | null =
+    data && typeof data === "object" && "error" in data ? (data as BackendErrorResponse).error : null;
+  const apiErr = new ApiError(status, {
+    code: be?.code ?? null,
+    message: be?.message,
+    details: be?.details ?? null,
+    requestId: be?.request_id ?? null,
+  });
+  // Cierre de sesión SOLO ante sesión inválida o expirada (no ante cualquier 401).
+  if (be?.code && CODIGOS_CIERRE_SESION.has(be.code)) {
+    limpiarSesion();
+    globalThis.dispatchEvent(new CustomEvent(AUTH_401_EVENT));
+  }
+  throw apiErr;
+}
+
 export async function api<T>(path: string, opts: Opts = {}): Promise<T> {
   const { method = "GET", body, auth = true } = opts;
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  // En multipart (FormData) dejamos que el navegador fije el Content-Type con su boundary.
+  const esFormData = typeof FormData !== "undefined" && body instanceof FormData;
+  const headers: Record<string, string> = {};
+  if (!esFormData) headers["Content-Type"] = "application/json";
   const token = getToken();
   if (auth && token) headers["Authorization"] = `Bearer ${token}`;
+
+  let payload: BodyInit | undefined;
+  if (body === undefined) payload = undefined;
+  else if (esFormData) payload = body as FormData;
+  else payload = JSON.stringify(body);
 
   globalThis.dispatchEvent(new CustomEvent(LOADING_START));
   let res: Response;
   try {
-    res = await fetch(`${API}${path}`, {
-      method,
-      headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    res = await fetch(`${API}${path}`, { method, headers, body: payload });
   } catch {
     throw new ApiError(0, { code: "NETWORK_ERROR", message: "No se pudo conectar con el servidor." });
   } finally {
@@ -64,22 +86,7 @@ export async function api<T>(path: string, opts: Opts = {}): Promise<T> {
 
   const data = await res.json().catch(() => null);
 
-  if (!res.ok) {
-    const be: BackendError | null =
-      data && typeof data === "object" && "error" in data ? (data as BackendErrorResponse).error : null;
-    const apiErr = new ApiError(res.status, {
-      code: be?.code ?? null,
-      message: be?.message,
-      details: be?.details ?? null,
-      requestId: be?.request_id ?? null,
-    });
-    // Cierre de sesión SOLO ante sesión inválida o expirada (no ante cualquier 401).
-    if (be?.code && CODIGOS_CIERRE_SESION.has(be.code)) {
-      limpiarSesion();
-      globalThis.dispatchEvent(new CustomEvent(AUTH_401_EVENT));
-    }
-    throw apiErr;
-  }
+  if (!res.ok) lanzarErrorApi(res.status, data);
 
   return data as T;
 }
