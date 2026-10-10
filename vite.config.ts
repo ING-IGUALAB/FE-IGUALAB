@@ -19,7 +19,7 @@ export default defineConfig({
       reportsDirectory: "coverage",
       // Cobertura sobre la lógica de negocio (unit-testable). La capa de UI
       // (pages/components/contextos) se excluye de la métrica en Sonar.
-      include: ["src/lib/**", "src/data/seed.ts", "src/api/client.ts"],
+      include: ["src/lib/**", "src/data/seed.ts", "src/api/client.ts", "src/api/empresas.ts", "src/api/documentos.ts"],
     },
   },
 });

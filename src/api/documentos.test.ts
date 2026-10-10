@@ -59,6 +59,22 @@ describe("api/documentos", () => {
     expect(url).toContain("tamano=20");
   });
 
+  it("consultarOperacion hace GET a la operación", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(ok({ operacion_id: "op1", terminal: false }));
+    vi.stubGlobal("fetch", fetchMock);
+    await documentosApi.consultarOperacion("op1");
+    expect(fetchMock.mock.calls[0][0]).toContain("/documentos/operaciones/op1");
+    expect(fetchMock.mock.calls[0][1].method ?? "GET").toBe("GET");
+  });
+
+  it("detalleDocumento hace GET a /documentos/{id}", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(ok({ id: "d1" }));
+    vi.stubGlobal("fetch", fetchMock);
+    await documentosApi.detalleDocumento("d1");
+    expect(fetchMock.mock.calls[0][0]).toContain("/documentos/d1");
+    expect(fetchMock.mock.calls[0][1].method ?? "GET").toBe("GET");
+  });
+
   it("reintentarPublicacion hace POST a la ruta de reintento", async () => {
     const fetchMock = vi.fn().mockResolvedValue(ok({ operacion_id: "op1", exitosa: true }));
     vi.stubGlobal("fetch", fetchMock);
