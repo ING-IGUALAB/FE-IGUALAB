@@ -158,7 +158,7 @@ export default function Ingesta() {
 
   return (
     <>
-      <SectionHeader titulo="Ingesta de documentos" sub="Carga de memorias anuales y reportes de sostenibilidad GRI en Markdown. El backend valida, indexa y analiza de forma síncrona." />
+      <SectionHeader titulo="Ingesta de documentos" />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-lg">
         <div className="lg:col-span-1 space-y-lg">
@@ -362,7 +362,7 @@ function DetalleDocumentoModal({ id, onClose }: Readonly<{ id: string | null; on
               <Dato label="Tipo">{etiquetaTipo(doc.tipo)}</Dato>
               <Dato label="Estado"><Badge estado={etiquetaEstado(doc.estado)} /></Dato>
               <Dato label="Análisis">{etiquetaAnalisis(doc.resultado_analisis)}</Dato>
-              <Dato label="Disponible para RAG">{doc.disponible_para_rag ? "Sí" : "No"}</Dato>
+              <Dato label="Disponible para el asistente de IA">{doc.disponible_para_rag ? "Sí" : "No"}</Dato>
               <Dato label="Fragmentos">{doc.fragmentos_procesados}{typeof doc.fragmentos_total === "number" ? ` / ${doc.fragmentos_total}` : ""}</Dato>
               <Dato label="Etapa">{doc.etapa || "—"}</Dato>
               <Dato label="Advertencias">{doc.cantidad_advertencias}</Dato>
