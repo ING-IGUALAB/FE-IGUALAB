@@ -9,6 +9,7 @@ import Empresas from "./pages/Empresas";
 import Ingesta from "./pages/Ingesta";
 import Auditoria from "./pages/Auditoria";
 import Asistente from "./pages/Asistente";
+import AnalisisGri from "./pages/AnalisisGri";
 import Reportes from "./pages/Reportes";
 import Descargas from "./pages/Descargas";
 import MiCuenta from "./pages/MiCuenta";
@@ -39,6 +40,7 @@ export default function App() {
         <Route path="/auditoria" element={<ProtectedRoute rol="superadmin"><Auditoria /></ProtectedRoute>} />
         {/* Administrador */}
         <Route path="/ia" element={<ProtectedRoute rol="administrador"><Asistente /></ProtectedRoute>} />
+        <Route path="/analisis" element={<ProtectedRoute rol="administrador"><AnalisisGri /></ProtectedRoute>} />
         <Route path="/reportes" element={<ProtectedRoute rol="administrador"><Reportes /></ProtectedRoute>} />
         <Route path="/descargas" element={<ProtectedRoute rol="administrador"><Descargas /></ProtectedRoute>} />
         {/* Compartida */}

@@ -31,10 +31,10 @@ export default function Reportes() {
   if (!empresasDocs.length) {
     return (
       <>
-        <SectionHeader titulo="Reportes de prospección" sub="Genera un reporte por empresa y año, a partir de los resultados de análisis almacenados (RF-042)." />
+        <SectionHeader titulo="Reportes de prospección" sub="Genera un reporte por empresa y año, a partir de los resultados de análisis almacenados." />
         <div className="bg-surface-container-lowest rounded-xl border border-surface-variant p-xl text-center">
           <span className="material-symbols-outlined text-[40px] text-outline">block</span>
-          <p className="text-body-md text-on-surface-variant mt-sm">No hay empresas con documentos ingestados. No se puede generar un reporte de prospección (RF-026 / RN-020).</p>
+          <p className="text-body-md text-on-surface-variant mt-sm">No hay empresas con documentos ingestados. No se puede generar un reporte de prospección.</p>
         </div>
       </>
     );
@@ -60,13 +60,13 @@ export default function Reportes() {
     setPreview(true);
     agregarReporte({ id: "r" + Date.now(), empresaId: empresa.id, empresa: empresa.nombre, sector: empresa.sector, anio: anioSel, generadoPor: sesion!.nombre, fecha: new Date().toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" }) });
     pushAudit(sesion!.nombre, "Generación de reporte", `Generó reporte de prospección · ${empresa.nombre} (${anioSel})`);
-    toast("Reporte generado, registrado en auditoría e inmutable (RN-026).", "success");
+    toast("Reporte generado, registrado en auditoría e inmutable.", "success");
     setTimeout(() => globalThis.print(), 400);
   }
 
   return (
     <>
-      <SectionHeader titulo="Reportes de prospección" sub="Selecciona sector, empresa y año; asigna el estado de cada código GRI y genera el reporte con resumen ejecutivo automático (RN-024). El reporte es inmutable (RN-026)." />
+      <SectionHeader titulo="Reportes de prospección" sub="Selecciona sector, empresa y año; asigna el estado de cada código GRI y genera el reporte con resumen ejecutivo automático. El reporte es inmutable." />
       <PendienteBanner />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-lg">
@@ -98,7 +98,7 @@ export default function Reportes() {
                 <span className="material-symbols-outlined">download</span> Descargar PDF
               </button>
             </div>
-            <p className="text-label-sm text-outline mt-md">El resumen ejecutivo incluye sólo el puntaje ESG, el total de sanciones y las sanciones sin monto (RF-041).</p>
+            <p className="text-label-sm text-outline mt-md">El resumen ejecutivo incluye sólo el puntaje ESG, el total de sanciones y las sanciones sin monto.</p>
           </div>
         </div>
 
@@ -106,7 +106,7 @@ export default function Reportes() {
           <div className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
             <div className="p-lg border-b border-outline-variant bg-surface-bright flex justify-between items-center">
               <h3 className="text-title-lg text-on-surface">Estados de códigos GRI (asignación manual)</h3>
-              <span className="text-label-sm text-on-surface-variant">{esg == null ? "" : `Puntaje ESG: ${esg}/100 · OK=100 · Baja=50 · Sub=0 (RF-051)`}</span>
+              <span className="text-label-sm text-on-surface-variant">{esg == null ? "" : `Puntaje ESG: ${esg}/100 · OK=100 · Baja=50 · Sub=0`}</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
@@ -153,7 +153,7 @@ export default function Reportes() {
           )}
 
           <div className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
-            <div className="p-lg border-b border-outline-variant bg-surface-bright"><h3 className="text-title-lg text-on-surface">Historial de reportes generados (RF-044)</h3></div>
+            <div className="p-lg border-b border-outline-variant bg-surface-bright"><h3 className="text-title-lg text-on-surface">Historial de reportes generados</h3></div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>

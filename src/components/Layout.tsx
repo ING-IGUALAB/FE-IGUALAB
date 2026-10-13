@@ -21,12 +21,13 @@ const MENUS: Record<Rol, Item[]> = {
   ],
   administrador: [
     { to: "/ia", label: "Asistente de IA", icon: "psychology" },
+    { to: "/analisis", label: "Análisis GRI", icon: "fact_check" },
     { to: "/reportes", label: "Reportes de prospección", icon: "assessment" },
     { to: "/descargas", label: "Descargar reportes", icon: "download" },
   ],
 };
 
-const INACTIVIDAD_MIN = 120; // 2 horas de inactividad para cerrar sesión (RF-005)
+const INACTIVIDAD_MIN = 120; // 2 horas de inactividad para cerrar sesión
 
 export default function Layout() {
   const { sesion, rol, cerrarSesion } = useAuth();

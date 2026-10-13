@@ -13,6 +13,14 @@ const MAPA: Record<string, string> = {
   "Publicación pendiente": "bg-tertiary-fixed text-on-tertiary-fixed",
   Fallido: "bg-error-container text-on-error-container",
   "Fallido (limpieza pendiente)": "bg-error-container text-on-error-container",
+  // Flujo del análisis GRI y vigencia de la validación
+  Validado: "bg-primary-container text-on-primary-container",
+  "Listo para validar": "bg-secondary-fixed text-on-secondary-fixed",
+  "Pendiente de estados": "bg-tertiary-fixed text-on-tertiary-fixed",
+  "Sin códigos GRI": "bg-surface-variant text-on-surface-variant",
+  "Sin documentos analizados": "bg-surface-variant text-on-surface-variant",
+  Vigente: "bg-primary-container text-on-primary-container",
+  "Sin vigencia": "bg-error-container text-on-error-container",
   // Riesgo derivado del ESG
   Alto: "bg-error-container text-on-error-container",
   Medio: "bg-tertiary-fixed text-on-tertiary-fixed",

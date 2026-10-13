@@ -158,7 +158,7 @@ export default function Ingesta() {
 
   return (
     <>
-      <SectionHeader titulo="Ingesta de documentos" sub="Carga de memorias anuales y reportes de sostenibilidad GRI en Markdown (RN-012). El backend valida, indexa y analiza de forma síncrona (RF-022)." />
+      <SectionHeader titulo="Ingesta de documentos" sub="Carga de memorias anuales y reportes de sostenibilidad GRI en Markdown. El backend valida, indexa y analiza de forma síncrona." />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-lg">
         <div className="lg:col-span-1 space-y-lg">
@@ -170,14 +170,14 @@ export default function Ingesta() {
               </button>
             </div>
             <div className="space-y-md">
-              <Campo label="Sector (RN-019)">
+              <Campo label="Sector">
                 <select value={sector} onChange={(e) => { setSector(e.target.value as SectorApi); setEmpresaId(""); }} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
                   {SECTORES_API.map((s) => (
                     <option key={s} value={s}>{etiquetaSector(s)}</option>
                   ))}
                 </select>
               </Campo>
-              <Campo label="Empresa (RN-014)">
+              <Campo label="Empresa">
                 <select value={empresaId} onChange={(e) => setEmpresaId(e.target.value)} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
                   <option value="">— Selecciona una empresa —</option>
                   {empresasSector.map((e) => (
@@ -192,7 +192,7 @@ export default function Ingesta() {
                 <Campo label="Año">
                   <input type="number" min={2000} max={ANIO_ACTUAL} value={anio} onChange={(e) => setAnio(Number.parseInt(e.target.value, 10) || 0)} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" />
                 </Campo>
-                <Campo label="Tipo (RN-011)">
+                <Campo label="Tipo">
                   <select value={tipo} onChange={(e) => setTipo(e.target.value as TipoDocumentoApi)} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
                     {TIPOS_API.map((t) => (
                       <option key={t} value={t}>{etiquetaTipo(t)}</option>
@@ -209,7 +209,7 @@ export default function Ingesta() {
               >
                 <span className="material-symbols-outlined text-[36px] text-primary">cloud_upload</span>
                 <span className="text-body-md text-on-background font-medium">Arrastra el .md aquí o haz clic para seleccionar</span>
-                <span className="text-label-sm text-outline">Sólo Markdown (.md) · hasta 50 MB (RNF-014)</span>
+                <span className="text-label-sm text-outline">Sólo Markdown (.md) · hasta 50 MB</span>
                 <input ref={inputRef} type="file" accept=".md,text/markdown" className="hidden" onChange={(e) => { elegirArchivo(e.target.files); e.target.value = ""; }} />
               </label>
 

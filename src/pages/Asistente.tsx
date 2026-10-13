@@ -37,7 +37,7 @@ type Respuesta = { texto: string; fuentes: string[] };
 
 function respSanciones(a: Analisis, nombre: string, anio: number): Respuesta {
   if (a.sanciones.length === 0) {
-    return { texto: `No identifico sanciones para ${nombre} en ${anio} dentro del corpus. La ausencia de hallazgo no equivale a ausencia de evidencia (RN-031).`, fuentes: [] };
+    return { texto: `No identifico sanciones para ${nombre} en ${anio} dentro del corpus. La ausencia de hallazgo no equivale a ausencia de evidencia.`, fuentes: [] };
   }
   const res = resumenSanciones(a.sanciones);
   const detalle = a.sanciones.map((s) => `${s.entidad} — ${s.monto == null ? "no cuantificada" : money(s.monto)}`).join("; ");
@@ -65,7 +65,7 @@ function respResumen(a: Analisis, nombre: string, anio: number): Respuesta {
 
 function construirRespuesta(a: Analisis | null, nombre: string, anio: number, t: string): Respuesta {
   if (!a) return { texto: "No hay análisis persistido para este contexto.", fuentes: [] };
-  if (!esDominio(t)) return { texto: "Solo puedo responder consultas sobre sostenibilidad empresarial, indicadores GRI, sanciones económicas o el contenido de los documentos ingestados (RN-037).", fuentes: [] };
+  if (!esDominio(t)) return { texto: "Solo puedo responder consultas sobre sostenibilidad empresarial, indicadores GRI, sanciones económicas o el contenido de los documentos ingestados.", fuentes: [] };
   if (t.includes("sanci") || t.includes("multa")) return respSanciones(a, nombre, anio);
   if (t.includes("brecha") || t.includes("gri") || t.includes("sub-reportad") || t.includes("sub reportad")) return respBrechas(a, nombre, anio);
   return respResumen(a, nombre, anio);
@@ -99,7 +99,7 @@ export default function Asistente() {
 
   function responder(pregunta: string) {
     if (!ctxOk || !empresa || !anio) {
-      toast("Selecciona sector, empresa y año antes de consultar (RF-037).", "warn");
+      toast("Selecciona sector, empresa y año antes de consultar.", "warn");
       return;
     }
     const nombre = empresa.nombre;
@@ -156,11 +156,11 @@ export default function Asistente() {
           <div className="flex gap-lg max-w-4xl">
             <Avatar />
             <div className="bg-surface-container-lowest border border-outline-variant p-lg rounded-xl rounded-tl-sm shadow-sm">
-              <p className="text-body-md text-on-surface mb-md">Hola, soy el asistente de IA de Igualab. Respondo únicamente con base en los documentos ingestados (RN-021) y siempre cito la fuente.</p>
-              <p className="text-body-md text-on-surface mb-md"><strong>Para consultar, primero selecciona sector, empresa y año</strong> (RF-037). Sólo respondo sobre sostenibilidad, indicadores GRI, sanciones o el contenido del corpus (RN-037).</p>
+              <p className="text-body-md text-on-surface mb-md">Hola, soy el asistente de IA de Igualab. Respondo únicamente con base en los documentos ingestados y siempre cito la fuente.</p>
+              <p className="text-body-md text-on-surface mb-md"><strong>Para consultar, primero selecciona sector, empresa y año</strong>. Sólo respondo sobre sostenibilidad, indicadores GRI, sanciones o el contenido del corpus.</p>
               <div className="mt-md flex flex-wrap gap-sm">
                 {SUGERENCIAS.map((s) => (
-                  <button key={s} onClick={() => { if (ctxOk) responder(s); else toast("Primero elige sector, empresa y año (RF-037).", "warn"); }} className="px-4 py-2 bg-surface-container-low hover:bg-surface-variant rounded-full text-label-md text-on-surface-variant transition-colors">{s}</button>
+                  <button key={s} onClick={() => { if (ctxOk) responder(s); else toast("Primero elige sector, empresa y año.", "warn"); }} className="px-4 py-2 bg-surface-container-low hover:bg-surface-variant rounded-full text-label-md text-on-surface-variant transition-colors">{s}</button>
                 ))}
               </div>
             </div>
@@ -186,7 +186,7 @@ export default function Asistente() {
                 <button onClick={enviar} disabled={!ctxOk} className="bg-primary hover:bg-surface-tint text-on-primary px-lg py-2 rounded-lg text-label-md font-semibold flex items-center gap-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><span>Analizar</span><span className="material-symbols-outlined">send</span></button>
               </div>
             </div>
-            <p className="text-center text-label-sm text-outline mt-sm">La IA siempre cita la fuente (RF-031). Si el corpus no basta, lo declara explícitamente (RF-033).</p>
+            <p className="text-center text-label-sm text-outline mt-sm">La IA siempre cita la fuente. Si el corpus no basta, lo declara explícitamente.</p>
           </div>
         </div>
       </div>
@@ -231,7 +231,7 @@ function MensajeItem({ m }: Readonly<{ m: Mensaje }>) {
             ))}
           </div>
         )}
-        <div className="mt-md text-label-sm text-outline">Fundamentada en el corpus · sin datos inventados (RN-022)</div>
+        <div className="mt-md text-label-sm text-outline">Fundamentada en el corpus · sin datos inventados</div>
       </div>
     </div>
   );
