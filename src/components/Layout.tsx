@@ -21,12 +21,13 @@ const MENUS: Record<Rol, Item[]> = {
   ],
   administrador: [
     { to: "/ia", label: "Asistente de IA", icon: "psychology" },
+    { to: "/analisis", label: "Análisis GRI", icon: "fact_check" },
     { to: "/reportes", label: "Reportes de prospección", icon: "assessment" },
     { to: "/descargas", label: "Descargar reportes", icon: "download" },
   ],
 };
 
-const INACTIVIDAD_MIN = 120; // 2 horas de inactividad para cerrar sesión (RF-005)
+const INACTIVIDAD_MIN = 120; // 2 horas de inactividad para cerrar sesión
 
 export default function Layout() {
   const { sesion, rol, cerrarSesion } = useAuth();
@@ -101,15 +102,6 @@ export default function Layout() {
           )}
         </nav>
         <div className="border-t border-surface-variant p-lg space-y-sm">
-          <div className="flex items-center gap-md mb-sm">
-            <div className="w-9 h-9 rounded-full bg-primary text-on-primary flex items-center justify-center font-semibold">
-              {iniciales(sesion.nombre)}
-            </div>
-            <div className="min-w-0">
-              <p className="text-label-md text-on-surface font-semibold truncate">{sesion.nombre}</p>
-              <p className="text-label-sm text-on-surface-variant capitalize">{rol}</p>
-            </div>
-          </div>
           <NavLink to="/mi-cuenta" className="flex items-center gap-md text-on-surface-variant hover:text-primary transition-colors">
             <span className="material-symbols-outlined">key</span>
             <span className="text-body-md">Cambiar contraseña</span>

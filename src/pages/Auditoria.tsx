@@ -49,7 +49,7 @@ export default function Auditoria() {
     <>
       <SectionHeader
         titulo="Auditoría de eventos"
-        sub="Registro automático e inmutable de eventos sensibles. Solo lectura (RN-029). Consigna cuenta, fecha, hora y tipo (RN-028)."
+        sub="Registro automático e inmutable de eventos sensibles. Solo lectura. Consigna cuenta, fecha, hora y tipo."
         acciones={
           <button onClick={exportar} className="flex items-center gap-sm px-md py-sm bg-surface rounded-lg border border-outline-variant text-on-surface text-label-md font-semibold hover:bg-surface-container-low transition-colors">
             <span className="material-symbols-outlined text-[18px]">download</span> Exportar

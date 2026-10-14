@@ -26,7 +26,7 @@ export default function Descargas() {
 
   return (
     <>
-      <SectionHeader titulo="Descargar reportes" sub="Reportes de prospección generados, con la empresa, el año y la fecha de generación (RF-044). Disponibles aun si el asistente de IA no está operativo (RN-030)." />
+      <SectionHeader titulo="Descargar reportes" sub="Reportes de prospección generados, con la empresa, el año y la fecha de generación. Disponibles aun si el asistente de IA no está operativo." />
       <PendienteBanner />
 
       <div className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">

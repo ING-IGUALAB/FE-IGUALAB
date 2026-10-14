@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
+import type { PuntajeEsg } from "../types";
 import {
+  ESTADOS_GRI_API,
+  FLUJO_INFO,
   MAX_BYTES_INGESTA,
+  detallePuntaje,
+  etiquetaEstadoGri,
+  etiquetaFlujo,
+  plural,
+  puedeValidar,
+  textoMotivosNoVigente,
+  valorPuntaje,
   anioIngestaValido,
   etiquetaAnalisis,
   etiquetaEstado,
@@ -47,7 +57,7 @@ describe("validarArchivoIngesta", () => {
   it("rechaza extensión distinta de .md (RF-018)", () => {
     const r = validarArchivoIngesta({ name: "memoria.pdf", size: 1024 });
     expect(r.ok).toBe(false);
-    expect(r.motivo).toContain("RF-018");
+    expect(r.motivo).toContain(".md");
   });
 
   it("rechaza archivo vacío", () => {
@@ -59,7 +69,7 @@ describe("validarArchivoIngesta", () => {
   it("rechaza si supera 50 MB (RNF-014)", () => {
     const r = validarArchivoIngesta({ name: "grande.md", size: MAX_BYTES_INGESTA + 1 });
     expect(r.ok).toBe(false);
-    expect(r.motivo).toContain("RNF-014");
+    expect(r.motivo).toContain("50 MB");
   });
 });
 
@@ -80,5 +90,68 @@ describe("formatearTamano", () => {
     expect(formatearTamano(512)).toBe("512 B");
     expect(formatearTamano(2048)).toBe("2.0 KB");
     expect(formatearTamano(5 * 1024 * 1024)).toBe("5.0 MB");
+  });
+});
+
+describe("análisis GRI", () => {
+  const puntajeBase: PuntajeEsg = {
+    estado: "NO_DISPONIBLE",
+    definitivo: false,
+    valor: null,
+    valor_presentacion: null,
+    decimales_presentacion: 1,
+    suma_puntos: null,
+    filas_contadas: 0,
+    filas_evaluables: 0,
+    filas_sin_estado: 0,
+    motivo: null,
+    mensaje: null,
+  };
+
+  it("etiqueta los estados GRI y el caso sin estado", () => {
+    expect(ESTADOS_GRI_API).toEqual(["OK", "BAJA_SUSTANCIA", "SUB_REPORTADO"]);
+    expect(etiquetaEstadoGri("OK")).toBe("OK");
+    expect(etiquetaEstadoGri("BAJA_SUSTANCIA")).toBe("Baja sustancia");
+    expect(etiquetaEstadoGri("SUB_REPORTADO")).toBe("Sub-reportado");
+    expect(etiquetaEstadoGri(null)).toBe("Sin estado");
+    expect(etiquetaEstadoGri(undefined)).toBe("Sin estado");
+  });
+
+  it("etiqueta el flujo y sólo permite validar cuando está listo", () => {
+    expect(etiquetaFlujo("LISTO_PARA_VALIDAR")).toBe("Listo para validar");
+    expect(etiquetaFlujo("DOCUMENTACION_INSUFICIENTE")).toBe("Sin documentos analizados");
+    expect(FLUJO_INFO.PENDIENTE_ESTADOS.descripcion).toContain("Asigna un estado");
+    expect(puedeValidar("LISTO_PARA_VALIDAR")).toBe(true);
+    expect(puedeValidar("PENDIENTE_ESTADOS")).toBe(false);
+    expect(puedeValidar("VALIDADO")).toBe(false);
+  });
+
+  it("formatea el valor del puntaje o devuelve guion", () => {
+    expect(valorPuntaje(puntajeBase)).toBe("—");
+    expect(valorPuntaje({ ...puntajeBase, valor_presentacion: 66.7, decimales_presentacion: 1 })).toBe("66.7");
+    expect(valorPuntaje({ ...puntajeBase, valor_presentacion: 50, decimales_presentacion: 0 })).toBe("50");
+  });
+
+  it("explica el puntaje según su estado", () => {
+    expect(detallePuntaje({ ...puntajeBase, estado: "VALIDADO", filas_contadas: 4 })).toBe("Definitivo · promedio de 4 códigos GRI");
+    expect(detallePuntaje({ ...puntajeBase, estado: "VALIDADO", filas_contadas: 1 })).toBe("Definitivo · promedio de 1 código GRI");
+    expect(detallePuntaje({ ...puntajeBase, estado: "CALCULADO_SIN_VALIDAR", filas_contadas: 3 })).toBe("Preliminar · falta validar el análisis (3 códigos GRI)");
+    expect(detallePuntaje({ ...puntajeBase, estado: "PENDIENTE_ESTADOS", filas_sin_estado: 1 })).toBe("Falta 1 código GRI por asignar estado");
+    expect(detallePuntaje({ ...puntajeBase, estado: "PENDIENTE_ESTADOS", mensaje: "Faltan estados." })).toBe("Faltan estados.");
+    expect(detallePuntaje({ ...puntajeBase, estado: "PENDIENTE_ESTADOS", filas_sin_estado: 2 })).toBe("Faltan 2 códigos GRI por asignar estado");
+    expect(detallePuntaje(puntajeBase)).toBe("Aún no disponible");
+  });
+
+  it("arma singular y plural", () => {
+    expect(plural(1, "mención", "menciones")).toBe("1 mención");
+    expect(plural(0, "mención", "menciones")).toBe("0 menciones");
+    expect(plural(5, "mención", "menciones")).toBe("5 menciones");
+  });
+
+  it("describe por qué una validación perdió vigencia", () => {
+    expect(textoMotivosNoVigente(["ESTADOS_CAMBIARON"])).toBe("cambiaron estados de códigos GRI");
+    expect(textoMotivosNoVigente(["ESTADOS_CAMBIARON", "DOCUMENTOS_CAMBIARON"])).toBe(
+      "cambiaron estados de códigos GRI y cambiaron los documentos analizados",
+    );
   });
 });

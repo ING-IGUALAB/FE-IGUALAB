@@ -54,7 +54,7 @@ export default function Empresas() {
     <>
       <SectionHeader
         titulo="Catálogo de empresas"
-        sub="Registra y administra las empresas emisoras de la Bolsa de Valores de Lima que serán analizadas (RN-014, RN-019)."
+        sub="Registra y administra las empresas emisoras de la Bolsa de Valores de Lima que serán analizadas."
       />
 
       <div className="flex flex-col sm:flex-row sm:items-end gap-md justify-between">
@@ -192,7 +192,7 @@ function EmpresaModal({
   async function guardar() {
     setError("");
     if (!nombre.trim()) {
-      setError("El nombre es obligatorio (RF-053).");
+      setError("El nombre es obligatorio.");
       return;
     }
     setCargando(true);
@@ -232,7 +232,7 @@ function EmpresaModal({
             />
           </label>
           <label className="flex flex-col gap-xs">
-            <span className="text-label-md text-on-surface-variant">Sector (RN-019)</span>
+            <span className="text-label-md text-on-surface-variant">Sector</span>
             <select
               value={sector}
               onChange={(e) => setSector(e.target.value as SectorApi)}

@@ -97,7 +97,7 @@ export const REPORTES_SEED: Reporte[] = [
 
 export const AUDIT_SEED: EventoAuditoria[] = [
   { id: 1, fecha: "2026-08-25 09:31", usuario: "Oscar Baldeón", tipo: "Ingesta de documento", accion: "Ingestó 'Memoria Anual 2024 - Minera Andina S.A.A.' (Minería · 2024)" },
-  { id: 2, fecha: "2026-08-25 09:48", usuario: "Oscar Baldeón", tipo: "Rechazo de documento", accion: "Rechazó carga duplicada (misma empresa, tipo y año) — RN-033" },
+  { id: 2, fecha: "2026-08-25 09:48", usuario: "Oscar Baldeón", tipo: "Rechazo de documento", accion: "Rechazó carga duplicada (misma empresa, tipo y año)" },
   { id: 3, fecha: "2026-08-25 11:20", usuario: "María López", tipo: "Cambio de estado GRI", accion: "Asignó estado 'Baja sustancia' a GRI 305 · Minera Andina 2024" },
   { id: 4, fecha: "2026-08-25 11:44", usuario: "María López", tipo: "Generación de reporte", accion: "Generó reporte de prospección · Minera Andina S.A.A. (2024)" },
 ];
