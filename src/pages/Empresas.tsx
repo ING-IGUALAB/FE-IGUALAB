@@ -44,7 +44,12 @@ export default function Empresas() {
         ? await empresasApi.desactivarEmpresa(empresa.id)
         : await empresasApi.activarEmpresa(empresa.id);
       setEmpresas((prev) => prev.map((e) => (e.id === actualizada.id ? actualizada : e)));
-      toast(`Empresa ${actualizada.activa ? "activada" : "desactivada"}.`, "success");
+      toast(
+        actualizada.activa
+          ? "Empresa activada. Sus documentos vuelven a considerarse en el análisis GRI."
+          : "Empresa desactivada. Sus documentos ya no se consideran en el análisis GRI.",
+        "success",
+      );
     } catch (err) {
       toast(mensajeError(err, "No se pudo cambiar el estado."), "error");
     }

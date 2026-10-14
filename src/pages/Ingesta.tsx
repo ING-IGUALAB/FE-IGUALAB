@@ -16,6 +16,7 @@ import {
   etiquetaSector,
   etiquetaTipo,
   formatearTamano,
+  paginarLocal,
   validarArchivoIngesta,
 } from "../lib/dominio";
 import type {
@@ -31,6 +32,7 @@ import type {
 
 const ESTADOS: EstadoProgreso[] = ["COMPLETADO", "EN_PROCESO", "PUBLICACION_PENDIENTE", "FALLIDO", "FALLIDO_LIMPIEZA_PENDIENTE"];
 const ANIO_ACTUAL = new Date().getFullYear();
+const TAM_PAGINA = 10;
 
 export default function Ingesta() {
   const toast = useToast();
@@ -52,14 +54,16 @@ export default function Ingesta() {
   const [cargandoDocs, setCargandoDocs] = useState(true);
   const [fEstado, setFEstado] = useState<"" | EstadoProgreso>("");
   const [fTipo, setFTipo] = useState<"" | TipoDocumentoApi>("");
+  const [fSector, setFSector] = useState<"" | SectorApi>("");
   const [pagina, setPagina] = useState(1);
   const [detalleId, setDetalleId] = useState<string | null>(null);
 
-  const empresasSector = empresas.filter((e) => e.sector === sector);
+  const empresasSector = empresas.filter((e) => e.activa && e.sector === sector);
+  const empresasInactivas = new Set(empresas.filter((e) => !e.activa).map((e) => e.id));
 
   useEffect(() => {
     empresasApi
-      .listarEmpresas({ soloActivas: true })
+      .listarEmpresas()
       .then(setEmpresas)
       .catch((err) => toast(mensajeError(err, "No se pudieron cargar las empresas."), "error"));
   }, [toast]);
@@ -67,21 +71,26 @@ export default function Ingesta() {
   const cargarDocs = useCallback(async () => {
     setCargandoDocs(true);
     try {
-      const data = await documentosApi.listarDocumentos({
-        estado: fEstado || undefined,
-        tipo: fTipo || undefined,
-        pagina,
-        tamano: 10,
-      });
-      setDocs(data.items);
-      setPaginaActual(data.pagina);
-      setTotalPaginas(Math.max(1, data.paginas));
+      const filtros = { estado: fEstado || undefined, tipo: fTipo || undefined };
+      if (fSector) {
+        // El backend no filtra por sector: se traen todas las páginas y se pagina aquí.
+        const todos = await documentosApi.listarTodosDocumentos(filtros);
+        const pag = paginarLocal(todos.filter((d) => d.sector === fSector), pagina, TAM_PAGINA);
+        setDocs(pag.items);
+        setPaginaActual(pag.pagina);
+        setTotalPaginas(pag.paginas);
+      } else {
+        const data = await documentosApi.listarDocumentos({ ...filtros, pagina, tamano: TAM_PAGINA });
+        setDocs(data.items);
+        setPaginaActual(data.pagina);
+        setTotalPaginas(Math.max(1, data.paginas));
+      }
     } catch (err) {
       toast(mensajeError(err, "No se pudieron cargar los documentos."), "error");
     } finally {
       setCargandoDocs(false);
     }
-  }, [fEstado, fTipo, pagina, toast]);
+  }, [fEstado, fTipo, fSector, pagina, toast]);
 
   useEffect(() => {
     cargarDocs();
@@ -234,6 +243,10 @@ export default function Ingesta() {
           <div className="p-lg border-b border-outline-variant bg-surface-bright flex flex-col sm:flex-row sm:justify-between sm:items-center gap-md">
             <h3 className="text-title-lg text-on-surface">Documentos ingestados</h3>
             <div className="flex flex-wrap items-center gap-sm">
+              <select value={fSector} onChange={(e) => { setFSector(e.target.value as "" | SectorApi); setPagina(1); }} className="rounded-lg border border-outline-variant bg-surface-container-low py-xs px-sm text-label-md focus:border-primary outline-none">
+                <option value="">Todo sector</option>
+                {SECTORES_API.map((s) => <option key={s} value={s}>{etiquetaSector(s)}</option>)}
+              </select>
               <select value={fTipo} onChange={(e) => { setFTipo(e.target.value as "" | TipoDocumentoApi); setPagina(1); }} className="rounded-lg border border-outline-variant bg-surface-container-low py-xs px-sm text-label-md focus:border-primary outline-none">
                 <option value="">Todo tipo</option>
                 {TIPOS_API.map((t) => <option key={t} value={t}>{etiquetaTipo(t)}</option>)}
@@ -258,10 +271,12 @@ export default function Ingesta() {
                   <tr key={k} className="border-b border-surface-variant"><td colSpan={7} className="py-md px-md"><div className="h-5 bg-surface-variant rounded animate-pulse" /></td></tr>
                 ))}
                 {!cargandoDocs && docs.length === 0 && (
-                  <tr><td colSpan={7} className="py-xl px-md text-center text-on-surface-variant">Aún no hay documentos ingestados.</td></tr>
+                  <tr><td colSpan={7} className="py-xl px-md text-center text-on-surface-variant">{fSector || fTipo || fEstado ? "No hay documentos con estos filtros." : "Aún no hay documentos ingestados."}</td></tr>
                 )}
-                {!cargandoDocs && docs.map((d) => (
-                  <tr key={d.id} onClick={() => setDetalleId(d.id)} className="border-b border-surface-variant hover:bg-surface/50 transition-colors cursor-pointer">
+                {!cargandoDocs && docs.map((d) => {
+                  const inactiva = empresasInactivas.has(d.empresa_id);
+                  return (
+                  <tr key={d.id} onClick={() => setDetalleId(d.id)} title={inactiva ? "La empresa está desactivada en el catálogo" : undefined} className={`border-b border-surface-variant hover:bg-surface/50 transition-colors cursor-pointer ${inactiva ? "opacity-60" : ""}`}>
                     <td className="py-md px-md">
                       <div className="flex items-center gap-sm">
                         <span className={`material-symbols-outlined ${d.tipo === "REPORTE_SOSTENIBILIDAD_GRI" ? "text-secondary" : "text-primary"}`}>{d.tipo === "REPORTE_SOSTENIBILIDAD_GRI" ? "eco" : "description"}</span>
@@ -273,14 +288,15 @@ export default function Ingesta() {
                     </td>
                     <td className="py-md px-md text-on-surface-variant">{d.anio}</td>
                     <td className="py-md px-md">{etiquetaTipo(d.tipo)}</td>
-                    <td className="py-md px-md"><Badge estado={etiquetaEstado(d.estado)} /></td>
+                    <td className="py-md px-md"><Badge estado={inactiva ? "Inactivo" : etiquetaEstado(d.estado)} /></td>
                     <td className="py-md px-md text-on-surface-variant">{etiquetaAnalisis(d.resultado_analisis)}</td>
                     <td className="py-md px-md text-on-surface-variant whitespace-nowrap">{fechaHora(d.creado_en)}</td>
                     <td className="py-md px-md text-right">
                       <span className="inline-flex items-center gap-xs text-primary text-label-md"><span className="material-symbols-outlined text-[18px]">visibility</span> Ver</span>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -293,7 +309,7 @@ export default function Ingesta() {
           )}
         </div>
       </div>
-      <DetalleDocumentoModal id={detalleId} onClose={() => setDetalleId(null)} />
+      <DetalleDocumentoModal id={detalleId} empresasInactivas={empresasInactivas} onClose={() => setDetalleId(null)} />
     </>
   );
 }
@@ -321,7 +337,11 @@ function Dato({ label, children }: Readonly<{ label: string; children: ReactNode
   );
 }
 
-function DetalleDocumentoModal({ id, onClose }: Readonly<{ id: string | null; onClose: () => void }>) {
+function DetalleDocumentoModal({
+  id,
+  empresasInactivas,
+  onClose,
+}: Readonly<{ id: string | null; empresasInactivas: Set<string>; onClose: () => void }>) {
   const toast = useToast();
   const [doc, setDoc] = useState<DocumentoDetalle | null>(null);
   const [cargando, setCargando] = useState(false);
@@ -355,6 +375,12 @@ function DetalleDocumentoModal({ id, onClose }: Readonly<{ id: string | null; on
 
         {!cargando && doc && (
           <div className="space-y-lg">
+            {empresasInactivas.has(doc.empresa_id) && (
+              <div className="flex items-start gap-sm rounded-lg bg-surface-variant text-on-surface-variant px-md py-sm text-body-md">
+                <span className="material-symbols-outlined text-[18px]">block</span>
+                <span>La empresa de este documento está desactivada en el catálogo. El documento no se considera en el análisis GRI.</span>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-md">
               <Dato label="Empresa">{doc.empresa_nombre}</Dato>
               <Dato label="Sector">{etiquetaSector(doc.sector)}</Dato>

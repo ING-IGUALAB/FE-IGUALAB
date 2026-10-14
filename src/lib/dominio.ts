@@ -148,3 +148,10 @@ export const MOTIVO_NO_VIGENTE_LABEL: Record<MotivoNoVigente, string> = {
 export function textoMotivosNoVigente(motivos: MotivoNoVigente[]): string {
   return motivos.map((m) => MOTIVO_NO_VIGENTE_LABEL[m] ?? m).join(" y ");
 }
+
+/** Paginación en el cliente (para filtros que el backend no soporta, p. ej. sector). */
+export function paginarLocal<T>(items: T[], pagina: number, tamano: number): { items: T[]; pagina: number; paginas: number } {
+  const paginas = Math.max(1, Math.ceil(items.length / tamano));
+  const actual = Math.min(Math.max(1, pagina), paginas);
+  return { items: items.slice((actual - 1) * tamano, actual * tamano), pagina: actual, paginas };
+}
