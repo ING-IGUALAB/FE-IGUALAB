@@ -83,7 +83,7 @@ export default function ReporteA4({ empresa, anio, analisis }: Readonly<{ empres
         </div>
 
         <div className="mt-auto border-t border-surface-variant pt-4 flex justify-between items-center text-outline text-label-md">
-          <span>Confidencial · Uso interno de Igualab · Reporte inmutable (RN-026)</span>
+          <span>Confidencial · Uso interno de Igualab · Reporte inmutable</span>
           <span>Igualab Intelligence</span>
         </div>
       </div>
