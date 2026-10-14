@@ -75,6 +75,26 @@ describe("api/documentos", () => {
     expect(fetchMock.mock.calls[0][1].method ?? "GET").toBe("GET");
   });
 
+  it("listarTodosDocumentos recorre todas las páginas de 100 en 100", async () => {
+    const pagina = (n: number) => ({ items: [{ id: `d${n}` }], total: 2, pagina: n, tamano: 100, paginas: 2 });
+    const fetchMock = vi.fn().mockResolvedValueOnce(ok(pagina(1))).mockResolvedValueOnce(ok(pagina(2)));
+    vi.stubGlobal("fetch", fetchMock);
+    const todos = await documentosApi.listarTodosDocumentos({ tipo: "MEMORIA_ANUAL" });
+    expect(todos.map((d) => d.id)).toEqual(["d1", "d2"]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toContain("pagina=1");
+    expect(fetchMock.mock.calls[1][0]).toContain("pagina=2");
+    expect(fetchMock.mock.calls[0][0]).toContain("tamano=100");
+    expect(fetchMock.mock.calls[0][0]).toContain("tipo=MEMORIA_ANUAL");
+  });
+
+  it("listarTodosDocumentos hace una sola llamada si hay una página", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(ok({ items: [], total: 0, pagina: 1, tamano: 100, paginas: 1 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(documentosApi.listarTodosDocumentos()).resolves.toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("reintentarPublicacion hace POST a la ruta de reintento", async () => {
     const fetchMock = vi.fn().mockResolvedValue(ok({ operacion_id: "op1", exitosa: true }));
     vi.stubGlobal("fetch", fetchMock);

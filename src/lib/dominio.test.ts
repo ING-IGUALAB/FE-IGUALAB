@@ -7,6 +7,7 @@ import {
   detallePuntaje,
   etiquetaEstadoGri,
   etiquetaFlujo,
+  paginarLocal,
   plural,
   puedeValidar,
   textoMotivosNoVigente,
@@ -153,5 +154,23 @@ describe("análisis GRI", () => {
     expect(textoMotivosNoVigente(["ESTADOS_CAMBIARON", "DOCUMENTOS_CAMBIARON"])).toBe(
       "cambiaron estados de códigos GRI y cambiaron los documentos analizados",
     );
+  });
+});
+
+describe("paginarLocal", () => {
+  const items = Array.from({ length: 23 }, (_, i) => i + 1);
+
+  it("corta la página pedida y calcula el total de páginas", () => {
+    expect(paginarLocal(items, 1, 10)).toEqual({ items: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], pagina: 1, paginas: 3 });
+    expect(paginarLocal(items, 3, 10)).toEqual({ items: [21, 22, 23], pagina: 3, paginas: 3 });
+  });
+
+  it("acota la página fuera de rango", () => {
+    expect(paginarLocal(items, 9, 10).pagina).toBe(3);
+    expect(paginarLocal(items, 0, 10).pagina).toBe(1);
+  });
+
+  it("con lista vacía devuelve 1 página sin items", () => {
+    expect(paginarLocal([], 1, 10)).toEqual({ items: [], pagina: 1, paginas: 1 });
   });
 });

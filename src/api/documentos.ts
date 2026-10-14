@@ -1,6 +1,7 @@
 import { api } from "./client";
 import type {
   DocumentoDetalle,
+  DocumentoResumen,
   EstadoProgreso,
   Operacion,
   OperacionCreada,
@@ -57,6 +58,23 @@ export function listarDocumentos(filtros: FiltrosDocumentos = {}) {
   qs.set("pagina", String(filtros.pagina ?? 1));
   qs.set("tamano", String(filtros.tamano ?? 20));
   return api<PaginaDocumentos>(`/documentos?${qs.toString()}`);
+}
+
+/**
+ * Trae TODAS las páginas que cumplen los filtros (de 100 en 100). Se usa cuando hay que filtrar
+ * por algo que el backend no soporta en `GET /documentos` (p. ej. sector) y paginar en el cliente.
+ */
+export async function listarTodosDocumentos(filtros: Omit<FiltrosDocumentos, "pagina" | "tamano"> = {}) {
+  const todos: DocumentoResumen[] = [];
+  let pagina = 1;
+  let paginas = 1;
+  do {
+    const data = await listarDocumentos({ ...filtros, pagina, tamano: 100 });
+    todos.push(...data.items);
+    paginas = data.paginas;
+    pagina += 1;
+  } while (pagina <= paginas);
+  return todos;
 }
 
 export function detalleDocumento(id: string) {
