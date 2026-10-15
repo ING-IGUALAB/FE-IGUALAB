@@ -29,6 +29,8 @@ export default function Modal({ open, onClose, children, width = "max-w-lg" }: R
             transition={{ duration: 0.18 }}
           />
           <motion.div
+            role="dialog"
+            aria-modal="true"
             className={`relative bg-surface-container-lowest rounded-2xl border border-surface-variant shadow-[0_12px_32px_rgba(0,0,0,0.16)] w-full ${width} max-h-[92vh] flex flex-col overflow-hidden`}
             initial={{ opacity: 0, scale: 0.96, y: 8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate, useOutlet } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "../auth/AuthContext";
 import { useToast } from "./ToastProvider";
@@ -28,26 +28,34 @@ const MENUS: Record<Rol, Item[]> = {
 };
 
 const INACTIVIDAD_MIN = 120; // 2 horas de inactividad para cerrar sesión
+const INACTIVIDAD_MS = INACTIVIDAD_MIN * 60 * 1000;
 
 export default function Layout() {
   const { sesion, rol, cerrarSesion } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
   const location = useLocation();
+  // Se captura la ruta en cada render: así la página que sale en la animación sigue
+  // mostrando su propio contenido (con <Outlet /> mostraría la ruta nueva y la montaría dos veces).
+  const outlet = useOutlet();
   const [restante, setRestante] = useState(INACTIVIDAD_MIN * 60);
-  const idleRef = useRef(INACTIVIDAD_MIN * 60);
+  // Se mide contra la hora de la última actividad (no contando "tics"): el navegador frena
+  // los temporizadores en pestañas en segundo plano y el conteo por tics se atrasaría.
+  const ultimaActividad = useRef(Date.now());
 
   const items = rol ? MENUS[rol] : [];
 
   // Expiración por inactividad.
   useEffect(() => {
-    const reset = () => (idleRef.current = INACTIVIDAD_MIN * 60);
+    const reset = () => {
+      ultimaActividad.current = Date.now();
+    };
     const eventos = ["mousemove", "keydown", "click", "scroll"];
     eventos.forEach((e) => document.addEventListener(e, reset, { passive: true }));
     const iv = setInterval(async () => {
-      idleRef.current -= 1;
-      setRestante(idleRef.current);
-      if (idleRef.current <= 0) {
+      const quedan = Math.max(0, Math.ceil((INACTIVIDAD_MS - (Date.now() - ultimaActividad.current)) / 1000));
+      setRestante(quedan);
+      if (quedan <= 0) {
         clearInterval(iv);
         await cerrarSesion();
         toast("Tu sesión expiró por inactividad. Vuelve a autenticarte.", "warn");
@@ -141,7 +149,7 @@ export default function Layout() {
               transition={{ duration: 0.22, ease: "easeOut" }}
               className="space-y-xl"
             >
-              <Outlet />
+              {outlet}
             </motion.div>
           </AnimatePresence>
         </main>

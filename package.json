@@ -9,7 +9,12 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui",
+    "e2e:report": "playwright show-report",
+    "e2e:ver": "playwright test --headed",
+    "e2e:grabar": "playwright test --headed"
   },
   "dependencies": {
     "framer-motion": "^11.5.4",
@@ -20,6 +25,7 @@
     "sonner": "^1.5.0"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.1",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.2",
