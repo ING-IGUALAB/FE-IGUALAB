@@ -2,7 +2,11 @@ pipeline {
     agent any
 
     options {
-        buildDiscarder(logRotator(numToKeepStr: '5'))
+        // Solo se conserva la última ejecución y sus artefactos (reportes y evidencias e2e).
+        buildDiscarder(logRotator(
+            numToKeepStr: '1',
+            artifactNumToKeepStr: '1'
+        ))
     }
 
     stages {
@@ -110,6 +114,43 @@ pipeline {
                         docker compose -f docker-compose.qa.yml down
                         docker compose -f docker-compose.qa.yml up -d --build
                     '''
+                }
+            }
+        }
+
+        // E2E del frontend sobre la app YA DESPLEGADA en QA, en un navegador real (Chromium).
+        // Usa servicios simulados (no toca el backend). Guarda video y captura de TODAS las
+        // pruebas, pasen o fallen, más el reporte HTML y el JUnit, como artefactos del build.
+        stage('E2E Tests') {
+            when {
+                branch 'qa'
+            }
+            agent {
+                docker {
+                    // La versión debe coincidir con la de @playwright/test en package.json.
+                    image 'mcr.microsoft.com/playwright:v1.64.1-noble'
+                    args '--ipc=host'
+                    reuseNode true
+                }
+            }
+            environment {
+                CI = 'true'
+                HOME = "${env.WORKSPACE}"
+                E2E_BASE_URL = 'https://qa-igualab.ingsoftware.lat'
+            }
+            steps {
+                sh '''
+                    npm ci
+                    node e2e/esperar-despliegue.mjs
+                    npx playwright test
+                '''
+            }
+            post {
+                always {
+                    // Resultado de cada prueba en la pestaña "Test Result" del build.
+                    junit allowEmptyResults: true, testResults: 'e2e-results/junit.xml'
+                    // Evidencias: reporte HTML (con videos y capturas), videos crudos y JUnit.
+                    archiveArtifacts artifacts: 'playwright-report/**, test-results/**, e2e-results/**', allowEmptyArchive: true
                 }
             }
         }
