@@ -218,10 +218,10 @@ function fechaHora(iso: string): string {
 
 function Campo({ label, children }: Readonly<{ label: string; children: ReactNode }>) {
   return (
-    <div className="flex flex-col gap-xs">
+    <label className="flex flex-col gap-xs">
       <span className="text-label-md text-on-surface-variant">{label}</span>
       {children}
-    </div>
+    </label>
   );
 }
 
@@ -361,6 +361,7 @@ function FilaItem({
         <label className="flex flex-col gap-xs">
           <span className="text-label-sm text-on-surface-variant">Estado</span>
           <select
+            aria-label={`Estado de ${fila.estandar}`}
             value={fila.estado ?? ""}
             disabled={guardando}
             onChange={(e) => onCambiar(fila, e.target.value as EstadoGriApi)}

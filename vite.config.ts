@@ -13,6 +13,8 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    // Solo pruebas unitarias; las e2e (carpeta e2e/) las ejecuta Playwright.
+    include: ["src/**/*.test.{ts,tsx}"],
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],

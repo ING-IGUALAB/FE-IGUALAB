@@ -243,15 +243,15 @@ export default function Ingesta() {
           <div className="p-lg border-b border-outline-variant bg-surface-bright flex flex-col sm:flex-row sm:justify-between sm:items-center gap-md">
             <h3 className="text-title-lg text-on-surface">Documentos ingestados</h3>
             <div className="flex flex-wrap items-center gap-sm">
-              <select value={fSector} onChange={(e) => { setFSector(e.target.value as "" | SectorApi); setPagina(1); }} className="rounded-lg border border-outline-variant bg-surface-container-low py-xs px-sm text-label-md focus:border-primary outline-none">
+              <select aria-label="Filtrar por sector" value={fSector} onChange={(e) => { setFSector(e.target.value as "" | SectorApi); setPagina(1); }} className="rounded-lg border border-outline-variant bg-surface-container-low py-xs px-sm text-label-md focus:border-primary outline-none">
                 <option value="">Todo sector</option>
                 {SECTORES_API.map((s) => <option key={s} value={s}>{etiquetaSector(s)}</option>)}
               </select>
-              <select value={fTipo} onChange={(e) => { setFTipo(e.target.value as "" | TipoDocumentoApi); setPagina(1); }} className="rounded-lg border border-outline-variant bg-surface-container-low py-xs px-sm text-label-md focus:border-primary outline-none">
+              <select aria-label="Filtrar por tipo" value={fTipo} onChange={(e) => { setFTipo(e.target.value as "" | TipoDocumentoApi); setPagina(1); }} className="rounded-lg border border-outline-variant bg-surface-container-low py-xs px-sm text-label-md focus:border-primary outline-none">
                 <option value="">Todo tipo</option>
                 {TIPOS_API.map((t) => <option key={t} value={t}>{etiquetaTipo(t)}</option>)}
               </select>
-              <select value={fEstado} onChange={(e) => { setFEstado(e.target.value as "" | EstadoProgreso); setPagina(1); }} className="rounded-lg border border-outline-variant bg-surface-container-low py-xs px-sm text-label-md focus:border-primary outline-none">
+              <select aria-label="Filtrar por estado" value={fEstado} onChange={(e) => { setFEstado(e.target.value as "" | EstadoProgreso); setPagina(1); }} className="rounded-lg border border-outline-variant bg-surface-container-low py-xs px-sm text-label-md focus:border-primary outline-none">
                 <option value="">Todo estado</option>
                 {ESTADOS.map((s) => <option key={s} value={s}>{etiquetaEstado(s)}</option>)}
               </select>
@@ -321,10 +321,10 @@ function fechaHora(iso: string): string {
 
 function Campo({ label, children }: Readonly<{ label: string; children: ReactNode }>) {
   return (
-    <div className="flex flex-col gap-xs">
-      <label className="text-label-md text-on-surface-variant">{label}</label>
+    <label className="flex flex-col gap-xs">
+      <span className="text-label-md text-on-surface-variant">{label}</span>
       {children}
-    </div>
+    </label>
   );
 }
 
@@ -389,7 +389,7 @@ function DetalleDocumentoModal({
               <Dato label="Estado"><Badge estado={etiquetaEstado(doc.estado)} /></Dato>
               <Dato label="Análisis">{etiquetaAnalisis(doc.resultado_analisis)}</Dato>
               <Dato label="Disponible para el asistente de IA">{doc.disponible_para_rag ? "Sí" : "No"}</Dato>
-              <Dato label="Fragmentos">{doc.fragmentos_procesados}{typeof doc.fragmentos_total === "number" ? ` / ${doc.fragmentos_total}` : ""}</Dato>
+              <Dato label="Fragmentos">{doc.fragmentos_total ?? doc.fragmentos_procesados}</Dato>
               <Dato label="Etapa">{doc.etapa || "—"}</Dato>
               <Dato label="Advertencias">{doc.cantidad_advertencias}</Dato>
             </div>
