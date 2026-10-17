@@ -5,7 +5,6 @@ import "./index.css";
 import App from "./App";
 import { AuthProvider } from "./auth/AuthContext";
 import { ToastProvider } from "./components/ToastProvider";
-import { DomainProvider } from "./data/DomainContext";
 import LoadingOverlay from "./components/LoadingOverlay";
 
 createRoot(document.getElementById("root")!).render(
@@ -14,9 +13,7 @@ createRoot(document.getElementById("root")!).render(
       <ToastProvider>
         <LoadingOverlay />
         <AuthProvider>
-          <DomainProvider>
-            <App />
-          </DomainProvider>
+          <App />
         </AuthProvider>
       </ToastProvider>
     </BrowserRouter>

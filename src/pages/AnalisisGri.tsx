@@ -18,6 +18,7 @@ import {
   etiquetaSector,
   plural,
   puedeValidar,
+  textoMonto,
   textoMotivosNoVigente,
   valorPuntaje,
 } from "../lib/dominio";
@@ -445,7 +446,7 @@ function SancionesCard({ sanciones, resumen }: Readonly<{ sanciones: SancionVist
               {sanciones.map((s) => (
                 <tr key={`${s.documento_id}:${s.inicio}`} className="border-b border-surface-variant align-top">
                   <td className="py-md px-md">{s.entidad?.texto ?? "No identificada"}</td>
-                  <td className="py-md px-md whitespace-nowrap">{s.monto?.texto ?? "No cuantificada"}</td>
+                  <td className="py-md px-md whitespace-nowrap">{s.monto ? textoMonto(s.monto) : "No cuantificada"}</td>
                   <td className="py-md px-md text-on-surface-variant">{s.periodo?.texto ?? "—"}</td>
                   <td className="py-md px-md">
                     <p className="text-on-surface-variant italic border-l-2 border-outline-variant pl-sm break-words">{s.cita}</p>

@@ -1,6 +1,6 @@
 import { getToken, limpiarSesion } from "../lib/token";
 import { config } from "../config";
-import type { BackendError, BackendErrorResponse } from "../types";
+import type { ArchivoApi, BackendError, BackendErrorResponse } from "../types";
 
 const API = config.apiUrl;
 
@@ -38,6 +38,8 @@ interface Opts {
   method?: string;
   body?: unknown;
   auth?: boolean;
+  /** No muestra el indicador de carga global (p. ej. el chat, que tiene su propio indicador). */
+  silencioso?: boolean;
 }
 
 // Construye el ApiError desde el contrato del backend y, si corresponde, cierra la sesión.
@@ -58,9 +60,10 @@ function lanzarErrorApi(status: number, data: unknown): never {
   throw apiErr;
 }
 
-export async function api<T>(path: string, opts: Opts = {}): Promise<T> {
+// Arma método, cabeceras (token) y cuerpo. En multipart (FormData) el navegador fija el
+// Content-Type con su boundary, por eso no se envía a mano.
+function prepararPeticion(opts: Opts): RequestInit {
   const { method = "GET", body, auth = true } = opts;
-  // En multipart (FormData) dejamos que el navegador fije el Content-Type con su boundary.
   const esFormData = typeof FormData !== "undefined" && body instanceof FormData;
   const headers: Record<string, string> = {};
   if (!esFormData) headers["Content-Type"] = "application/json";
@@ -71,24 +74,50 @@ export async function api<T>(path: string, opts: Opts = {}): Promise<T> {
   if (body === undefined) payload = undefined;
   else if (esFormData) payload = body as FormData;
   else payload = JSON.stringify(body);
+  return { method, headers, body: payload };
+}
 
-  globalThis.dispatchEvent(new CustomEvent(LOADING_START));
-  let res: Response;
+// Ejecuta la petición avisando al indicador de carga y traduce la falta de red a ApiError.
+async function ejecutar(path: string, opts: Opts): Promise<Response> {
+  const avisar = !opts.silencioso;
+  if (avisar) globalThis.dispatchEvent(new CustomEvent(LOADING_START));
   try {
-    res = await fetch(`${API}${path}`, { method, headers, body: payload });
+    return await fetch(`${API}${path}`, prepararPeticion(opts));
   } catch {
     throw new ApiError(0, { code: "NETWORK_ERROR", message: "No se pudo conectar con el servidor." });
   } finally {
-    globalThis.dispatchEvent(new CustomEvent(LOADING_END));
+    if (avisar) globalThis.dispatchEvent(new CustomEvent(LOADING_END));
   }
+}
 
+/** Petición JSON: devuelve la respuesta tipada como T o lanza ApiError con el contrato del backend. */
+export async function api<T>(path: string, opts: Opts = {}): Promise<T> {
+  const res = await ejecutar(path, opts);
   if (res.status === 204) return null as T;
-
   const data = await res.json().catch(() => null);
-
   if (!res.ok) lanzarErrorApi(res.status, data);
-
   return data as T;
+}
+
+/** Petición que devuelve un archivo (p. ej. el PDF de un reporte). Los errores llegan igual en JSON. */
+export async function apiArchivo(path: string, opts: Opts = {}): Promise<ArchivoApi> {
+  const res = await ejecutar(path, opts);
+  if (!res.ok) lanzarErrorApi(res.status, await res.json().catch(() => null));
+  return { blob: await res.blob(), nombre: nombreArchivoDe(res.headers.get("content-disposition")) };
+}
+
+/** Nombre del archivo indicado por el backend en Content-Disposition, si lo hay. */
+export function nombreArchivoDe(disposicion: string | null): string | null {
+  if (!disposicion) return null;
+  let nombre: string | null = null;
+  for (const parte of disposicion.split(";")) {
+    const [clave, ...resto] = parte.trim().split("=");
+    const valor = resto.join("=").trim().replace(/"/g, "");
+    if (!valor) continue;
+    if (clave.toLowerCase() === "filename*") return decodeURIComponent(valor.replace(/^utf-8''/i, ""));
+    if (clave.toLowerCase() === "filename") nombre = valor;
+  }
+  return nombre;
 }
 
 // Extrae una lista de mensajes legibles desde error.details (validaciones).

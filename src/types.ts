@@ -34,75 +34,6 @@ export interface SesionActual {
   nombre: string;
 }
 
-// ---- Dominio de sostenibilidad (aún sin backend, datos locales) ----
-export type EstadoGri = "OK" | "Baja sustancia" | "Sub-reportado";
-export type Sector = "Minería" | "Petróleo y Gas" | "Energía";
-export type TipoDocumento = "Memoria Anual" | "Reporte de Sostenibilidad GRI";
-export type EstadoIngesta = "Éxito" | "En proceso" | "Rechazado";
-
-export interface Empresa {
-  id: string;
-  nombre: string;
-  sector: Sector;
-  activa: boolean;
-}
-
-export interface CodigoGri {
-  codigo: string;
-  tema: string;
-  estado: EstadoGri;
-  cita: string;
-  doc: string;
-  pagina: string;
-}
-
-export interface Sancion {
-  entidad: string;
-  motivo: string;
-  monto: number | null;
-  cita: string;
-  doc: string;
-  pagina: string;
-}
-
-export interface Analisis {
-  evidencia: { gri: boolean; sanciones: boolean };
-  gri: CodigoGri[];
-  sanciones: Sancion[];
-}
-
-export interface Documento {
-  id: string;
-  empresaId: string;
-  empresa: string;
-  sector: Sector;
-  anio: number;
-  tipo: TipoDocumento;
-  estado: EstadoIngesta;
-  fecha: string;
-  cuenta: string;
-  hash: string;
-  tamano: string;
-}
-
-export interface Reporte {
-  id: string;
-  empresaId: string;
-  empresa: string;
-  sector: Sector;
-  anio: number;
-  generadoPor: string;
-  fecha: string;
-}
-
-export interface EventoAuditoria {
-  id: number;
-  fecha: string;
-  usuario: string;
-  tipo: string;
-  accion: string;
-}
-
 // ---- Catálogo de empresas e ingesta de datos (backend real) ----
 export type SectorApi = "MINERIA" | "PETROLEO" | "ENERGIA";
 export type TipoDocumentoApi = "MEMORIA_ANUAL" | "REPORTE_SOSTENIBILIDAD_GRI";
@@ -283,6 +214,9 @@ export interface MontoVista {
   texto: string;
   unidad: string;
   separador_ambiguo: boolean;
+  /** Posición de la moneda en el documento cuando no está dentro de `texto` (p. ej. en el encabezado de una tabla). */
+  unidad_inicio?: number | null;
+  unidad_fin?: number | null;
 }
 
 export interface SancionVista {
@@ -409,4 +343,60 @@ export interface DocumentoDetalle extends DocumentoResumen {
   error?: ErrorOperacion | null;
   analisis?: Record<string, unknown> | null;
   actualizado_en: string;
+}
+
+// ---- Asistente de IA (RAG) ----
+export interface CitaAsistente {
+  documento_id: string;
+  seccion: string;
+  anio: number;
+  empresa_id: string;
+  extracto: string;
+}
+
+export interface ConsultaAsistente {
+  respuesta: string;
+  citas: CitaAsistente[];
+  sin_evidencia: boolean;
+  mensaje?: string | null;
+}
+
+// ---- Reportes de prospección ----
+export interface ReporteResumen {
+  id: string;
+  empresa_id: string;
+  anio: number;
+  generado_por: string;
+  sha256: string;
+  creado_en: string;
+}
+
+/** Archivo binario devuelto por la API (p. ej. el PDF del reporte). */
+export interface ArchivoApi {
+  blob: Blob;
+  nombre: string | null;
+}
+
+// ---- Auditoría ----
+export type TipoEventoAuditoria =
+  | "Inicio de sesión"
+  | "Cambio de rol"
+  | "Ingesta de datos"
+  | "Rechazo de documento"
+  | "Generación de reporte"
+  | "Descarga";
+
+export interface EventoAuditoriaApi {
+  id: string;
+  usuario_id?: string | null;
+  tipo_evento: TipoEventoAuditoria;
+  detalle: string;
+  fecha_hora_utc: string;
+}
+
+export interface PaginaEventos {
+  items: EventoAuditoriaApi[];
+  pagina: number;
+  tamano: number;
+  total: number;
 }
