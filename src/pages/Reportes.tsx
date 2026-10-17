@@ -42,7 +42,7 @@ export default function Reportes() {
 
   useEffect(() => {
     empresasApi
-      .listarEmpresas()
+      .listarEmpresas({ soloActivas: true })
       .then(setEmpresas)
       .catch((err) => toast(mensajeError(err, "No se pudieron cargar las empresas."), "error"));
     cargarReportes();

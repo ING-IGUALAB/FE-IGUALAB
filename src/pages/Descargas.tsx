@@ -31,7 +31,7 @@ export default function Descargas() {
   const { descargar, descargando } = useDescargarReporte(nombreEmpresa);
 
   useEffect(() => {
-    Promise.all([empresasApi.listarEmpresas(), reportesApi.listarReportes()])
+    Promise.all([empresasApi.listarEmpresas({ soloActivas: true }), reportesApi.listarReportes()])
       .then(([emps, reps]) => {
         setEmpresas(emps);
         setReportes([...reps].sort((a, b) => b.creado_en.localeCompare(a.creado_en)));
