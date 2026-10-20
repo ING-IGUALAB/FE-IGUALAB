@@ -11,6 +11,7 @@ import {
   huellaCorta,
   inicioDiaUtc,
   nombreArchivoReporte,
+  nombrePersona,
   textoDescartadas,
   textoMonto,
   textoSinEvidencia,
@@ -264,5 +265,22 @@ describe("aniosDisponibles", () => {
   });
   it("nunca devuelve una lista vacía", () => {
     expect(aniosDisponibles(new Date("2023-06-01T12:00:00"))).toEqual([2023]);
+  });
+});
+
+describe("nombrePersona", () => {
+  const nombres = new Map([["500f81e3-bebf-4f24-9ace-81f49d3eb6cf", "Oscar Baldeón"]]);
+  it("traduce el ID del usuario a su nombre", () => {
+    expect(nombrePersona("500f81e3-bebf-4f24-9ace-81f49d3eb6cf", nombres)).toBe("Oscar Baldeón");
+  });
+  it("no muestra un ID desconocido", () => {
+    expect(nombrePersona("11111111-2222-3333-4444-555555555555", nombres)).toBe("Usuario no identificado");
+  });
+  it("si ya viene un nombre, lo deja tal cual", () => {
+    expect(nombrePersona("Ana García", nombres)).toBe("Ana García");
+  });
+  it("sin valor muestra guion", () => {
+    expect(nombrePersona(null, nombres)).toBe("—");
+    expect(nombrePersona("", nombres)).toBe("—");
   });
 });

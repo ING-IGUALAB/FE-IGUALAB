@@ -63,13 +63,28 @@ test.describe("Caso de uso: Ingestar documentos", () => {
     await expect(page.locator("tbody")).not.toContainText("Minera Andina S.A.A.");
   });
 
-  test("muestra el detalle de un documento", async ({ page }) => {
+  test("muestra el detalle de un documento con el nombre de quien lo cargó", async ({ page }) => {
     await page.getByRole("row", { name: /memoria-andina-2024.md/ }).click();
     const dialogo = page.getByRole("dialog");
     await expect(dialogo.getByText("Detalle del documento")).toBeVisible();
     await expect(dialogo).toContainText("Minera Andina S.A.A.");
     await expect(dialogo).toContainText("Memoria Anual");
     await expect(dialogo).toContainText("memoria-andina-2024.md");
+    // El backend manda el ID del usuario: se muestra su nombre, nunca el ID.
+    await expect(dialogo).toContainText("Oscar Baldeón");
+    await expect(dialogo).not.toContainText("u-super");
+  });
+
+  test("la huella SHA-256 queda en «Detalles técnicos», plegada y explicada", async ({ page }) => {
+    await page.getByRole("row", { name: /memoria-andina-2024.md/ }).click();
+    const dialogo = page.getByRole("dialog");
+    const huella = dialogo.getByText("Huella del archivo (SHA-256)");
+    await expect(huella).toBeHidden();
+
+    await dialogo.getByText("Detalles técnicos").click();
+    await expect(huella).toBeVisible();
+    await expect(dialogo.getByText("permite detectar cargas duplicadas")).toBeVisible();
+    await expect(dialogo.getByRole("button", { name: "Copiar huella" })).toBeVisible();
   });
 
   test("los documentos de una empresa desactivada se ven como Inactivo", async ({ page }) => {

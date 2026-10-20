@@ -376,7 +376,7 @@ export class ServicioSimulado {
       disponible_para_rag: true,
       fragmentos_total: 4,
       cantidad_advertencias: 0,
-      cargado_por: "Oscar Baldeón",
+      cargado_por: "u-super",
       creado_en: "2026-10-14T16:00:00Z",
       completado_en: "2026-10-14T16:00:05Z",
     };
@@ -752,7 +752,7 @@ export class ServicioSimulado {
       disponible_para_rag: true,
       fragmentos_total: 3,
       cantidad_advertencias: 0,
-      cargado_por: "Oscar Baldeón",
+      cargado_por: "u-super",
       creado_en: "2026-10-09T15:00:00Z",
       completado_en: "2026-10-09T15:00:05Z",
     });

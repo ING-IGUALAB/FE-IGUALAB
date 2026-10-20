@@ -7,6 +7,7 @@ import Modal from "../components/Modal";
 import { useToast } from "../components/ToastProvider";
 import * as empresasApi from "../api/empresas";
 import * as documentosApi from "../api/documentos";
+import * as usuariosApi from "../api/usuarios";
 import { mensajeError } from "../api/client";
 import {
   aniosDisponibles,
@@ -17,6 +18,7 @@ import {
   etiquetaSector,
   etiquetaTipo,
   formatearTamano,
+  nombrePersona,
   paginarLocal,
   validarArchivoIngesta,
 } from "../lib/dominio";
@@ -58,6 +60,15 @@ export default function Ingesta() {
   const [fSector, setFSector] = useState<"" | SectorApi>("");
   const [pagina, setPagina] = useState(1);
   const [detalleId, setDetalleId] = useState<string | null>(null);
+  const [nombres, setNombres] = useState<Map<string, string>>(new Map());
+
+  // Nombres de los usuarios, para mostrar «Cargado por» con el nombre y no con su ID.
+  useEffect(() => {
+    usuariosApi
+      .listarUsuarios()
+      .then((us) => setNombres(new Map(us.map((u) => [u.id, u.nombre]))))
+      .catch(() => setNombres(new Map()));
+  }, []);
 
   const empresasSector = empresas.filter((e) => e.activa && e.sector === sector);
   const empresasInactivas = new Set(empresas.filter((e) => !e.activa).map((e) => e.id));
@@ -312,7 +323,7 @@ export default function Ingesta() {
           )}
         </div>
       </div>
-      <DetalleDocumentoModal id={detalleId} empresasInactivas={empresasInactivas} onClose={() => setDetalleId(null)} />
+      <DetalleDocumentoModal id={detalleId} empresasInactivas={empresasInactivas} nombres={nombres} onClose={() => setDetalleId(null)} />
     </>
   );
 }
@@ -343,8 +354,9 @@ function Dato({ label, children }: Readonly<{ label: string; children: ReactNode
 function DetalleDocumentoModal({
   id,
   empresasInactivas,
+  nombres,
   onClose,
-}: Readonly<{ id: string | null; empresasInactivas: Set<string>; onClose: () => void }>) {
+}: Readonly<{ id: string | null; empresasInactivas: Set<string>; nombres: Map<string, string>; onClose: () => void }>) {
   const toast = useToast();
   const [doc, setDoc] = useState<DocumentoDetalle | null>(null);
   const [cargando, setCargando] = useState(false);
@@ -393,15 +405,13 @@ function DetalleDocumentoModal({
               <Dato label="Análisis">{etiquetaAnalisis(doc.resultado_analisis)}</Dato>
               <Dato label="Disponible para el asistente de IA">{doc.disponible_para_rag ? "Sí" : "No"}</Dato>
               <Dato label="Fragmentos">{doc.fragmentos_total ?? doc.fragmentos_procesados}</Dato>
-              <Dato label="Etapa">{doc.etapa || "—"}</Dato>
               <Dato label="Advertencias">{doc.cantidad_advertencias}</Dato>
             </div>
 
             <div className="grid grid-cols-1 gap-md border-t border-surface-variant pt-md">
               <Dato label="Archivo">{doc.nombre_archivo} · {formatearTamano(doc.tamano_bytes)}</Dato>
-              <Dato label="SHA-256"><code className="text-label-sm">{doc.sha256}</code></Dato>
               <div className="grid grid-cols-2 gap-md">
-                <Dato label="Cargado por">{doc.cargado_por}</Dato>
+                <Dato label="Cargado por">{nombrePersona(doc.cargado_por, nombres)}</Dato>
                 <Dato label="Creado">{fechaHora(doc.creado_en)}</Dato>
                 <Dato label="Actualizado">{fechaHora(doc.actualizado_en)}</Dato>
                 <Dato label="Completado">{doc.completado_en ? fechaHora(doc.completado_en) : "—"}</Dato>
@@ -414,12 +424,7 @@ function DetalleDocumentoModal({
               </div>
             )}
 
-            {analisisJson && (
-              <div>
-                <p className="text-label-sm text-on-surface-variant uppercase tracking-wider mb-xs">Análisis (crudo)</p>
-                <pre className="rounded-lg bg-surface-container-low border border-outline-variant p-sm text-label-sm overflow-x-auto max-h-64">{analisisJson}</pre>
-              </div>
-            )}
+            <DetallesTecnicos sha256={doc.sha256} etapa={doc.etapa} analisisJson={analisisJson} />
           </div>
         )}
 
@@ -428,6 +433,54 @@ function DetalleDocumentoModal({
         </div>
       </div>
     </Modal>
+  );
+}
+
+function DetallesTecnicos({
+  sha256,
+  etapa,
+  analisisJson,
+}: Readonly<{ sha256: string; etapa?: string | null; analisisJson: string | null }>) {
+  const toast = useToast();
+  async function copiar() {
+    try {
+      await navigator.clipboard.writeText(sha256);
+      toast("Huella copiada.", "success");
+    } catch {
+      toast("No se pudo copiar. Selecciónala y cópiala manualmente.", "warn");
+    }
+  }
+  return (
+    <details className="rounded-lg border border-outline-variant bg-surface-container-low/50 group">
+      <summary className="cursor-pointer select-none px-md py-sm text-label-md text-on-surface-variant flex items-center gap-xs">
+        <span className="material-symbols-outlined text-[18px] transition-transform group-open:rotate-90" aria-hidden="true">chevron_right</span>
+        <span>Detalles técnicos</span>
+      </summary>
+      <div className="px-md pb-md space-y-md">
+        <div>
+          <p className="text-label-sm text-on-surface-variant uppercase tracking-wider">Huella del archivo (SHA-256)</p>
+          <p className="text-label-sm text-outline mt-xs">Identifica este archivo exacto: permite detectar cargas duplicadas y comprobar que no fue modificado.</p>
+          <div className="mt-xs flex items-start gap-sm">
+            <code className="flex-1 min-w-0 break-all rounded bg-surface-container-lowest border border-outline-variant px-sm py-xs text-label-sm">{sha256}</code>
+            <button onClick={copiar} title="Copiar huella" aria-label="Copiar huella" className="shrink-0 p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-variant">
+              <span className="material-symbols-outlined text-[18px]" aria-hidden="true">content_copy</span>
+            </button>
+          </div>
+        </div>
+        {etapa && (
+          <div>
+            <p className="text-label-sm text-on-surface-variant uppercase tracking-wider">Etapa del procesamiento</p>
+            <p className="text-label-md text-on-surface mt-xs">{etapa}</p>
+          </div>
+        )}
+        {analisisJson && (
+          <div>
+            <p className="text-label-sm text-on-surface-variant uppercase tracking-wider mb-xs">Resultado del análisis (datos sin procesar)</p>
+            <pre className="rounded-lg bg-surface-container-lowest border border-outline-variant p-sm text-label-sm overflow-x-auto max-h-64">{analisisJson}</pre>
+          </div>
+        )}
+      </div>
+    </details>
   );
 }
 

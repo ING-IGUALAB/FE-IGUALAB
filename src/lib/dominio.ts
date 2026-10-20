@@ -246,3 +246,17 @@ export function aniosDisponibles(hoy: Date = new Date()): number[] {
   const ultimo = Math.max(ANIO_MIN_DATOS, hoy.getFullYear() - 1);
   return Array.from({ length: ultimo - ANIO_MIN_DATOS + 1 }, (_, i) => ultimo - i);
 }
+
+// ---- Personas ----
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Nombre legible de quien hizo algo. El backend suele mandar el ID (UUID) del usuario: se busca su
+ * nombre; si el valor ya es un nombre, se muestra tal cual; si es un ID desconocido, no se muestra el ID.
+ */
+export function nombrePersona(valor: string | null | undefined, nombres: Map<string, string>): string {
+  if (!valor) return "—";
+  const nombre = nombres.get(valor);
+  if (nombre) return nombre;
+  return UUID.test(valor) ? "Usuario no identificado" : valor;
+}
