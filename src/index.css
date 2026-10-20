@@ -14,6 +14,26 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/*
+ * Listas desplegables (<select>): se reemplaza la flecha nativa, que el navegador dibuja pegada
+ * al borde, por una propia con aire a la derecha. Aplica a todas las listas de la app.
+ */
+select:not([multiple]) {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%233f4941' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1.1rem;
+  /* Deja sitio para la flecha aunque el campo tenga px-* de Tailwind. */
+  padding-right: 2.5rem !important;
+  cursor: pointer;
+}
+select:not([multiple]):disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .material-symbols-outlined {
   font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
   user-select: none;

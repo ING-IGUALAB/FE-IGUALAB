@@ -209,7 +209,7 @@ export default function Ingesta() {
                   <span className="text-label-sm text-on-surface-variant">No hay empresas activas en este sector. Regístralas en el Catálogo de empresas.</span>
                 )}
               </Campo>
-              <div className="grid grid-cols-2 gap-sm">
+              <div className="grid grid-cols-1 gap-md">
                 <Campo label="Año">
                   <select value={anio} onChange={(e) => setAnio(Number(e.target.value))} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
                   {ANIOS.map((a) => <option key={a} value={a}>{a}</option>)}
@@ -254,18 +254,18 @@ export default function Ingesta() {
         </div>
 
         <div className="lg:col-span-2 bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
-          <div className="p-lg border-b border-outline-variant bg-surface-bright flex flex-col sm:flex-row sm:justify-between sm:items-center gap-md">
+          <div className="p-lg border-b border-outline-variant bg-surface-bright space-y-md">
             <h3 className="text-title-lg text-on-surface">Documentos ingestados</h3>
-            <div className="flex flex-wrap items-center gap-sm">
-              <select aria-label="Filtrar por sector" value={fSector} onChange={(e) => { setFSector(e.target.value as "" | SectorApi); setPagina(1); }} className="rounded-lg border border-outline-variant bg-surface-container-low py-xs px-sm text-label-md focus:border-primary outline-none">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-sm">
+              <select aria-label="Filtrar por sector" value={fSector} onChange={(e) => { setFSector(e.target.value as "" | SectorApi); setPagina(1); }} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
                 <option value="">Todo sector</option>
                 {SECTORES_API.map((s) => <option key={s} value={s}>{etiquetaSector(s)}</option>)}
               </select>
-              <select aria-label="Filtrar por tipo" value={fTipo} onChange={(e) => { setFTipo(e.target.value as "" | TipoDocumentoApi); setPagina(1); }} className="rounded-lg border border-outline-variant bg-surface-container-low py-xs px-sm text-label-md focus:border-primary outline-none">
+              <select aria-label="Filtrar por tipo" value={fTipo} onChange={(e) => { setFTipo(e.target.value as "" | TipoDocumentoApi); setPagina(1); }} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
                 <option value="">Todo tipo</option>
                 {TIPOS_API.map((t) => <option key={t} value={t}>{etiquetaTipo(t)}</option>)}
               </select>
-              <select aria-label="Filtrar por estado" value={fEstado} onChange={(e) => { setFEstado(e.target.value as "" | EstadoProgreso); setPagina(1); }} className="rounded-lg border border-outline-variant bg-surface-container-low py-xs px-sm text-label-md focus:border-primary outline-none">
+              <select aria-label="Filtrar por estado" value={fEstado} onChange={(e) => { setFEstado(e.target.value as "" | EstadoProgreso); setPagina(1); }} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
                 <option value="">Todo estado</option>
                 {ESTADOS.map((s) => <option key={s} value={s}>{etiquetaEstado(s)}</option>)}
               </select>
