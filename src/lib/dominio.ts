@@ -4,6 +4,7 @@ import type {
   EstadoProgreso,
   MontoVista,
   MotivoNoVigente,
+  MotivoSinEvidencia,
   PuntajeEsg,
   ResultadoAnalisis,
   SectorApi,
@@ -211,4 +212,51 @@ export function totalPaginas(total: number, tamano: number): number {
 export function aCsv(filas: string[][]): string {
   const cuerpo = filas.map((f) => f.map((c) => `"${c.replace(/"/g, '""')}"`).join(";")).join("\n");
   return `\uFEFF${cuerpo}`;
+}
+
+// ---- Asistente de IA ----
+const MOTIVO_SIN_EVIDENCIA: Record<MotivoSinEvidencia, string> = {
+  SIN_FRAGMENTOS: "No hay documentos analizados de esta empresa y año para responder.",
+  MODELO_SIN_EVIDENCIA: "Los documentos cargados no contienen información para responder esta pregunta.",
+  AFIRMACIONES_NO_VERIFICABLES: "La respuesta no pudo respaldarse con citas literales de los documentos.",
+  RESPUESTA_NO_INTERPRETABLE: "No se pudo interpretar la respuesta del asistente. Intenta reformular la pregunta.",
+  FUERA_DE_DOMINIO: "Solo respondo sobre sostenibilidad, indicadores GRI y sanciones de las empresas.",
+};
+
+/** Explicación legible de por qué el asistente no pudo responder (si el backend no envía `mensaje`). */
+export function textoSinEvidencia(motivo?: MotivoSinEvidencia | null): string {
+  return (motivo && MOTIVO_SIN_EVIDENCIA[motivo]) || "Los documentos cargados no contienen evidencia suficiente para responder.";
+}
+
+/** «Se omitió 1 afirmación…» / «Se omitieron 3 afirmaciones…» (concordancia en singular y plural). */
+export function textoDescartadas(n: number): string {
+  if (n === 1) return "Se omitió 1 afirmación que no pudo respaldarse con los documentos.";
+  return `Se omitieron ${n} afirmaciones que no pudieron respaldarse con los documentos.`;
+}
+
+// ---- Años con datos ----
+/** Primer año con documentos en la plataforma. Para habilitar años anteriores, cambiar solo esta constante. */
+export const ANIO_MIN_DATOS = 2023;
+
+/**
+ * Años que se pueden elegir, del más reciente al más antiguo: desde ANIO_MIN_DATOS hasta el último año
+ * cerrado (las memorias y reportes de un año se publican al siguiente). Se actualiza solo cada año.
+ */
+export function aniosDisponibles(hoy: Date = new Date()): number[] {
+  const ultimo = Math.max(ANIO_MIN_DATOS, hoy.getFullYear() - 1);
+  return Array.from({ length: ultimo - ANIO_MIN_DATOS + 1 }, (_, i) => ultimo - i);
+}
+
+// ---- Personas ----
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Nombre legible de quien hizo algo. El backend suele mandar el ID (UUID) del usuario: se busca su
+ * nombre; si el valor ya es un nombre, se muestra tal cual; si es un ID desconocido, no se muestra el ID.
+ */
+export function nombrePersona(valor: string | null | undefined, nombres: Map<string, string>): string {
+  if (!valor) return "—";
+  const nombre = nombres.get(valor);
+  if (nombre) return nombre;
+  return UUID.test(valor) ? "Usuario no identificado" : valor;
 }

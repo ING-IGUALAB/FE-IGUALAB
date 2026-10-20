@@ -13,6 +13,21 @@ test.describe("Caso de uso: Gestionar usuarios", () => {
     await expect(page.getByRole("cell", { name: "SuperAdmin", exact: true })).toHaveCount(1);
   });
 
+  test("el diálogo cubre toda la pantalla, sin desenfoque, y enfoca el primer campo", async ({ page }) => {
+    await page.getByRole("button", { name: "Crear usuario" }).click();
+    const dialogo = page.getByRole("dialog");
+    await expect(dialogo.getByLabel("Nombre completo")).toBeFocused();
+
+    const fondo = page.getByTestId("modal-fondo");
+    const caja = await fondo.boundingBox();
+    const vista = page.viewportSize()!;
+    expect(caja).toMatchObject({ x: 0, y: 0, width: vista.width, height: vista.height });
+    expect(await fondo.evaluate((el) => getComputedStyle(el).backdropFilter)).toBe("none");
+
+    await page.keyboard.press("Escape");
+    await expect(dialogo).toHaveCount(0);
+  });
+
   test("crea una cuenta nueva como Administrador", async ({ page, api }) => {
     await page.getByRole("button", { name: "Crear usuario" }).click();
     const dialogo = page.getByRole("dialog");

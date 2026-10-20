@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { PuntajeEsg } from "../types";
 import {
+  ANIO_MIN_DATOS,
+  aniosDisponibles,
   ESTADOS_GRI_API,
   FLUJO_INFO,
   TIPOS_EVENTO_AUDITORIA,
@@ -9,7 +11,10 @@ import {
   huellaCorta,
   inicioDiaUtc,
   nombreArchivoReporte,
+  nombrePersona,
+  textoDescartadas,
   textoMonto,
+  textoSinEvidencia,
   totalPaginas,
   MAX_BYTES_INGESTA,
   detallePuntaje,
@@ -228,5 +233,54 @@ describe("auditoría", () => {
   });
   it("genera CSV con BOM, «;» y comillas escapadas", () => {
     expect(aCsv([["a", 'b "c"'], ["1", "2"]])).toBe('\uFEFF"a";"b ""c"""\n"1";"2"');
+  });
+});
+
+describe("textoSinEvidencia", () => {
+  it("explica cada motivo del backend", () => {
+    expect(textoSinEvidencia("FUERA_DE_DOMINIO")).toContain("sostenibilidad");
+    expect(textoSinEvidencia("SIN_FRAGMENTOS")).toContain("No hay documentos");
+    expect(textoSinEvidencia("AFIRMACIONES_NO_VERIFICABLES")).toContain("citas literales");
+  });
+  it("usa un texto genérico si no hay motivo", () => {
+    expect(textoSinEvidencia(null)).toContain("evidencia suficiente");
+    expect(textoSinEvidencia(undefined)).toContain("evidencia suficiente");
+  });
+});
+
+describe("textoDescartadas", () => {
+  it("concuerda en singular y plural", () => {
+    expect(textoDescartadas(1)).toBe("Se omitió 1 afirmación que no pudo respaldarse con los documentos.");
+    expect(textoDescartadas(3)).toBe("Se omitieron 3 afirmaciones que no pudieron respaldarse con los documentos.");
+  });
+});
+
+describe("aniosDisponibles", () => {
+  it("va de 2023 al último año cerrado, del más reciente al más antiguo", () => {
+    expect(ANIO_MIN_DATOS).toBe(2023);
+    expect(aniosDisponibles(new Date("2026-10-20T12:00:00"))).toEqual([2025, 2024, 2023]);
+  });
+  it("se actualiza solo con el paso del tiempo", () => {
+    expect(aniosDisponibles(new Date("2028-03-01T12:00:00"))).toEqual([2027, 2026, 2025, 2024, 2023]);
+  });
+  it("nunca devuelve una lista vacía", () => {
+    expect(aniosDisponibles(new Date("2023-06-01T12:00:00"))).toEqual([2023]);
+  });
+});
+
+describe("nombrePersona", () => {
+  const nombres = new Map([["500f81e3-bebf-4f24-9ace-81f49d3eb6cf", "Oscar Baldeón"]]);
+  it("traduce el ID del usuario a su nombre", () => {
+    expect(nombrePersona("500f81e3-bebf-4f24-9ace-81f49d3eb6cf", nombres)).toBe("Oscar Baldeón");
+  });
+  it("no muestra un ID desconocido", () => {
+    expect(nombrePersona("11111111-2222-3333-4444-555555555555", nombres)).toBe("Usuario no identificado");
+  });
+  it("si ya viene un nombre, lo deja tal cual", () => {
+    expect(nombrePersona("Ana García", nombres)).toBe("Ana García");
+  });
+  it("sin valor muestra guion", () => {
+    expect(nombrePersona(null, nombres)).toBe("—");
+    expect(nombrePersona("", nombres)).toBe("—");
   });
 });

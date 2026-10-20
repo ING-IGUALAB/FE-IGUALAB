@@ -8,10 +8,10 @@ import { useDescargarReporte } from "../components/useDescargarReporte";
 import * as empresasApi from "../api/empresas";
 import * as reportesApi from "../api/reportes";
 import { mensajeError } from "../api/client";
-import { SECTORES_API, anioIngestaValido, etiquetaSector } from "../lib/dominio";
+import { SECTORES_API, aniosDisponibles, anioIngestaValido, etiquetaSector } from "../lib/dominio";
 import type { EmpresaApi, ReporteResumen, SectorApi } from "../types";
 
-const ANIO_ACTUAL = new Date().getFullYear();
+const ANIOS = aniosDisponibles();
 const RECIENTES = 5;
 const CLS_SELECT =
   "w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none";
@@ -21,7 +21,7 @@ export default function Reportes() {
   const [empresas, setEmpresas] = useState<EmpresaApi[]>([]);
   const [sector, setSector] = useState<SectorApi>(SECTORES_API[0]);
   const [empresaId, setEmpresaId] = useState("");
-  const [anio, setAnio] = useState(ANIO_ACTUAL - 1);
+  const [anio, setAnio] = useState(ANIOS[0]);
   const [reportes, setReportes] = useState<ReporteResumen[]>([]);
   const [vistaUrl, setVistaUrl] = useState<string | null>(null);
   const [accion, setAccion] = useState<"vista" | "generar" | null>(null);
@@ -104,7 +104,9 @@ export default function Reportes() {
                 </select>
               </Campo>
               <Campo label="Año">
-                <input type="number" min={2000} max={ANIO_ACTUAL} value={anio} onChange={(e) => setAnio(Number.parseInt(e.target.value, 10) || 0)} className={CLS_SELECT} />
+                <select value={anio} onChange={(e) => setAnio(Number(e.target.value))} className={CLS_SELECT}>
+                  {ANIOS.map((a) => <option key={a} value={a}>{a}</option>)}
+                </select>
               </Campo>
             </div>
             <div className="grid gap-sm mt-lg">

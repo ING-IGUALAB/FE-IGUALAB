@@ -12,6 +12,7 @@ import {
   ESTADO_GRI_LABEL,
   FLUJO_INFO,
   SECTORES_API,
+  aniosDisponibles,
   anioIngestaValido,
   detallePuntaje,
   etiquetaEstadoGri,
@@ -36,7 +37,7 @@ import type {
   ValidacionVista,
 } from "../types";
 
-const ANIO_ACTUAL = new Date().getFullYear();
+const ANIOS = aniosDisponibles();
 const CLS_SELECT =
   "w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none";
 const CLS_CARD = "bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden";
@@ -58,7 +59,7 @@ export default function AnalisisGri() {
   const [empresas, setEmpresas] = useState<EmpresaApi[]>([]);
   const [sector, setSector] = useState<SectorApi>(SECTORES_API[0]);
   const [empresaId, setEmpresaId] = useState("");
-  const [anio, setAnio] = useState(ANIO_ACTUAL - 1);
+  const [anio, setAnio] = useState(ANIOS[0]);
   const [analisis, setAnalisis] = useState<Analisis | null>(null);
   const [cargando, setCargando] = useState(false);
   const [guardando, setGuardando] = useState<string | null>(null);
@@ -174,7 +175,9 @@ export default function AnalisisGri() {
                 )}
               </Campo>
               <Campo label="Año">
-                <input type="number" min={2000} max={ANIO_ACTUAL} value={anio} onChange={(e) => setAnio(Number.parseInt(e.target.value, 10) || 0)} className={CLS_SELECT} />
+                <select value={anio} onChange={(e) => setAnio(Number(e.target.value))} className={CLS_SELECT}>
+                  {ANIOS.map((a) => <option key={a} value={a}>{a}</option>)}
+                </select>
               </Campo>
             </div>
             <button onClick={consultar} disabled={cargando} className="w-full mt-lg bg-primary text-on-primary py-md px-lg rounded-lg flex items-center justify-center gap-sm shadow-md hover:bg-surface-tint transition-all text-body-lg font-semibold disabled:opacity-60">
