@@ -18,31 +18,43 @@ test.describe("Caso de uso: Consultar al asistente de IA", () => {
     await expect(page.getByRole("button", { name: "Consultar" })).toBeDisabled();
   });
 
-  test("responde con base en los documentos y cita la fuente", async ({ page, api }) => {
+  test("responde con afirmaciones verificadas y cita la fuente", async ({ page, api }) => {
     await elegirContexto(page, "Minería", "Minera Andina S.A.A.", 2024);
     await expect(page.getByText("Contexto listo")).toBeVisible();
 
     await page.getByRole("textbox", { name: "Pregunta para el asistente" }).fill("¿Qué sanciones tiene?");
     await page.getByRole("button", { name: "Consultar" }).click();
 
-    await expect(page.getByText("se identifica una multa del OEFA de 59.078 UIT")).toBeVisible();
+    await expect(page.getByText("Se identifica una multa del OEFA de 59.078 UIT por incumplimiento ambiental.")).toBeVisible();
+    await expect(page.getByText("«OEFA impuso una multa de 59.078 UIT por incumplimiento ambiental.»")).toBeVisible();
     await expect(page.getByText("Fuentes citadas")).toBeVisible();
+    await expect(page.getByText("memoria-andina-2024.md")).toBeVisible();
     await expect(page.getByText("Minera Andina S.A.A. · 2024 · Memoria Anual > Contingencias")).toBeVisible();
+    await expect(page.getByText("Se omitió 1 afirmación que no pudo respaldarse con los documentos.")).toBeVisible();
+    // El backend exige sector, empresa y año: si faltara alguno respondería 422 "Field required".
     expect(api.llamadasA("POST", "/asistente/consultas")[0].cuerpo).toEqual({
       pregunta: "¿Qué sanciones tiene?",
+      sector: "MINERIA",
       empresa_id: "e-andina",
       anio: 2024,
     });
   });
 
-  test("si los documentos no tienen evidencia, lo indica", async ({ page }) => {
+  test("fuera de su dominio, explica que no puede responder", async ({ page }) => {
     await elegirContexto(page, "Minería", "Minera Andina S.A.A.", 2024);
     await page.getByRole("textbox", { name: "Pregunta para el asistente" }).fill("¿Quién ganó el partido de fútbol?");
     await page.keyboard.press("Enter");
 
-    await expect(page.getByText("No encontré información sobre eso en los documentos cargados.")).toBeVisible();
-    await expect(page.getByText("Los documentos de esta empresa y año no contienen evidencia para responder.")).toBeVisible();
+    await expect(page.getByText("Solo respondo sobre sostenibilidad, indicadores GRI y sanciones de las empresas.")).toBeVisible();
     await expect(page.getByText("Fuentes citadas")).toHaveCount(0);
+  });
+
+  test("sin documentos de esa empresa y año, lo indica", async ({ page }) => {
+    await elegirContexto(page, "Minería", "Minera Altiplano S.A.", 2024);
+    await page.getByRole("textbox", { name: "Pregunta para el asistente" }).fill("¿Qué emisiones reporta?");
+    await page.keyboard.press("Enter");
+
+    await expect(page.getByText("No hay documentos analizados de esta empresa y año para responder.")).toBeVisible();
   });
 
   test("si el asistente no está disponible, muestra el error en el chat", async ({ page, api }) => {

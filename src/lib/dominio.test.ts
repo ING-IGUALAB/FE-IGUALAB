@@ -9,7 +9,9 @@ import {
   huellaCorta,
   inicioDiaUtc,
   nombreArchivoReporte,
+  textoDescartadas,
   textoMonto,
+  textoSinEvidencia,
   totalPaginas,
   MAX_BYTES_INGESTA,
   detallePuntaje,
@@ -228,5 +230,24 @@ describe("auditoría", () => {
   });
   it("genera CSV con BOM, «;» y comillas escapadas", () => {
     expect(aCsv([["a", 'b "c"'], ["1", "2"]])).toBe('\uFEFF"a";"b ""c"""\n"1";"2"');
+  });
+});
+
+describe("textoSinEvidencia", () => {
+  it("explica cada motivo del backend", () => {
+    expect(textoSinEvidencia("FUERA_DE_DOMINIO")).toContain("sostenibilidad");
+    expect(textoSinEvidencia("SIN_FRAGMENTOS")).toContain("No hay documentos");
+    expect(textoSinEvidencia("AFIRMACIONES_NO_VERIFICABLES")).toContain("citas literales");
+  });
+  it("usa un texto genérico si no hay motivo", () => {
+    expect(textoSinEvidencia(null)).toContain("evidencia suficiente");
+    expect(textoSinEvidencia(undefined)).toContain("evidencia suficiente");
+  });
+});
+
+describe("textoDescartadas", () => {
+  it("concuerda en singular y plural", () => {
+    expect(textoDescartadas(1)).toBe("Se omitió 1 afirmación que no pudo respaldarse con los documentos.");
+    expect(textoDescartadas(3)).toBe("Se omitieron 3 afirmaciones que no pudieron respaldarse con los documentos.");
   });
 });

@@ -3,16 +3,19 @@ import { useToast } from "../components/ToastProvider";
 import * as empresasApi from "../api/empresas";
 import { consultarAsistente } from "../api/asistente";
 import { mensajeError } from "../api/client";
-import { SECTORES_API, anioIngestaValido, etiquetaSector } from "../lib/dominio";
-import type { CitaAsistente, EmpresaApi, SectorApi } from "../types";
+import { SECTORES_API, anioIngestaValido, etiquetaSector, textoDescartadas, textoSinEvidencia } from "../lib/dominio";
+import type { AfirmacionAsistente, CitaAsistente, EmpresaApi, MotivoSinEvidencia, SectorApi } from "../types";
 
 interface Mensaje {
   id: string;
   autor: "user" | "bot";
   texto: string;
+  afirmaciones?: AfirmacionAsistente[];
   citas?: CitaAsistente[];
   sinEvidencia?: boolean;
+  motivo?: MotivoSinEvidencia | null;
   aviso?: string | null;
+  descartadas?: number;
   error?: boolean;
   typing?: boolean;
 }
@@ -55,14 +58,13 @@ export default function Asistente() {
   const empresasSector = empresas.filter((e) => !sector || e.sector === sector);
   const empresa = empresasSector.find((e) => e.id === empresaId) ?? null;
   const ctxOk = !!(sector && empresa && anioIngestaValido(anio));
-  const nombreEmpresa = (id: string) => empresas.find((e) => e.id === id)?.nombre ?? "Empresa";
 
   const scrollLog = () => {
     setTimeout(() => logRef.current?.scrollTo({ top: logRef.current.scrollHeight }), 30);
   };
 
   async function responder(pregunta: string) {
-    if (!ctxOk || !empresa) {
+    if (!ctxOk || !empresa || !sector) {
       toast("Selecciona sector, empresa y año antes de consultar.", "warn");
       return;
     }
@@ -70,15 +72,18 @@ export default function Asistente() {
     setMensajes((xs) => [...xs, { id: nuevoId(), autor: "user", texto: pregunta }, { id: nuevoId(), autor: "bot", texto: "", typing: true }]);
     scrollLog();
     try {
-      const r = await consultarAsistente({ pregunta, empresaId: empresa.id, anio });
+      const r = await consultarAsistente({ pregunta, sector, empresaId: empresa.id, anio });
       setMensajes((xs) =>
         reemplazarTyping(xs, {
           id: nuevoId(),
           autor: "bot",
           texto: r.respuesta,
+          afirmaciones: r.afirmaciones ?? [],
           citas: r.citas ?? [],
           sinEvidencia: r.sin_evidencia,
+          motivo: r.motivo,
           aviso: r.mensaje,
+          descartadas: r.afirmaciones_descartadas ?? 0,
         }),
       );
     } catch (err) {
@@ -148,7 +153,7 @@ export default function Asistente() {
             </div>
           </div>
 
-          {mensajes.map((m) => <MensajeItem key={m.id} m={m} nombreEmpresa={nombreEmpresa} />)}
+          {mensajes.map((m) => <MensajeItem key={m.id} m={m} />)}
         </div>
 
         <div className="p-xl bg-surface border-t border-outline-variant">
@@ -191,7 +196,7 @@ function Avatar() {
   );
 }
 
-function MensajeItem({ m, nombreEmpresa }: Readonly<{ m: Mensaje; nombreEmpresa: (id: string) => string }>) {
+function MensajeItem({ m }: Readonly<{ m: Mensaje }>) {
   if (m.autor === "user") {
     return (
       <div className="flex gap-lg max-w-4xl self-end flex-row-reverse">
@@ -223,40 +228,74 @@ function MensajeItem({ m, nombreEmpresa }: Readonly<{ m: Mensaje; nombreEmpresa:
       </div>
     );
   }
-  const citas = m.citas ?? [];
   return (
     <div className="flex gap-lg max-w-4xl">
       <Avatar />
       <div className="bg-surface-container-lowest border border-secondary-fixed p-lg rounded-xl rounded-tl-sm shadow-sm relative overflow-hidden w-full">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-secondary-fixed" />
-        <p className="text-body-md text-on-surface whitespace-pre-line">{m.texto}</p>
-        {m.sinEvidencia && (
-          <div className="mt-md flex items-start gap-sm rounded-lg bg-tertiary-fixed/40 text-on-tertiary-fixed px-md py-sm text-label-md">
-            <span className="material-symbols-outlined text-[18px]">info</span>
-            <span>{m.aviso || "Los documentos cargados no contienen evidencia suficiente para responder."}</span>
-          </div>
-        )}
-        {citas.length > 0 && (
-          <div className="mt-lg pt-md border-t border-outline-variant space-y-sm">
-            <p className="text-label-sm text-on-surface-variant uppercase">Fuentes citadas</p>
-            {citas.map((c) => (
-              <Fuente key={`${c.documento_id}:${c.seccion}:${c.extracto.slice(0, 24)}`} cita={c} empresa={nombreEmpresa(c.empresa_id)} />
-            ))}
-          </div>
-        )}
+        <CuerpoRespuesta m={m} />
       </div>
     </div>
   );
 }
 
-function Fuente({ cita, empresa }: Readonly<{ cita: CitaAsistente; empresa: string }>) {
+/** Afirmaciones verificadas (o el texto de respuesta), aviso sin evidencia y fuentes citadas. */
+function CuerpoRespuesta({ m }: Readonly<{ m: Mensaje }>) {
+  const afirmaciones = m.afirmaciones ?? [];
+  const citas = m.citas ?? [];
+  const descartadas = m.descartadas ?? 0;
+  return (
+    <>
+      {afirmaciones.length > 0 ? (
+        <ul className="space-y-md">
+          {afirmaciones.map((a) => <AfirmacionItem key={a.cita_textual + a.texto} afirmacion={a} />)}
+        </ul>
+      ) : (
+        m.texto && <p className="text-body-md text-on-surface whitespace-pre-line">{m.texto}</p>
+      )}
+      {m.sinEvidencia && (
+        <div className="mt-md flex items-start gap-sm rounded-lg bg-tertiary-fixed/40 text-on-tertiary-fixed px-md py-sm text-label-md">
+          <span className="material-symbols-outlined text-[18px]">info</span>
+          <span>{m.aviso || textoSinEvidencia(m.motivo)}</span>
+        </div>
+      )}
+      {descartadas > 0 && (
+        <p className="mt-md text-label-sm text-outline">{textoDescartadas(descartadas)}</p>
+      )}
+      {citas.length > 0 && (
+        <div className="mt-lg pt-md border-t border-outline-variant space-y-sm">
+          <p className="text-label-sm text-on-surface-variant uppercase">Fuentes citadas</p>
+          {citas.map((c) => <Fuente key={c.referencia} cita={c} />)}
+        </div>
+      )}
+    </>
+  );
+}
+
+function AfirmacionItem({ afirmacion }: Readonly<{ afirmacion: AfirmacionAsistente }>) {
+  return (
+    <li>
+      <p className="text-body-md text-on-surface">
+        {afirmacion.texto}{" "}
+        {afirmacion.referencias.map((n) => (
+          <sup key={n} className="text-label-sm font-bold text-primary">[{n}]</sup>
+        ))}
+      </p>
+      <p className="text-label-md text-on-surface-variant italic border-l-2 border-outline-variant pl-sm mt-xs break-words">«{afirmacion.cita_textual}»</p>
+    </li>
+  );
+}
+
+function Fuente({ cita }: Readonly<{ cita: CitaAsistente }>) {
   return (
     <div className="rounded-lg bg-surface-container-low px-md py-sm">
-      <p className="text-label-sm text-on-surface-variant flex items-center gap-xs">
+      <p className="text-label-md text-on-surface flex items-center gap-xs">
+        <span className="font-bold text-primary">[{cita.referencia}]</span>
         <span className="material-symbols-outlined text-[16px]">description</span>
-        <span>{empresa} · {cita.anio} · {cita.seccion}</span>
+        <span className="break-all">{cita.documento_nombre}</span>
       </p>
-      <p className="text-body-md text-on-surface-variant italic mt-xs break-words">“{cita.extracto}”</p>
+      <p className="text-label-sm text-on-surface-variant mt-xs">{cita.empresa_nombre} · {cita.anio} · {cita.seccion}</p>
+      <p className="text-label-sm text-outline italic mt-xs break-words">{cita.extracto}</p>
     </div>
   );
 }

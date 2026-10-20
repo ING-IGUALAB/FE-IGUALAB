@@ -594,29 +594,60 @@ export class ServicioSimulado {
 
   // ---------------------------------------------------------------- asistente de IA
   private consultarAsistente(req: Request): Respuesta {
-    const { pregunta, empresa_id, anio } = req.postDataJSON() as { pregunta: string; empresa_id: string | null; anio: number | null };
-    const doc = this.documentos.find((d) => d.empresa_id === empresa_id && d.anio === anio);
-    if (!doc || /f[uú]tbol/i.test(pregunta)) {
+    const cuerpo = req.postDataJSON() as { pregunta?: string; sector?: SectorApi; empresa_id?: string; anio?: number };
+    // Igual que el backend: sector, empresa y año son obligatorios (422 "Field required").
+    const faltan = (["pregunta", "sector", "empresa_id", "anio"] as const).filter((k) => cuerpo[k] === undefined || cuerpo[k] === null);
+    if (faltan.length > 0) {
+      return {
+        status: 422,
+        body: {
+          error: {
+            code: "REQUEST_VALIDATION_ERROR",
+            message: "Datos inválidos.",
+            details: faltan.map((k) => ({ loc: ["body", k], msg: "Field required", type: "missing" })),
+            request_id: "e2e",
+          },
+        },
+      };
+    }
+    const empresa = this.empresas.find((e) => e.id === cuerpo.empresa_id);
+    if (!empresa) return error(404, "COMPANY_NOT_FOUND", "La empresa no existe.");
+    if (empresa.sector !== cuerpo.sector) return error(400, "COMPANY_SECTOR_MISMATCH", "La empresa no pertenece al sector indicado.");
+    const doc = this.documentos.find((d) => d.empresa_id === empresa.id && d.anio === cuerpo.anio);
+    if (/f[uú]tbol/i.test(cuerpo.pregunta ?? "")) {
       return ok({
-        respuesta: "No encontré información sobre eso en los documentos cargados.",
+        respuesta: "",
+        afirmaciones: [],
         citas: [],
         sin_evidencia: true,
-        mensaje: "Los documentos de esta empresa y año no contienen evidencia para responder.",
+        motivo: "FUERA_DE_DOMINIO",
+        mensaje: null,
+        afirmaciones_descartadas: 0,
       });
     }
+    if (!doc) {
+      return ok({ respuesta: "", afirmaciones: [], citas: [], sin_evidencia: true, motivo: "SIN_FRAGMENTOS", mensaje: null, afirmaciones_descartadas: 0 });
+    }
+    const cita = "OEFA impuso una multa de 59.078 UIT por incumplimiento ambiental.";
     return ok({
-      respuesta: `En ${doc.empresa_nombre} (${doc.anio}) se identifica una multa del OEFA de 59.078 UIT por incumplimiento ambiental.`,
+      respuesta: `Se identifica una multa del OEFA de 59.078 UIT [1].`,
+      afirmaciones: [{ texto: "Se identifica una multa del OEFA de 59.078 UIT por incumplimiento ambiental.", referencias: [1], cita_textual: cita }],
       citas: [
         {
+          referencia: 1,
           documento_id: doc.id,
-          seccion: "Memoria Anual > Contingencias",
+          documento_nombre: doc.nombre_archivo,
+          empresa_id: empresa.id,
+          empresa_nombre: empresa.nombre,
           anio: doc.anio,
-          empresa_id: doc.empresa_id,
-          extracto: "OEFA impuso una multa de 59.078 UIT por incumplimiento ambiental.",
+          seccion: "Memoria Anual > Contingencias",
+          extracto: `En el ejercicio, ${cita}`,
         },
       ],
       sin_evidencia: false,
+      motivo: null,
       mensaje: null,
+      afirmaciones_descartadas: 1,
     });
   }
 

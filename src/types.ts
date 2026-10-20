@@ -346,19 +346,40 @@ export interface DocumentoDetalle extends DocumentoResumen {
 }
 
 // ---- Asistente de IA (RAG) ----
+/** Fuente citada; `referencia` es el número [n] con que la nombran las afirmaciones. */
 export interface CitaAsistente {
+  referencia: number;
   documento_id: string;
-  seccion: string;
-  anio: number;
+  documento_nombre: string;
   empresa_id: string;
+  empresa_nombre: string;
+  anio: number;
+  seccion: string;
   extracto: string;
 }
 
+/** Afirmación verificada: su `cita_textual` figura literalmente en los fragmentos de `referencias`. */
+export interface AfirmacionAsistente {
+  texto: string;
+  referencias: number[];
+  cita_textual: string;
+}
+
+export type MotivoSinEvidencia =
+  | "SIN_FRAGMENTOS"
+  | "MODELO_SIN_EVIDENCIA"
+  | "AFIRMACIONES_NO_VERIFICABLES"
+  | "RESPUESTA_NO_INTERPRETABLE"
+  | "FUERA_DE_DOMINIO";
+
 export interface ConsultaAsistente {
   respuesta: string;
-  citas: CitaAsistente[];
+  afirmaciones?: AfirmacionAsistente[];
+  citas?: CitaAsistente[];
   sin_evidencia: boolean;
+  motivo?: MotivoSinEvidencia | null;
   mensaje?: string | null;
+  afirmaciones_descartadas?: number;
 }
 
 // ---- Reportes de prospección ----

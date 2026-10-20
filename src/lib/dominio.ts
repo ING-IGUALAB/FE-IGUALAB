@@ -4,6 +4,7 @@ import type {
   EstadoProgreso,
   MontoVista,
   MotivoNoVigente,
+  MotivoSinEvidencia,
   PuntajeEsg,
   ResultadoAnalisis,
   SectorApi,
@@ -211,4 +212,24 @@ export function totalPaginas(total: number, tamano: number): number {
 export function aCsv(filas: string[][]): string {
   const cuerpo = filas.map((f) => f.map((c) => `"${c.replace(/"/g, '""')}"`).join(";")).join("\n");
   return `\uFEFF${cuerpo}`;
+}
+
+// ---- Asistente de IA ----
+const MOTIVO_SIN_EVIDENCIA: Record<MotivoSinEvidencia, string> = {
+  SIN_FRAGMENTOS: "No hay documentos analizados de esta empresa y año para responder.",
+  MODELO_SIN_EVIDENCIA: "Los documentos cargados no contienen información para responder esta pregunta.",
+  AFIRMACIONES_NO_VERIFICABLES: "La respuesta no pudo respaldarse con citas literales de los documentos.",
+  RESPUESTA_NO_INTERPRETABLE: "No se pudo interpretar la respuesta del asistente. Intenta reformular la pregunta.",
+  FUERA_DE_DOMINIO: "Solo respondo sobre sostenibilidad, indicadores GRI y sanciones de las empresas.",
+};
+
+/** Explicación legible de por qué el asistente no pudo responder (si el backend no envía `mensaje`). */
+export function textoSinEvidencia(motivo?: MotivoSinEvidencia | null): string {
+  return (motivo && MOTIVO_SIN_EVIDENCIA[motivo]) || "Los documentos cargados no contienen evidencia suficiente para responder.";
+}
+
+/** «Se omitió 1 afirmación…» / «Se omitieron 3 afirmaciones…» (concordancia en singular y plural). */
+export function textoDescartadas(n: number): string {
+  if (n === 1) return "Se omitió 1 afirmación que no pudo respaldarse con los documentos.";
+  return `Se omitieron ${n} afirmaciones que no pudieron respaldarse con los documentos.`;
 }
