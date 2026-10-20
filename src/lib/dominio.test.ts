@@ -3,6 +3,14 @@ import type { PuntajeEsg } from "../types";
 import {
   ESTADOS_GRI_API,
   FLUJO_INFO,
+  TIPOS_EVENTO_AUDITORIA,
+  aCsv,
+  finDiaUtc,
+  huellaCorta,
+  inicioDiaUtc,
+  nombreArchivoReporte,
+  textoMonto,
+  totalPaginas,
   MAX_BYTES_INGESTA,
   detallePuntaje,
   etiquetaEstadoGri,
@@ -172,5 +180,53 @@ describe("paginarLocal", () => {
 
   it("con lista vacía devuelve 1 página sin items", () => {
     expect(paginarLocal([], 1, 10)).toEqual({ items: [], pagina: 1, paginas: 1 });
+  });
+});
+
+describe("textoMonto", () => {
+  const monto = (texto: string, unidad: string) => ({ texto, unidad, separador_ambiguo: false });
+  it("deja el texto si ya trae la moneda", () => {
+    expect(textoMonto(monto("S/ 32,000", "S/"))).toBe("S/ 32,000");
+    expect(textoMonto(monto("59.078 UIT", "UIT"))).toBe("59.078 UIT");
+  });
+  it("antepone la moneda cuando vino aparte (encabezado de tabla)", () => {
+    expect(textoMonto(monto("32,000", "S/"))).toBe("S/ 32,000");
+  });
+  it("si no hay unidad, muestra el texto tal cual", () => {
+    expect(textoMonto(monto("32,000", ""))).toBe("32,000");
+  });
+});
+
+describe("reportes", () => {
+  it("arma un nombre de archivo sin tildes ni símbolos", () => {
+    expect(nombreArchivoReporte("Minera Andina S.A.A.", 2024)).toBe("reporte-prospeccion-minera-andina-s-a-a-2024.pdf");
+    expect(nombreArchivoReporte("Energía Ñandú", 2025)).toBe("reporte-prospeccion-energia-nandu-2025.pdf");
+    expect(nombreArchivoReporte("***", 2025)).toBe("reporte-prospeccion-empresa-2025.pdf");
+  });
+  it("acorta la huella SHA-256", () => {
+    expect(huellaCorta("abcdef0123456789")).toBe("abcdef012345…");
+    expect(huellaCorta("abc")).toBe("abc");
+  });
+});
+
+describe("auditoría", () => {
+  it("lista los tipos de evento del backend", () => {
+    expect(TIPOS_EVENTO_AUDITORIA).toContain("Inicio de sesión");
+    expect(TIPOS_EVENTO_AUDITORIA).toHaveLength(6);
+  });
+  it("convierte días locales a un rango UTC que incluye todo el día", () => {
+    const desde = new Date(inicioDiaUtc("2026-10-01")!);
+    const hasta = new Date(finDiaUtc("2026-10-01")!);
+    expect([desde.getHours(), desde.getMinutes()]).toEqual([0, 0]);
+    expect([hasta.getHours(), hasta.getMinutes(), hasta.getSeconds()]).toEqual([23, 59, 59]);
+    expect(inicioDiaUtc("")).toBeUndefined();
+    expect(finDiaUtc("")).toBeUndefined();
+  });
+  it("calcula el total de páginas (mínimo 1)", () => {
+    expect(totalPaginas(0, 20)).toBe(1);
+    expect(totalPaginas(41, 20)).toBe(3);
+  });
+  it("genera CSV con BOM, «;» y comillas escapadas", () => {
+    expect(aCsv([["a", 'b "c"'], ["1", "2"]])).toBe('\uFEFF"a";"b ""c"""\n"1";"2"');
   });
 });

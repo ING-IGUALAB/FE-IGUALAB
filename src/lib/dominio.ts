@@ -2,11 +2,13 @@ import type {
   EstadoFlujo,
   EstadoGriApi,
   EstadoProgreso,
+  MontoVista,
   MotivoNoVigente,
   PuntajeEsg,
   ResultadoAnalisis,
   SectorApi,
   TipoDocumentoApi,
+  TipoEventoAuditoria,
 } from "../types";
 
 // ---- Sector ----
@@ -154,4 +156,59 @@ export function paginarLocal<T>(items: T[], pagina: number, tamano: number): { i
   const paginas = Math.max(1, Math.ceil(items.length / tamano));
   const actual = Math.min(Math.max(1, pagina), paginas);
   return { items: items.slice((actual - 1) * tamano, actual * tamano), pagina: actual, paginas };
+}
+
+// ---- Sanciones ----
+/** Monto con su moneda: si la moneda no está en el texto (p. ej. vino del encabezado de una tabla), se antepone. */
+export function textoMonto(m: MontoVista): string {
+  const unidad = m.unidad?.trim();
+  if (!unidad || m.texto.includes(unidad)) return m.texto;
+  return `${unidad} ${m.texto}`;
+}
+
+// ---- Reportes ----
+/** Nombre de archivo legible y seguro: «reporte-prospeccion-minera-andina-saa-2024.pdf». */
+export function nombreArchivoReporte(empresa: string, anio: number): string {
+  const slug = empresa
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-)|(-$)/g, "");
+  return `reporte-prospeccion-${slug || "empresa"}-${anio}.pdf`;
+}
+
+/** Primeros caracteres de una huella SHA-256, para mostrarla sin ocupar toda la tabla. */
+export function huellaCorta(sha256: string, largo = 12): string {
+  return sha256.length > largo ? `${sha256.slice(0, largo)}…` : sha256;
+}
+
+// ---- Auditoría ----
+export const TIPOS_EVENTO_AUDITORIA: TipoEventoAuditoria[] = [
+  "Inicio de sesión",
+  "Cambio de rol",
+  "Ingesta de datos",
+  "Rechazo de documento",
+  "Generación de reporte",
+  "Descarga",
+];
+
+/** Inicio del día local (AAAA-MM-DD) expresado en UTC ISO, para filtrar «desde». */
+export function inicioDiaUtc(fecha: string): string | undefined {
+  return fecha ? new Date(`${fecha}T00:00:00`).toISOString() : undefined;
+}
+
+/** Fin del día local (AAAA-MM-DD) expresado en UTC ISO, para filtrar «hasta» (incluye todo el día). */
+export function finDiaUtc(fecha: string): string | undefined {
+  return fecha ? new Date(`${fecha}T23:59:59.999`).toISOString() : undefined;
+}
+
+export function totalPaginas(total: number, tamano: number): number {
+  return Math.max(1, Math.ceil(total / tamano));
+}
+
+/** CSV separado por «;» con comillas y BOM, para que Excel respete tildes y columnas. */
+export function aCsv(filas: string[][]): string {
+  const cuerpo = filas.map((f) => f.map((c) => `"${c.replace(/"/g, '""')}"`).join(";")).join("\n");
+  return `\uFEFF${cuerpo}`;
 }

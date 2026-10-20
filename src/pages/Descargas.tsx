@@ -1,78 +1,97 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import SectionHeader from "../components/SectionHeader";
-import Modal from "../components/Modal";
-import ReporteA4 from "../components/ReporteA4";
-import { useDomain } from "../data/DomainContext";
-import { useAuth } from "../auth/AuthContext";
+import TablaReportes from "../components/TablaReportes";
 import { useToast } from "../components/ToastProvider";
-import PendienteBanner from "../components/PendienteBanner";
-import type { Reporte } from "../types";
+import { useDescargarReporte } from "../components/useDescargarReporte";
+import * as empresasApi from "../api/empresas";
+import * as reportesApi from "../api/reportes";
+import { mensajeError } from "../api/client";
+import { SECTORES_API, etiquetaSector, paginarLocal } from "../lib/dominio";
+import type { EmpresaApi, ReporteResumen, SectorApi } from "../types";
+
+const TAM_PAGINA = 10;
+const CLS_FILTRO =
+  "rounded-lg border border-outline-variant bg-surface-container-low py-xs px-sm text-label-md focus:border-primary outline-none";
 
 export default function Descargas() {
-  const { reportes, empresas, getAnalisis, pushAudit } = useDomain();
-  const { sesion } = useAuth();
   const toast = useToast();
-  const [ver, setVer] = useState<Reporte | null>(null);
+  const [empresas, setEmpresas] = useState<EmpresaApi[]>([]);
+  const [reportes, setReportes] = useState<ReporteResumen[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [fSector, setFSector] = useState<"" | SectorApi>("");
+  const [fAnio, setFAnio] = useState("");
+  const [pagina, setPagina] = useState(1);
 
-  const empresa = ver ? empresas.find((e) => e.id === ver.empresaId) : null;
-  const analisis = ver && empresa ? getAnalisis(empresa.id, ver.anio) : null;
+  const empresaDe = (id: string) => empresas.find((e) => e.id === id);
+  const nombreEmpresa = (id: string) => empresaDe(id)?.nombre ?? "Empresa";
+  const sectorDe = (id: string) => {
+    const e = empresaDe(id);
+    return e ? etiquetaSector(e.sector) : "—";
+  };
+  const { descargar, descargando } = useDescargarReporte(nombreEmpresa);
 
-  function imprimir() {
-    if (!ver || !empresa) return;
-    pushAudit(sesion!.nombre, "Descarga", `Descargó reporte de prospección · ${empresa.nombre} (${ver.anio})`);
-    toast("Reporte descargado (simulado con impresión).", "success");
-    setTimeout(() => globalThis.print(), 300);
-  }
+  useEffect(() => {
+    Promise.all([empresasApi.listarEmpresas({ soloActivas: true }), reportesApi.listarReportes()])
+      .then(([emps, reps]) => {
+        setEmpresas(emps);
+        setReportes([...reps].sort((a, b) => b.creado_en.localeCompare(a.creado_en)));
+      })
+      .catch((err) => toast(mensajeError(err, "No se pudieron cargar los reportes."), "error"))
+      .finally(() => setCargando(false));
+  }, [toast]);
+
+  const filtrados = reportes.filter(
+    (r) => (!fSector || empresaDe(r.empresa_id)?.sector === fSector) && (!fAnio || r.anio === Number(fAnio)),
+  );
+  const pag = paginarLocal(filtrados, pagina, TAM_PAGINA);
+  const anios = [...new Set(reportes.map((r) => r.anio))].sort((a, b) => b - a);
+  const hayFiltros = !!(fSector || fAnio);
 
   return (
     <>
-      <SectionHeader titulo="Descargar reportes" sub="Reportes de prospección generados, con la empresa, el año y la fecha de generación. Disponibles aun si el asistente de IA no está operativo." />
-      <PendienteBanner />
+      <SectionHeader
+        titulo="Descargar reportes"
+        sub="Reportes de prospección generados, con la empresa, el año y la fecha de generación."
+      />
 
       <div className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-surface-container-low border-b border-outline-variant">
-                {["Reporte", "Sector", "Año", "Fecha", ""].map((h) => <th key={h} className={`py-sm px-md text-label-sm text-on-surface-variant uppercase ${h === "" ? "text-right" : ""}`}>{h}</th>)}
-              </tr>
-            </thead>
-            <tbody className="text-body-md">
-              {reportes.length ? reportes.map((r) => (
-                <tr key={r.id} className="border-b border-surface-variant hover:bg-surface/50 transition-colors">
-                  <td className="py-md px-md"><div className="flex items-center gap-sm"><span className="material-symbols-outlined text-error">picture_as_pdf</span><span className="font-medium">Prospección · {r.empresa}</span></div></td>
-                  <td className="py-md px-md">{r.sector}</td>
-                  <td className="py-md px-md text-on-surface-variant">{r.anio}</td>
-                  <td className="py-md px-md text-on-surface-variant">{r.fecha}</td>
-                  <td className="py-md px-md text-right">
-                    <button onClick={() => setVer(r)} className="flex items-center gap-xs px-md py-sm rounded-lg bg-primary text-on-primary text-label-md font-semibold hover:bg-surface-tint transition-colors ml-auto">
-                      <span className="material-symbols-outlined text-[16px]">visibility</span> Ver / descargar
-                    </button>
-                  </td>
-                </tr>
-              )) : (
-                <tr><td colSpan={5} className="py-xl text-center text-on-surface-variant">No hay reportes disponibles todavía.</td></tr>
-              )}
-            </tbody>
-          </table>
+        <div className="p-lg border-b border-outline-variant bg-surface-bright flex flex-col sm:flex-row sm:justify-between sm:items-center gap-md">
+          <h3 className="text-title-lg text-on-surface">Reportes generados</h3>
+          <div className="flex flex-wrap items-center gap-sm">
+            <select aria-label="Filtrar por sector" value={fSector} onChange={(e) => { setFSector(e.target.value as "" | SectorApi); setPagina(1); }} className={CLS_FILTRO}>
+              <option value="">Todo sector</option>
+              {SECTORES_API.map((s) => <option key={s} value={s}>{etiquetaSector(s)}</option>)}
+            </select>
+            <select aria-label="Filtrar por año" value={fAnio} onChange={(e) => { setFAnio(e.target.value); setPagina(1); }} className={CLS_FILTRO}>
+              <option value="">Todo año</option>
+              {anios.map((a) => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
         </div>
-      </div>
 
-      <Modal open={!!ver} onClose={() => setVer(null)} width="max-w-4xl">
-        {ver && empresa && (
-          <>
-            <div className="flex justify-between items-center p-lg border-b border-outline-variant">
-              <h3 className="text-title-lg text-on-surface flex items-center gap-sm"><span className="material-symbols-outlined text-primary">picture_as_pdf</span> Reporte · {empresa.nombre} ({ver.anio})</h3>
-              <button onClick={() => setVer(null)} className="p-2 rounded-lg hover:bg-surface-container-low text-on-surface-variant"><span className="material-symbols-outlined">close</span></button>
-            </div>
-            <div className="overflow-y-auto p-lg bg-surface-container-low"><div id="print-area"><ReporteA4 empresa={empresa} anio={ver.anio} analisis={analisis} /></div></div>
-            <div className="p-md border-t border-outline-variant flex justify-end gap-sm">
-              <button onClick={() => setVer(null)} className="px-lg py-sm rounded-lg border border-outline-variant text-body-md text-on-surface-variant hover:bg-surface-container-low">Cerrar</button>
-              <button onClick={imprimir} className="px-lg py-sm rounded-lg bg-primary text-on-primary text-label-md font-semibold flex items-center gap-sm hover:bg-surface-tint"><span className="material-symbols-outlined text-[18px]">download</span> Descargar PDF</button>
-            </div>
-          </>
+        {cargando ? (
+          <div className="p-lg space-y-sm">
+            {["c1", "c2", "c3"].map((k) => <div key={k} className="h-5 bg-surface-variant rounded animate-pulse" />)}
+          </div>
+        ) : (
+          <TablaReportes
+            reportes={pag.items}
+            nombreEmpresa={nombreEmpresa}
+            sectorDe={sectorDe}
+            descargando={descargando}
+            onDescargar={descargar}
+            vacio={hayFiltros ? "No hay reportes con estos filtros." : "Aún no se han generado reportes."}
+          />
         )}
-      </Modal>
+
+        {pag.paginas > 1 && (
+          <div className="flex items-center justify-between p-md border-t border-outline-variant">
+            <button onClick={() => setPagina((p) => Math.max(1, p - 1))} disabled={pag.pagina <= 1} className="px-md py-xs rounded-lg border border-outline-variant text-label-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface-container-low">Anterior</button>
+            <span className="text-label-md text-on-surface-variant">Página {pag.pagina} de {pag.paginas}</span>
+            <button onClick={() => setPagina((p) => Math.min(pag.paginas, p + 1))} disabled={pag.pagina >= pag.paginas} className="px-md py-xs rounded-lg border border-outline-variant text-label-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface-container-low">Siguiente</button>
+          </div>
+        )}
+      </div>
     </>
   );
 }

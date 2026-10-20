@@ -1,181 +1,155 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import SectionHeader from "../components/SectionHeader";
-import ReporteA4 from "../components/ReporteA4";
-import { useDomain } from "../data/DomainContext";
-import { useAuth } from "../auth/AuthContext";
+import Spinner from "../components/Spinner";
+import TablaReportes from "../components/TablaReportes";
 import { useToast } from "../components/ToastProvider";
-import { ESTADOS_GRI, esgScore } from "../data/seed";
-import PendienteBanner from "../components/PendienteBanner";
-import type { EstadoGri } from "../types";
+import { useDescargarReporte } from "../components/useDescargarReporte";
+import * as empresasApi from "../api/empresas";
+import * as reportesApi from "../api/reportes";
+import { mensajeError } from "../api/client";
+import { SECTORES_API, anioIngestaValido, etiquetaSector } from "../lib/dominio";
+import type { EmpresaApi, ReporteResumen, SectorApi } from "../types";
+
+const ANIO_ACTUAL = new Date().getFullYear();
+const RECIENTES = 5;
+const CLS_SELECT =
+  "w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none";
 
 export default function Reportes() {
-  const { empresasConDocumentos, aniosDeEmpresa, getAnalisis, setEstadoGri, agregarReporte, pushAudit, reportes } = useDomain();
-  const { sesion } = useAuth();
   const toast = useToast();
-
-  const empresasDocs = empresasConDocumentos();
-  const sectores = useMemo(() => [...new Set(empresasDocs.map((e) => e.sector))], [empresasDocs]);
-
-  const [sector, setSector] = useState<string>(sectores[0] ?? "");
+  const [empresas, setEmpresas] = useState<EmpresaApi[]>([]);
+  const [sector, setSector] = useState<SectorApi>(SECTORES_API[0]);
   const [empresaId, setEmpresaId] = useState("");
-  const [anio, setAnio] = useState<number | null>(null);
-  const [preview, setPreview] = useState(false);
+  const [anio, setAnio] = useState(ANIO_ACTUAL - 1);
+  const [reportes, setReportes] = useState<ReporteResumen[]>([]);
+  const [vistaUrl, setVistaUrl] = useState<string | null>(null);
+  const [accion, setAccion] = useState<"vista" | "generar" | null>(null);
 
-  const empresasSector = empresasDocs.filter((e) => e.sector === sector);
-  const empresa = empresasSector.find((e) => e.id === empresaId) || empresasSector[0];
-  const anios = empresa ? aniosDeEmpresa(empresa.id) : [];
-  const anioSel = anio != null && anios.includes(anio) ? anio : anios[0];
-  const analisis = empresa && anioSel ? getAnalisis(empresa.id, anioSel) : null;
-  const esg = analisis ? esgScore(analisis.gri) : null;
+  const nombreEmpresa = (id: string) => empresas.find((e) => e.id === id)?.nombre ?? "Empresa";
+  const { descargar, descargando } = useDescargarReporte(nombreEmpresa);
+  const empresasSector = empresas.filter((e) => e.activa && e.sector === sector);
+  const listo = !!empresaId && anioIngestaValido(anio);
 
-  if (!empresasDocs.length) {
-    return (
-      <>
-        <SectionHeader titulo="Reportes de prospección" sub="Genera un reporte por empresa y año, a partir de los resultados de análisis almacenados." />
-        <div className="bg-surface-container-lowest rounded-xl border border-surface-variant p-xl text-center">
-          <span className="material-symbols-outlined text-[40px] text-outline">block</span>
-          <p className="text-body-md text-on-surface-variant mt-sm">No hay empresas con documentos ingestados. No se puede generar un reporte de prospección.</p>
-        </div>
-      </>
-    );
+  const cargarReportes = useCallback(async () => {
+    try {
+      const data = await reportesApi.listarReportes();
+      setReportes([...data].sort((a, b) => b.creado_en.localeCompare(a.creado_en)));
+    } catch (err) {
+      toast(mensajeError(err, "No se pudo cargar el historial de reportes."), "error");
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    empresasApi
+      .listarEmpresas({ soloActivas: true })
+      .then(setEmpresas)
+      .catch((err) => toast(mensajeError(err, "No se pudieron cargar las empresas."), "error"));
+    cargarReportes();
+  }, [toast, cargarReportes]);
+
+  // Libera el PDF de la vista previa anterior al reemplazarlo o al salir de la pantalla.
+  useEffect(() => {
+    return () => {
+      if (vistaUrl) URL.revokeObjectURL(vistaUrl);
+    };
+  }, [vistaUrl]);
+
+  async function verVistaPrevia() {
+    setAccion("vista");
+    try {
+      const { blob } = await reportesApi.vistaPreviaReporte(empresaId, anio);
+      setVistaUrl(URL.createObjectURL(blob));
+    } catch (err) {
+      toast(mensajeError(err, "No se pudo generar la vista previa."), "error");
+    } finally {
+      setAccion(null);
+    }
   }
 
-  function cambiarEstado(index: number, estado: EstadoGri) {
-    if (!empresa || !anioSel || !analisis) return;
-    const prev = analisis.gri[index].estado;
-    if (prev === estado) return;
-    setEstadoGri(empresa.id, anioSel, index, estado);
-    pushAudit(sesion!.nombre, "Cambio de estado GRI", `Asignó estado '${estado}' a ${analisis.gri[index].codigo} · ${empresa.nombre} ${anioSel} (antes '${prev}')`);
-    toast(`${analisis.gri[index].codigo}: estado '${estado}'. ESG recalculado.`, "success");
-  }
-
-  function generarVistaPrevia() {
-    if (!empresa || !anioSel) return toast("Selecciona sector, empresa y año.", "warn");
-    setPreview(true);
-    setTimeout(() => document.getElementById("rep-preview")?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 50);
-  }
-
-  function descargarPDF() {
-    if (!empresa || !anioSel) return toast("Selecciona sector, empresa y año.", "warn");
-    setPreview(true);
-    agregarReporte({ id: "r" + Date.now(), empresaId: empresa.id, empresa: empresa.nombre, sector: empresa.sector, anio: anioSel, generadoPor: sesion!.nombre, fecha: new Date().toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" }) });
-    pushAudit(sesion!.nombre, "Generación de reporte", `Generó reporte de prospección · ${empresa.nombre} (${anioSel})`);
-    toast("Reporte generado, registrado en auditoría e inmutable.", "success");
-    setTimeout(() => globalThis.print(), 400);
+  async function generar() {
+    setAccion("generar");
+    try {
+      await reportesApi.generarReporte(empresaId, anio);
+      toast(`Reporte de ${nombreEmpresa(empresaId)} (${anio}) generado.`, "success");
+      await cargarReportes();
+    } catch (err) {
+      toast(mensajeError(err, "No se pudo generar el reporte."), "error");
+    } finally {
+      setAccion(null);
+    }
   }
 
   return (
     <>
-      <SectionHeader titulo="Reportes de prospección" sub="Selecciona sector, empresa y año; asigna el estado de cada código GRI y genera el reporte con resumen ejecutivo automático. El reporte es inmutable." />
-      <PendienteBanner />
+      <SectionHeader
+        titulo="Reportes de prospección"
+        sub="Genera el reporte en PDF de una empresa y año a partir de su análisis GRI validado."
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-lg">
         <div className="lg:col-span-4 space-y-lg">
           <div className="bg-surface-container-lowest rounded-xl border border-surface-variant p-lg ambient-shadow">
             <h3 className="text-title-lg text-on-background mb-md">Parámetros</h3>
             <div className="space-y-md">
-              <Campo label="1 · Sector">
-                <select value={sector} onChange={(e) => { setSector(e.target.value); setEmpresaId(""); setAnio(null); setPreview(false); }} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
-                  {sectores.map((s) => <option key={s}>{s}</option>)}
+              <Campo label="Sector">
+                <select value={sector} onChange={(e) => { setSector(e.target.value as SectorApi); setEmpresaId(""); }} className={CLS_SELECT}>
+                  {SECTORES_API.map((s) => <option key={s} value={s}>{etiquetaSector(s)}</option>)}
                 </select>
               </Campo>
-              <Campo label="2 · Empresa">
-                <select value={empresa?.id || ""} onChange={(e) => { setEmpresaId(e.target.value); setAnio(null); setPreview(false); }} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
+              <Campo label="Empresa">
+                <select value={empresaId} onChange={(e) => setEmpresaId(e.target.value)} className={CLS_SELECT}>
+                  <option value="">— Selecciona una empresa —</option>
                   {empresasSector.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
                 </select>
               </Campo>
-              <Campo label="3 · Año">
-                <select value={anioSel || ""} onChange={(e) => { setAnio(Number.parseInt(e.target.value, 10)); setPreview(false); }} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
-                  {anios.map((a) => <option key={a}>{a}</option>)}
-                </select>
+              <Campo label="Año">
+                <input type="number" min={2000} max={ANIO_ACTUAL} value={anio} onChange={(e) => setAnio(Number.parseInt(e.target.value, 10) || 0)} className={CLS_SELECT} />
               </Campo>
             </div>
-            <div className="grid grid-cols-1 gap-sm mt-lg">
-              <button onClick={generarVistaPrevia} className="w-full bg-surface border border-primary text-primary py-md px-lg rounded-lg flex items-center justify-center gap-sm hover:bg-primary/5 transition-all text-body-lg font-semibold">
-                <span className="material-symbols-outlined">visibility</span> Generar vista previa
+            <div className="grid gap-sm mt-lg">
+              <button onClick={verVistaPrevia} disabled={!listo || accion !== null} className="w-full bg-surface border border-primary text-primary py-md px-lg rounded-lg flex items-center justify-center gap-sm hover:bg-primary/5 transition-all text-body-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
+                {accion === "vista" ? <Spinner size={18} /> : <span className="material-symbols-outlined">visibility</span>} Vista previa
               </button>
-              <button onClick={descargarPDF} className="w-full bg-primary text-on-primary py-md px-lg rounded-lg flex items-center justify-center gap-sm shadow-md hover:bg-surface-tint transition-all text-body-lg font-semibold">
-                <span className="material-symbols-outlined">download</span> Descargar PDF
+              <button onClick={generar} disabled={!listo || accion !== null} className="w-full bg-primary text-on-primary py-md px-lg rounded-lg flex items-center justify-center gap-sm shadow-md hover:bg-surface-tint transition-all text-body-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
+                {accion === "generar" ? <Spinner size={18} /> : <span className="material-symbols-outlined">picture_as_pdf</span>} Generar reporte
               </button>
             </div>
-            <p className="text-label-sm text-outline mt-md">El resumen ejecutivo incluye sólo el puntaje ESG, el total de sanciones y las sanciones sin monto.</p>
+            <p className="text-label-sm text-outline mt-md">
+              El reporte se arma con el análisis GRI de la empresa y año. Si aún no está validado, valídalo en{" "}
+              <Link to="/analisis" className="text-primary hover:underline">Análisis GRI</Link>.
+            </p>
           </div>
         </div>
 
         <div className="lg:col-span-8 space-y-lg">
           <div className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
             <div className="p-lg border-b border-outline-variant bg-surface-bright flex justify-between items-center">
-              <h3 className="text-title-lg text-on-surface">Estados de códigos GRI (asignación manual)</h3>
-              <span className="text-label-sm text-on-surface-variant">{esg == null ? "" : `Puntaje ESG: ${esg}/100 · OK=100 · Baja=50 · Sub=0`}</span>
+              <h3 className="text-title-lg text-on-surface">Vista previa</h3>
+              {vistaUrl && <span className="text-label-sm text-on-surface-variant">No se guarda en el historial</span>}
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-surface-container-low border-b border-outline-variant">
-                    {["Código", "Tema", "Cita textual (evidencia)", "Estado"].map((h) => <th key={h} className="py-sm px-md text-label-sm text-on-surface-variant uppercase">{h}</th>)}
-                  </tr>
-                </thead>
-                <tbody className="text-body-md">
-                  {analisis ? analisis.gri.map((g, i) => (
-                    <tr key={g.codigo} className="border-b border-surface-variant align-top">
-                      <td className="py-md px-md whitespace-nowrap"><span className="bg-secondary-fixed text-on-secondary-fixed px-2 py-0.5 rounded text-[10px] font-bold uppercase">{g.codigo}</span></td>
-                      <td className="py-md px-md font-medium">{g.tema}</td>
-                      <td className="py-md px-md">
-                        <p className="text-body-md text-on-surface-variant italic border-l-2 border-outline-variant pl-sm">{g.cita}</p>
-                        <p className="text-label-sm text-outline mt-xs">{g.doc} · {g.pagina}</p>
-                      </td>
-                      <td className="py-md px-md">
-                        <select value={g.estado} onChange={(e) => cambiarEstado(i, e.target.value as EstadoGri)} className="rounded-lg border border-outline-variant bg-surface-container-low py-xs px-sm text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
-                          {ESTADOS_GRI.map((es) => <option key={es}>{es}</option>)}
-                        </select>
-                      </td>
-                    </tr>
-                  )) : (
-                    <tr><td colSpan={4} className="py-lg text-center text-on-surface-variant">Sin análisis para este año.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+            {vistaUrl ? (
+              <iframe title="Vista previa del reporte" src={vistaUrl} className="w-full h-[70vh] bg-surface-container-low" />
+            ) : (
+              <div className="p-xl text-center">
+                <span className="material-symbols-outlined text-[40px] text-outline">picture_as_pdf</span>
+                <p className="text-body-md text-on-surface-variant mt-sm">Elige empresa y año y pulsa «Vista previa» para revisar el PDF antes de generarlo.</p>
+              </div>
+            )}
           </div>
 
-          {preview && empresa && anioSel != null && (
-            <div id="rep-preview" className="bg-surface-container-low rounded-xl border border-surface-variant p-lg">
-              <div className="flex justify-between items-center mb-sm">
-                <h3 className="text-label-md text-on-surface-variant uppercase tracking-wider">Vista previa del documento</h3>
-                <span className="text-label-sm text-outline">A4</span>
-              </div>
-              <div className="overflow-y-auto chat-scroll py-lg max-h-[560px]">
-                <div className="scale-[0.7] lg:scale-[0.82] origin-top">
-                  <div id="print-area"><ReporteA4 empresa={empresa} anio={anioSel} analisis={analisis} /></div>
-                </div>
-              </div>
-            </div>
-          )}
-
           <div className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
-            <div className="p-lg border-b border-outline-variant bg-surface-bright"><h3 className="text-title-lg text-on-surface">Historial de reportes generados</h3></div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-surface-container-low border-b border-outline-variant">
-                    {["Empresa", "Sector", "Año", "Generado por", "Fecha"].map((h) => <th key={h} className="py-sm px-md text-label-sm text-on-surface-variant uppercase">{h}</th>)}
-                  </tr>
-                </thead>
-                <tbody className="text-body-md">
-                  {reportes.length ? reportes.map((r) => (
-                    <tr key={r.id} className="border-b border-surface-variant hover:bg-surface/50 transition-colors">
-                      <td className="py-md px-md font-medium">{r.empresa}</td>
-                      <td className="py-md px-md text-on-surface-variant">{r.sector}</td>
-                      <td className="py-md px-md text-on-surface-variant">{r.anio}</td>
-                      <td className="py-md px-md text-on-surface-variant">{r.generadoPor}</td>
-                      <td className="py-md px-md text-on-surface-variant">{r.fecha}</td>
-                    </tr>
-                  )) : (
-                    <tr><td colSpan={5} className="py-lg text-center text-on-surface-variant">Aún no has generado reportes.</td></tr>
-                  )}
-                </tbody>
-              </table>
+            <div className="p-lg border-b border-outline-variant bg-surface-bright flex justify-between items-center gap-md">
+              <h3 className="text-title-lg text-on-surface">Reportes recientes</h3>
+              <Link to="/descargas" className="text-label-md text-primary hover:underline">Ver todos</Link>
             </div>
+            <TablaReportes
+              reportes={reportes.slice(0, RECIENTES)}
+              nombreEmpresa={nombreEmpresa}
+              descargando={descargando}
+              onDescargar={descargar}
+              vacio="Aún no se han generado reportes."
+            />
           </div>
         </div>
       </div>
@@ -185,9 +159,9 @@ export default function Reportes() {
 
 function Campo({ label, children }: Readonly<{ label: string; children: ReactNode }>) {
   return (
-    <div className="flex flex-col gap-xs">
-      <label className="text-label-md text-on-surface-variant">{label}</label>
+    <label className="flex flex-col gap-xs">
+      <span className="text-label-md text-on-surface-variant">{label}</span>
       {children}
-    </div>
+    </label>
   );
 }

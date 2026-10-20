@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api, ApiError, AUTH_401_EVENT, mensajeError } from "./client";
+import { api, apiArchivo, ApiError, AUTH_401_EVENT, LOADING_START, mensajeError, nombreArchivoDe } from "./client";
 
 function resp(status: number, data: unknown): Response {
   return {
@@ -111,5 +111,57 @@ describe("api", () => {
   it("lanza NETWORK_ERROR si fetch falla", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("down")));
     await expect(api("/x")).rejects.toMatchObject({ code: "NETWORK_ERROR", status: 0 });
+  });
+});
+
+describe("apiArchivo", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("devuelve el binario y el nombre del archivo", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        status: 200,
+        ok: true,
+        headers: { get: () => 'attachment; filename="r.pdf"' },
+        blob: async () => new Blob(["%PDF"], { type: "application/pdf" }),
+      }),
+    );
+    const r = await apiArchivo("/reportes/1/archivo");
+    expect(r.nombre).toBe("r.pdf");
+    expect(r.blob.type).toBe("application/pdf");
+  });
+
+  it("si falla, lanza ApiError con el contrato del backend", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(resp(404, { error: { code: "REPORT_NOT_FOUND", message: "No existe", details: null, request_id: "r" } })));
+    await expect(apiArchivo("/reportes/x/archivo")).rejects.toMatchObject({ status: 404, code: "REPORT_NOT_FOUND" });
+  });
+});
+
+describe("opción silencioso", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("por defecto avisa al indicador de carga; silenciosa no", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(resp(200, {})));
+    const handler = vi.fn();
+    globalThis.addEventListener(LOADING_START, handler);
+    await api("/x");
+    await api("/x", { silencioso: true });
+    globalThis.removeEventListener(LOADING_START, handler);
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("nombreArchivoDe", () => {
+  it("lee filename y prioriza filename* (UTF-8)", () => {
+    expect(nombreArchivoDe('attachment; filename="a.pdf"')).toBe("a.pdf");
+    expect(nombreArchivoDe("attachment; filename=b.pdf")).toBe("b.pdf");
+    expect(nombreArchivoDe("attachment; filename=\"x.pdf\"; filename*=UTF-8''reporte%20%C3%B1.pdf")).toBe("reporte ñ.pdf");
+  });
+
+  it("devuelve null si no hay nombre", () => {
+    expect(nombreArchivoDe(null)).toBeNull();
+    expect(nombreArchivoDe("inline")).toBeNull();
+    expect(nombreArchivoDe("attachment; filename=")).toBeNull();
   });
 });
