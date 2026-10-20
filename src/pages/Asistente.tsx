@@ -3,7 +3,7 @@ import { useToast } from "../components/ToastProvider";
 import * as empresasApi from "../api/empresas";
 import { consultarAsistente } from "../api/asistente";
 import { mensajeError } from "../api/client";
-import { SECTORES_API, anioIngestaValido, etiquetaSector, textoDescartadas, textoSinEvidencia } from "../lib/dominio";
+import { SECTORES_API, aniosDisponibles, etiquetaSector, textoDescartadas, textoSinEvidencia } from "../lib/dominio";
 import type { AfirmacionAsistente, CitaAsistente, EmpresaApi, MotivoSinEvidencia, SectorApi } from "../types";
 
 interface Mensaje {
@@ -20,12 +20,14 @@ interface Mensaje {
   typing?: boolean;
 }
 
-const SUGERENCIAS = [
-  "¿Qué sanciones identificas para esta empresa y año?",
-  "¿Qué indicadores GRI de emisiones reporta?",
-  "Resume el desempeño ambiental del año consultado",
+const SUGERENCIAS: { icono: string; texto: string }[] = [
+  { icono: "gavel", texto: "¿Qué sanciones identificas para esta empresa y año?" },
+  { icono: "co2", texto: "¿Qué indicadores GRI de emisiones reporta?" },
+  { icono: "eco", texto: "Resume el desempeño ambiental del año consultado" },
 ];
-const ANIO_ACTUAL = new Date().getFullYear();
+const ANIOS = aniosDisponibles();
+const CLS_CONTROL =
+  "rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none";
 
 let msgSeq = 0;
 function nuevoId(): string {
@@ -42,7 +44,7 @@ export default function Asistente() {
   const [empresas, setEmpresas] = useState<EmpresaApi[]>([]);
   const [sector, setSector] = useState<"" | SectorApi>("");
   const [empresaId, setEmpresaId] = useState("");
-  const [anio, setAnio] = useState(ANIO_ACTUAL - 1);
+  const [anio, setAnio] = useState(ANIOS[0]);
   const [texto, setTexto] = useState("");
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [consultando, setConsultando] = useState(false);
@@ -57,10 +59,10 @@ export default function Asistente() {
 
   const empresasSector = empresas.filter((e) => !sector || e.sector === sector);
   const empresa = empresasSector.find((e) => e.id === empresaId) ?? null;
-  const ctxOk = !!(sector && empresa && anioIngestaValido(anio));
+  const ctxOk = !!(sector && empresa);
 
   const scrollLog = () => {
-    setTimeout(() => logRef.current?.scrollTo({ top: logRef.current.scrollHeight }), 30);
+    setTimeout(() => logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: "smooth" }), 30);
   };
 
   async function responder(pregunta: string) {
@@ -102,137 +104,193 @@ export default function Asistente() {
     responder(t);
   }
 
+  function sugerir(s: string) {
+    if (ctxOk) responder(s);
+    else toast("Primero elige sector, empresa y año.", "warn");
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-140px)] -m-lg md:-m-xl">
-      <div className="bg-surface-container-lowest border-b border-outline-variant px-lg py-md flex flex-wrap gap-md items-end">
-        <div className="flex items-center gap-xs text-secondary mr-sm">
-          <span className="material-symbols-outlined">filter_alt</span>
-          <span className="text-label-md font-bold">Contexto de consulta</span>
+      {/* Contexto de la consulta */}
+      <div className="bg-surface-container-lowest border-b border-outline-variant px-lg py-md">
+        <div className="max-w-5xl mx-auto flex flex-wrap gap-md items-end">
+          <div className="flex items-center gap-sm mr-sm self-center">
+            <span className="w-9 h-9 rounded-full bg-secondary-fixed/50 text-secondary flex items-center justify-center">
+              <span className="material-symbols-outlined text-[20px]">filter_alt</span>
+            </span>
+            <span className="text-label-md font-bold text-secondary leading-tight">
+              Contexto de<br />consulta
+            </span>
+          </div>
+          <Campo label="Sector">
+            <select value={sector} onChange={(e) => { setSector(e.target.value as "" | SectorApi); setEmpresaId(""); }} className={`${CLS_CONTROL} min-w-[160px]`}>
+              <option value="">— Elegir —</option>
+              {SECTORES_API.map((s) => <option key={s} value={s}>{etiquetaSector(s)}</option>)}
+            </select>
+          </Campo>
+          <Campo label="Empresa">
+            <select value={empresa?.id ?? ""} onChange={(e) => setEmpresaId(e.target.value)} className={`${CLS_CONTROL} min-w-[200px]`}>
+              <option value="">— Elegir —</option>
+              {empresasSector.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+            </select>
+          </Campo>
+          <Campo label="Año">
+            <select value={anio} onChange={(e) => setAnio(Number(e.target.value))} className={`${CLS_CONTROL} min-w-[110px]`}>
+              {ANIOS.map((a) => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </Campo>
+          <div className="ml-auto self-center">
+            {ctxOk ? (
+              <span className="inline-flex items-center gap-xs px-3 py-1.5 rounded-full bg-primary-container text-on-primary-container text-label-sm">
+                <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                <span>Contexto listo</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-xs px-3 py-1.5 rounded-full bg-surface-container-low text-on-surface-variant text-label-sm">
+                <span className="material-symbols-outlined text-[16px]">info</span>
+                <span>Elige sector y empresa</span>
+              </span>
+            )}
+          </div>
         </div>
-        <Campo label="Sector">
-          <select value={sector} onChange={(e) => { setSector(e.target.value as "" | SectorApi); setEmpresaId(""); }} className={CLS_CONTROL}>
-            <option value="">— Elegir —</option>
-            {SECTORES_API.map((s) => <option key={s} value={s}>{etiquetaSector(s)}</option>)}
-          </select>
-        </Campo>
-        <Campo label="Empresa">
-          <select value={empresa?.id ?? ""} onChange={(e) => setEmpresaId(e.target.value)} className={CLS_CONTROL}>
-            <option value="">— Elegir —</option>
-            {empresasSector.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
-          </select>
-        </Campo>
-        <Campo label="Año">
-          <input type="number" min={2000} max={ANIO_ACTUAL} value={anio} onChange={(e) => setAnio(Number.parseInt(e.target.value, 10) || 0)} className={`${CLS_CONTROL} min-w-[110px]`} />
-        </Campo>
-        {ctxOk && (
-          <span className="ml-auto inline-flex items-center gap-xs px-3 py-1.5 rounded-full bg-primary-container text-on-primary-container text-label-sm">
-            <span className="material-symbols-outlined text-[16px]">check_circle</span> Contexto listo
-          </span>
-        )}
       </div>
 
-      <div className="flex-1 flex flex-col bg-surface overflow-hidden">
-        <div ref={logRef} className="flex-1 overflow-y-auto chat-scroll p-xl flex flex-col gap-xl">
-          <div className="flex gap-lg max-w-4xl">
-            <Avatar />
-            <div className="bg-surface-container-lowest border border-outline-variant p-lg rounded-xl rounded-tl-sm shadow-sm">
-              <p className="text-body-md text-on-surface mb-md">Hola, soy el asistente de IA de Igualab. Respondo únicamente con base en los documentos cargados y siempre cito la fuente.</p>
-              <p className="text-body-md text-on-surface mb-md"><strong>Para consultar, primero selecciona sector, empresa y año.</strong> Respondo sobre sostenibilidad, indicadores GRI y sanciones.</p>
-              <div className="mt-md flex flex-wrap gap-sm">
-                {SUGERENCIAS.map((s) => (
-                  <button
-                    key={s}
-                    disabled={consultando}
-                    onClick={() => { if (ctxOk) responder(s); else toast("Primero elige sector, empresa y año.", "warn"); }}
-                    className="px-4 py-2 bg-surface-container-low hover:bg-surface-variant rounded-full text-label-md text-on-surface-variant transition-colors disabled:opacity-50"
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {mensajes.map((m) => <MensajeItem key={m.id} m={m} />)}
+      {/* Conversación */}
+      <div ref={logRef} className="flex-1 overflow-y-auto chat-scroll bg-surface">
+        <div className="max-w-3xl mx-auto w-full px-lg py-xl flex flex-col gap-lg">
+          {mensajes.length === 0 ? (
+            <Bienvenida ctxOk={ctxOk} consultando={consultando} onSugerir={sugerir} />
+          ) : (
+            mensajes.map((m) => <MensajeItem key={m.id} m={m} />)
+          )}
         </div>
+      </div>
 
-        <div className="p-xl bg-surface border-t border-outline-variant">
-          <div className="max-w-4xl mx-auto">
-            <div className={`bg-surface-container-lowest border-2 border-outline-variant rounded-xl transition-all ${ctxOk ? "" : "opacity-60"}`}>
-              <textarea
-                rows={2}
-                aria-label="Pregunta para el asistente"
-                disabled={!ctxOk}
-                value={texto}
-                onChange={(e) => setTexto(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(); } }}
-                placeholder={ctxOk ? "Pregunta sobre indicadores GRI, sanciones, desempeño ambiental…" : "Selecciona sector, empresa y año para habilitar la consulta…"}
-                className="w-full bg-transparent border-none rounded-xl text-body-md text-on-surface p-lg resize-none focus:ring-0 outline-none disabled:cursor-not-allowed"
-              />
-              <div className="flex justify-between items-center px-md pb-md">
-                <span className="text-label-sm text-outline">{empresa && ctxOk ? `Contexto: ${empresa.nombre} · ${anio}` : "Sin contexto seleccionado"}</span>
-                <button onClick={enviar} disabled={!ctxOk || consultando || !texto.trim()} className="bg-primary hover:bg-surface-tint text-on-primary px-lg py-2 rounded-lg text-label-md font-semibold flex items-center gap-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                  <span>Consultar</span>
-                  <span className="material-symbols-outlined">send</span>
+      {/* Caja de pregunta */}
+      <div className="border-t border-outline-variant bg-surface-container-lowest/95 backdrop-blur px-lg py-md">
+        <div className="max-w-3xl mx-auto">
+          <div
+            className={`rounded-2xl border bg-surface-container-lowest shadow-sm transition-all ${
+              ctxOk ? "border-outline-variant focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20" : "border-outline-variant opacity-70"
+            }`}
+          >
+            <textarea
+              rows={2}
+              aria-label="Pregunta para el asistente"
+              disabled={!ctxOk}
+              value={texto}
+              onChange={(e) => setTexto(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(); } }}
+              placeholder={ctxOk ? "Escribe tu pregunta sobre indicadores GRI, sanciones o desempeño ambiental…" : "Elige sector, empresa y año para empezar a consultar…"}
+              className="w-full bg-transparent border-none rounded-2xl text-body-md text-on-surface px-lg pt-md pb-xs resize-none focus:ring-0 outline-none disabled:cursor-not-allowed placeholder:text-outline"
+            />
+            <div className="flex items-center justify-between gap-md px-md pb-sm">
+              {empresa && ctxOk ? (
+                <span className="inline-flex items-center gap-xs rounded-full bg-surface-container-low px-3 py-1 text-label-sm text-on-surface-variant min-w-0">
+                  <span className="material-symbols-outlined text-[16px] text-primary">apartment</span>
+                  <span className="truncate">{empresa.nombre} · {anio}</span>
+                </span>
+              ) : (
+                <span className="text-label-sm text-outline">Sin contexto seleccionado</span>
+              )}
+              <div className="flex items-center gap-md shrink-0">
+                <span className="hidden sm:inline text-label-sm text-outline">Enter para enviar · Shift + Enter, nueva línea</span>
+                <button
+                  onClick={enviar}
+                  aria-label="Consultar"
+                  title="Consultar"
+                  disabled={!ctxOk || consultando || !texto.trim()}
+                  className="w-10 h-10 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-sm hover:bg-surface-tint transition-colors disabled:bg-surface-variant disabled:text-outline disabled:shadow-none disabled:cursor-not-allowed"
+                >
+                  <span className="material-symbols-outlined text-[20px]" aria-hidden="true">{consultando ? "hourglass_top" : "arrow_upward"}</span>
                 </button>
               </div>
             </div>
-            <p className="text-center text-label-sm text-outline mt-sm">La IA siempre cita la fuente. Si los documentos no bastan para responder, lo indica.</p>
           </div>
+          <p className="text-center text-label-sm text-outline mt-sm flex items-center justify-center gap-xs">
+            <span className="material-symbols-outlined text-[14px]" aria-hidden="true">verified</span>
+            <span>La IA siempre cita la fuente. Si los documentos no bastan para responder, lo indica.</span>
+          </p>
         </div>
       </div>
     </div>
   );
 }
 
-const CLS_CONTROL =
-  "rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none min-w-[160px]";
-
-function Avatar() {
+function Bienvenida({ ctxOk, consultando, onSugerir }: Readonly<{ ctxOk: boolean; consultando: boolean; onSugerir: (s: string) => void }>) {
   return (
-    <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center shrink-0">
-      <span className="material-symbols-outlined text-on-primary">psychology</span>
+    <div className="flex flex-col items-center text-center py-xl">
+      <span className="w-16 h-16 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-md">
+        <span className="material-symbols-outlined text-[32px]">psychology</span>
+      </span>
+      <h2 className="text-headline-md text-on-background mt-md">¿Qué quieres saber?</h2>
+      <p className="text-body-md text-on-surface-variant mt-sm max-w-xl">
+        Hola, soy el asistente de IA de Igualab. Respondo únicamente con base en los documentos cargados y siempre cito la fuente.
+      </p>
+      {!ctxOk && (
+        <p className="text-label-md text-secondary mt-sm">Para empezar, elige arriba el sector, la empresa y el año.</p>
+      )}
+      <div className="mt-lg grid gap-sm w-full max-w-xl">
+        {SUGERENCIAS.map((s) => (
+          <button
+            key={s.texto}
+            disabled={consultando}
+            onClick={() => onSugerir(s.texto)}
+            className="flex items-center gap-md text-left rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-body-md text-on-surface hover:border-primary hover:bg-primary/5 transition-colors disabled:opacity-50"
+          >
+            <span className="material-symbols-outlined text-primary" aria-hidden="true">{s.icono}</span>
+            <span>{s.texto}</span>
+          </button>
+        ))}
+      </div>
     </div>
+  );
+}
+
+function AvatarBot() {
+  return (
+    <span className="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center shrink-0 mt-xs">
+      <span className="material-symbols-outlined text-[18px]" aria-hidden="true">psychology</span>
+    </span>
   );
 }
 
 function MensajeItem({ m }: Readonly<{ m: Mensaje }>) {
   if (m.autor === "user") {
     return (
-      <div className="flex gap-lg max-w-4xl self-end flex-row-reverse">
-        <div className="w-10 h-10 rounded-full bg-surface-container-highest border border-outline-variant flex items-center justify-center shrink-0">
-          <span className="material-symbols-outlined text-on-surface-variant">person</span>
+      <div className="flex justify-end">
+        <div className="max-w-[80%] bg-primary text-on-primary px-lg py-md rounded-2xl rounded-br-md shadow-sm">
+          <p className="text-body-md whitespace-pre-line">{m.texto}</p>
         </div>
-        <div className="bg-primary-container p-lg rounded-xl rounded-tr-sm shadow-sm text-on-primary-container"><p className="text-body-md">{m.texto}</p></div>
       </div>
     );
   }
   if (m.typing) {
     return (
-      <div className="flex gap-lg" aria-label="El asistente está escribiendo">
-        <Avatar />
-        <div className="bg-surface-container-lowest border border-outline-variant p-lg rounded-xl rounded-tl-sm shadow-sm flex gap-xs items-center h-[56px]">
-          <span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" />
+      <div className="flex gap-md" aria-label="El asistente está escribiendo">
+        <AvatarBot />
+        <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl rounded-tl-md px-lg py-md shadow-sm flex items-center gap-sm">
+          <span className="flex gap-xs items-center"><span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" /></span>
+          <span className="text-label-md text-on-surface-variant">Buscando en los documentos…</span>
         </div>
       </div>
     );
   }
   if (m.error) {
     return (
-      <div className="flex gap-lg max-w-4xl">
-        <Avatar />
-        <div className="bg-error-container text-on-error-container p-lg rounded-xl rounded-tl-sm shadow-sm flex items-start gap-sm">
-          <span className="material-symbols-outlined text-[18px]">error</span>
+      <div className="flex gap-md">
+        <AvatarBot />
+        <div className="bg-error-container text-on-error-container rounded-2xl rounded-tl-md px-lg py-md shadow-sm flex items-start gap-sm">
+          <span className="material-symbols-outlined text-[18px]" aria-hidden="true">error</span>
           <p className="text-body-md">{m.texto}</p>
         </div>
       </div>
     );
   }
   return (
-    <div className="flex gap-lg max-w-4xl">
-      <Avatar />
-      <div className="bg-surface-container-lowest border border-secondary-fixed p-lg rounded-xl rounded-tl-sm shadow-sm relative overflow-hidden w-full">
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-secondary-fixed" />
+    <div className="flex gap-md">
+      <AvatarBot />
+      <div className="flex-1 min-w-0 bg-surface-container-lowest border border-outline-variant rounded-2xl rounded-tl-md p-lg shadow-sm">
         <CuerpoRespuesta m={m} />
       </div>
     </div>
@@ -254,18 +312,23 @@ function CuerpoRespuesta({ m }: Readonly<{ m: Mensaje }>) {
         m.texto && <p className="text-body-md text-on-surface whitespace-pre-line">{m.texto}</p>
       )}
       {m.sinEvidencia && (
-        <div className="mt-md flex items-start gap-sm rounded-lg bg-tertiary-fixed/40 text-on-tertiary-fixed px-md py-sm text-label-md">
-          <span className="material-symbols-outlined text-[18px]">info</span>
+        <div className="mt-md first:mt-0 flex items-start gap-sm rounded-xl bg-tertiary-fixed/40 text-on-tertiary-fixed px-md py-sm text-body-md">
+          <span className="material-symbols-outlined text-[18px]" aria-hidden="true">info</span>
           <span>{m.aviso || textoSinEvidencia(m.motivo)}</span>
         </div>
       )}
       {descartadas > 0 && (
-        <p className="mt-md text-label-sm text-outline">{textoDescartadas(descartadas)}</p>
+        <p className="mt-md text-label-sm text-outline flex items-center gap-xs">
+          <span className="material-symbols-outlined text-[14px]" aria-hidden="true">filter_list</span>
+          <span>{textoDescartadas(descartadas)}</span>
+        </p>
       )}
       {citas.length > 0 && (
-        <div className="mt-lg pt-md border-t border-outline-variant space-y-sm">
-          <p className="text-label-sm text-on-surface-variant uppercase">Fuentes citadas</p>
-          {citas.map((c) => <Fuente key={c.referencia} cita={c} />)}
+        <div className="mt-lg pt-md border-t border-outline-variant">
+          <p className="text-label-sm text-on-surface-variant uppercase tracking-wider mb-sm">Fuentes citadas</p>
+          <div className="grid gap-sm">
+            {citas.map((c) => <Fuente key={c.referencia} cita={c} />)}
+          </div>
         </div>
       )}
     </>
@@ -274,28 +337,30 @@ function CuerpoRespuesta({ m }: Readonly<{ m: Mensaje }>) {
 
 function AfirmacionItem({ afirmacion }: Readonly<{ afirmacion: AfirmacionAsistente }>) {
   return (
-    <li>
-      <p className="text-body-md text-on-surface">
-        {afirmacion.texto}{" "}
-        {afirmacion.referencias.map((n) => (
-          <sup key={n} className="text-label-sm font-bold text-primary">[{n}]</sup>
-        ))}
-      </p>
-      <p className="text-label-md text-on-surface-variant italic border-l-2 border-outline-variant pl-sm mt-xs break-words">«{afirmacion.cita_textual}»</p>
+    <li className="flex gap-sm">
+      <span className="material-symbols-outlined text-[18px] text-primary mt-[2px]" aria-hidden="true">check_circle</span>
+      <div className="min-w-0">
+        <p className="text-body-md text-on-surface">
+          {afirmacion.texto}{" "}
+          {afirmacion.referencias.map((n) => (
+            <sup key={n} className="ml-[2px] inline-flex items-center justify-center rounded bg-primary/10 px-1 text-[10px] font-bold text-primary">[{n}]</sup>
+          ))}
+        </p>
+        <p className="mt-xs rounded-lg bg-surface-container-low px-md py-xs text-label-md text-on-surface-variant italic break-words">«{afirmacion.cita_textual}»</p>
+      </div>
     </li>
   );
 }
 
 function Fuente({ cita }: Readonly<{ cita: CitaAsistente }>) {
   return (
-    <div className="rounded-lg bg-surface-container-low px-md py-sm">
-      <p className="text-label-md text-on-surface flex items-center gap-xs">
-        <span className="font-bold text-primary">[{cita.referencia}]</span>
-        <span className="material-symbols-outlined text-[16px]">description</span>
-        <span className="break-all">{cita.documento_nombre}</span>
-      </p>
-      <p className="text-label-sm text-on-surface-variant mt-xs">{cita.empresa_nombre} · {cita.anio} · {cita.seccion}</p>
-      <p className="text-label-sm text-outline italic mt-xs break-words">{cita.extracto}</p>
+    <div className="flex gap-sm rounded-xl border border-outline-variant bg-surface-container-low/60 px-md py-sm">
+      <span className="w-6 h-6 rounded-full bg-primary text-on-primary text-label-sm font-bold flex items-center justify-center shrink-0">{cita.referencia}</span>
+      <div className="min-w-0">
+        <p className="text-label-md font-semibold text-on-surface break-all">{cita.documento_nombre}</p>
+        <p className="text-label-sm text-on-surface-variant">{cita.empresa_nombre} · {cita.anio} · {cita.seccion}</p>
+        <p className="text-label-sm text-outline italic mt-xs line-clamp-2 break-words">{cita.extracto}</p>
+      </div>
     </div>
   );
 }

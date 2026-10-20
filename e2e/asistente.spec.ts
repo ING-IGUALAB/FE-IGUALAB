@@ -1,16 +1,24 @@
 import { test, expect, entrarComo, campo } from "./support/fixtures";
+import { aniosDisponibles } from "../src/lib/dominio";
 import type { Page } from "@playwright/test";
 
 async function elegirContexto(page: Page, sector: string, empresa: string, anio: number) {
   await campo(page, "Sector").selectOption({ label: sector });
   await campo(page, "Empresa").selectOption({ label: empresa });
-  await campo(page, "Año").fill(String(anio));
+  await campo(page, "Año").selectOption(String(anio));
 }
 
 test.describe("Caso de uso: Consultar al asistente de IA", () => {
   test.beforeEach(async ({ page, api }) => {
     await entrarComo(page, api, "administrador", "/ia");
     await expect(page.getByText("Hola, soy el asistente de IA de Igualab.")).toBeVisible();
+  });
+
+  test("el año solo se elige de 2023 al último año cerrado (no admite 0 ni años futuros)", async ({ page }) => {
+    const anio = campo(page, "Año");
+    await expect(anio.locator("option")).toHaveText(aniosDisponibles().map(String));
+    await expect(anio).toHaveValue(String(aniosDisponibles()[0]));
+    await expect(anio.locator("option", { hasText: "3000" })).toHaveCount(0);
   });
 
   test("sin contexto no permite consultar", async ({ page }) => {

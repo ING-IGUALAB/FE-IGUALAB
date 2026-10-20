@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { PuntajeEsg } from "../types";
 import {
+  ANIO_MIN_DATOS,
+  aniosDisponibles,
   ESTADOS_GRI_API,
   FLUJO_INFO,
   TIPOS_EVENTO_AUDITORIA,
@@ -249,5 +251,18 @@ describe("textoDescartadas", () => {
   it("concuerda en singular y plural", () => {
     expect(textoDescartadas(1)).toBe("Se omitió 1 afirmación que no pudo respaldarse con los documentos.");
     expect(textoDescartadas(3)).toBe("Se omitieron 3 afirmaciones que no pudieron respaldarse con los documentos.");
+  });
+});
+
+describe("aniosDisponibles", () => {
+  it("va de 2023 al último año cerrado, del más reciente al más antiguo", () => {
+    expect(ANIO_MIN_DATOS).toBe(2023);
+    expect(aniosDisponibles(new Date("2026-10-20T12:00:00"))).toEqual([2025, 2024, 2023]);
+  });
+  it("se actualiza solo con el paso del tiempo", () => {
+    expect(aniosDisponibles(new Date("2028-03-01T12:00:00"))).toEqual([2027, 2026, 2025, 2024, 2023]);
+  });
+  it("nunca devuelve una lista vacía", () => {
+    expect(aniosDisponibles(new Date("2023-06-01T12:00:00"))).toEqual([2023]);
   });
 });

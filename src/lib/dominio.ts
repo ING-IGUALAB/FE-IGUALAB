@@ -233,3 +233,16 @@ export function textoDescartadas(n: number): string {
   if (n === 1) return "Se omitió 1 afirmación que no pudo respaldarse con los documentos.";
   return `Se omitieron ${n} afirmaciones que no pudieron respaldarse con los documentos.`;
 }
+
+// ---- Años con datos ----
+/** Primer año con documentos en la plataforma. Para habilitar años anteriores, cambiar solo esta constante. */
+export const ANIO_MIN_DATOS = 2023;
+
+/**
+ * Años que se pueden elegir, del más reciente al más antiguo: desde ANIO_MIN_DATOS hasta el último año
+ * cerrado (las memorias y reportes de un año se publican al siguiente). Se actualiza solo cada año.
+ */
+export function aniosDisponibles(hoy: Date = new Date()): number[] {
+  const ultimo = Math.max(ANIO_MIN_DATOS, hoy.getFullYear() - 1);
+  return Array.from({ length: ultimo - ANIO_MIN_DATOS + 1 }, (_, i) => ultimo - i);
+}

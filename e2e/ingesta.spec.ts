@@ -14,7 +14,7 @@ test.describe("Caso de uso: Ingestar documentos", () => {
 
   test("sube un .md y aparece en Documentos ingestados", async ({ page, api }) => {
     await campo(page, "Empresa").selectOption({ label: "Minera Andina S.A.A." });
-    await campo(page, "Año").fill("2025");
+    await campo(page, "Año").selectOption("2025");
     await campo(page, "Tipo").selectOption({ label: "Reporte de Sostenibilidad GRI" });
     await page.locator('input[type="file"]').setInputFiles(archivoMd("gri-andina-2025.md"));
     await page.getByRole("button", { name: "Realizar ingesta" }).click();

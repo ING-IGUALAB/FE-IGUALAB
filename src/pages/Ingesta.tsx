@@ -9,6 +9,7 @@ import * as empresasApi from "../api/empresas";
 import * as documentosApi from "../api/documentos";
 import { mensajeError } from "../api/client";
 import {
+  aniosDisponibles,
   SECTORES_API,
   TIPOS_API,
   etiquetaAnalisis,
@@ -31,7 +32,7 @@ import type {
 } from "../types";
 
 const ESTADOS: EstadoProgreso[] = ["COMPLETADO", "EN_PROCESO", "PUBLICACION_PENDIENTE", "FALLIDO", "FALLIDO_LIMPIEZA_PENDIENTE"];
-const ANIO_ACTUAL = new Date().getFullYear();
+const ANIOS = aniosDisponibles();
 const TAM_PAGINA = 10;
 
 export default function Ingesta() {
@@ -41,7 +42,7 @@ export default function Ingesta() {
   const [empresas, setEmpresas] = useState<EmpresaApi[]>([]);
   const [sector, setSector] = useState<SectorApi>(SECTORES_API[0]);
   const [empresaId, setEmpresaId] = useState("");
-  const [anio, setAnio] = useState(ANIO_ACTUAL - 1);
+  const [anio, setAnio] = useState(ANIOS[0]);
   const [tipo, setTipo] = useState<TipoDocumentoApi>(TIPOS_API[0]);
   const [archivo, setArchivo] = useState<File | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -199,7 +200,9 @@ export default function Ingesta() {
               </Campo>
               <div className="grid grid-cols-2 gap-sm">
                 <Campo label="Año">
-                  <input type="number" min={2000} max={ANIO_ACTUAL} value={anio} onChange={(e) => setAnio(Number.parseInt(e.target.value, 10) || 0)} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" />
+                  <select value={anio} onChange={(e) => setAnio(Number(e.target.value))} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
+                  {ANIOS.map((a) => <option key={a} value={a}>{a}</option>)}
+                </select>
                 </Campo>
                 <Campo label="Tipo">
                   <select value={tipo} onChange={(e) => setTipo(e.target.value as TipoDocumentoApi)} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
