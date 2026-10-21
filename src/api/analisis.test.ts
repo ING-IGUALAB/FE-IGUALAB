@@ -17,6 +17,16 @@ describe("api/analisis", () => {
     expect(fetchMock.mock.calls[0][1].method).toBe("GET");
   });
 
+  it("consultarAnalisis puede ser silenciosa (sin indicador de carga)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok({ filas: [], documentos: [] })));
+    const { LOADING_START } = await import("./client");
+    const handler = vi.fn();
+    globalThis.addEventListener(LOADING_START, handler);
+    await analisisApi.consultarAnalisis("e1", 2024, { silencioso: true });
+    globalThis.removeEventListener(LOADING_START, handler);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
   it("asignarEstado hace PUT con estado y version_fila_esperada, codificando la identidad", async () => {
     const fetchMock = vi.fn().mockResolvedValue(ok({ cambio: true }));
     vi.stubGlobal("fetch", fetchMock);

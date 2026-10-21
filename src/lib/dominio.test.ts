@@ -1,13 +1,29 @@
 import { describe, expect, it } from "vitest";
 import type { PuntajeEsg } from "../types";
 import {
+  ANIO_MIN_DATOS,
+  aniosConDocumentos,
+  aniosDisponibles,
   ESTADOS_GRI_API,
   FLUJO_INFO,
+  TIPOS_EVENTO_AUDITORIA,
+  aCsv,
+  finDiaUtc,
+  huellaCorta,
+  inicioDiaUtc,
+  nombreArchivoReporte,
+  nombrePersona,
+  textoDescartadas,
+  textoMonto,
+  textoSinEvidencia,
+  totalPaginas,
   MAX_BYTES_INGESTA,
   detallePuntaje,
   etiquetaEstadoGri,
   etiquetaFlujo,
+  paginaValida,
   paginarLocal,
+  rangoPaginas,
   plural,
   puedeValidar,
   textoMotivosNoVigente,
@@ -172,5 +188,141 @@ describe("paginarLocal", () => {
 
   it("con lista vacía devuelve 1 página sin items", () => {
     expect(paginarLocal([], 1, 10)).toEqual({ items: [], pagina: 1, paginas: 1 });
+  });
+});
+
+describe("textoMonto", () => {
+  const monto = (texto: string, unidad: string) => ({ texto, unidad, separador_ambiguo: false });
+  it("deja el texto si ya trae la moneda", () => {
+    expect(textoMonto(monto("S/ 32,000", "S/"))).toBe("S/ 32,000");
+    expect(textoMonto(monto("59.078 UIT", "UIT"))).toBe("59.078 UIT");
+  });
+  it("antepone la moneda cuando vino aparte (encabezado de tabla)", () => {
+    expect(textoMonto(monto("32,000", "S/"))).toBe("S/ 32,000");
+  });
+  it("si no hay unidad, muestra el texto tal cual", () => {
+    expect(textoMonto(monto("32,000", ""))).toBe("32,000");
+  });
+});
+
+describe("reportes", () => {
+  it("arma un nombre de archivo sin tildes ni símbolos", () => {
+    expect(nombreArchivoReporte("Minera Andina S.A.A.", 2024)).toBe("reporte-prospeccion-minera-andina-s-a-a-2024.pdf");
+    expect(nombreArchivoReporte("Energía Ñandú", 2025)).toBe("reporte-prospeccion-energia-nandu-2025.pdf");
+    expect(nombreArchivoReporte("***", 2025)).toBe("reporte-prospeccion-empresa-2025.pdf");
+  });
+  it("acorta la huella SHA-256", () => {
+    expect(huellaCorta("abcdef0123456789")).toBe("abcdef012345…");
+    expect(huellaCorta("abc")).toBe("abc");
+  });
+});
+
+describe("auditoría", () => {
+  it("lista los tipos de evento del backend", () => {
+    expect(TIPOS_EVENTO_AUDITORIA).toContain("Inicio de sesión");
+    expect(TIPOS_EVENTO_AUDITORIA).toHaveLength(6);
+  });
+  it("convierte días locales a un rango UTC que incluye todo el día", () => {
+    const desde = new Date(inicioDiaUtc("2026-10-01")!);
+    const hasta = new Date(finDiaUtc("2026-10-01")!);
+    expect([desde.getHours(), desde.getMinutes()]).toEqual([0, 0]);
+    expect([hasta.getHours(), hasta.getMinutes(), hasta.getSeconds()]).toEqual([23, 59, 59]);
+    expect(inicioDiaUtc("")).toBeUndefined();
+    expect(finDiaUtc("")).toBeUndefined();
+  });
+  it("calcula el total de páginas (mínimo 1)", () => {
+    expect(totalPaginas(0, 20)).toBe(1);
+    expect(totalPaginas(41, 20)).toBe(3);
+  });
+  it("genera CSV con BOM, «;» y comillas escapadas", () => {
+    expect(aCsv([["a", 'b "c"'], ["1", "2"]])).toBe('\uFEFF"a";"b ""c"""\n"1";"2"');
+  });
+});
+
+describe("textoSinEvidencia", () => {
+  it("explica cada motivo del backend", () => {
+    expect(textoSinEvidencia("FUERA_DE_DOMINIO")).toContain("sostenibilidad");
+    expect(textoSinEvidencia("SIN_FRAGMENTOS")).toContain("No hay documentos");
+    expect(textoSinEvidencia("AFIRMACIONES_NO_VERIFICABLES")).toContain("citas literales");
+  });
+  it("usa un texto genérico si no hay motivo", () => {
+    expect(textoSinEvidencia(null)).toContain("evidencia suficiente");
+    expect(textoSinEvidencia(undefined)).toContain("evidencia suficiente");
+  });
+});
+
+describe("textoDescartadas", () => {
+  it("concuerda en singular y plural", () => {
+    expect(textoDescartadas(1)).toBe("Se omitió 1 afirmación que no pudo respaldarse con los documentos.");
+    expect(textoDescartadas(3)).toBe("Se omitieron 3 afirmaciones que no pudieron respaldarse con los documentos.");
+  });
+});
+
+describe("aniosDisponibles", () => {
+  it("va de 2023 al último año cerrado, del más reciente al más antiguo", () => {
+    expect(ANIO_MIN_DATOS).toBe(2023);
+    expect(aniosDisponibles(new Date("2026-10-20T12:00:00"))).toEqual([2025, 2024, 2023]);
+  });
+  it("se actualiza solo con el paso del tiempo", () => {
+    expect(aniosDisponibles(new Date("2028-03-01T12:00:00"))).toEqual([2027, 2026, 2025, 2024, 2023]);
+  });
+  it("nunca devuelve una lista vacía", () => {
+    expect(aniosDisponibles(new Date("2023-06-01T12:00:00"))).toEqual([2023]);
+  });
+});
+
+describe("nombrePersona", () => {
+  const nombres = new Map([["500f81e3-bebf-4f24-9ace-81f49d3eb6cf", "Oscar Baldeón"]]);
+  it("traduce el ID del usuario a su nombre", () => {
+    expect(nombrePersona("500f81e3-bebf-4f24-9ace-81f49d3eb6cf", nombres)).toBe("Oscar Baldeón");
+  });
+  it("no muestra un ID desconocido", () => {
+    expect(nombrePersona("11111111-2222-3333-4444-555555555555", nombres)).toBe("Usuario no identificado");
+  });
+  it("si ya viene un nombre, lo deja tal cual", () => {
+    expect(nombrePersona("Ana García", nombres)).toBe("Ana García");
+  });
+  it("sin valor muestra guion", () => {
+    expect(nombrePersona(null, nombres)).toBe("—");
+    expect(nombrePersona("", nombres)).toBe("—");
+  });
+});
+
+describe("aniosConDocumentos", () => {
+  const conDocs = (n: number): PromiseSettledResult<{ documentos: unknown[] }> => ({ status: "fulfilled", value: { documentos: Array(n).fill({}) } });
+  it("deja solo los años con documentos, en el mismo orden", () => {
+    expect(aniosConDocumentos([2025, 2024, 2023], [conDocs(0), conDocs(2), conDocs(1)])).toEqual([2024, 2023]);
+  });
+  it("descarta los años cuya consulta falló", () => {
+    const fallo: PromiseSettledResult<{ documentos: unknown[] }> = { status: "rejected", reason: new Error("x") };
+    expect(aniosConDocumentos([2025, 2024], [fallo, conDocs(1)])).toEqual([2024]);
+  });
+  it("sin documentos en ningún año devuelve lista vacía", () => {
+    expect(aniosConDocumentos([2025, 2024], [conDocs(0), conDocs(0)])).toEqual([]);
+  });
+});
+
+describe("rangoPaginas", () => {
+  it("con pocas páginas las muestra todas", () => {
+    expect(rangoPaginas(1, 5)).toEqual([1, 2, 3, 4, 5]);
+    expect(rangoPaginas(3, 7)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  });
+  it("en medio muestra primera, vecinas, última y saltos", () => {
+    expect(rangoPaginas(6, 13)).toEqual([1, "…", 5, 6, 7, "…", 13]);
+  });
+  it("cerca del inicio o del final no pone saltos innecesarios", () => {
+    expect(rangoPaginas(2, 13)).toEqual([1, 2, 3, "…", 13]);
+    expect(rangoPaginas(12, 13)).toEqual([1, "…", 11, 12, 13]);
+    expect(rangoPaginas(11, 13)).toEqual([1, "…", 10, 11, 12, 13]);
+  });
+});
+
+describe("paginaValida", () => {
+  it("acota al rango y rechaza lo que no es número", () => {
+    expect(paginaValida("11", 13)).toBe(11);
+    expect(paginaValida("99", 13)).toBe(13);
+    expect(paginaValida("0", 13)).toBe(1);
+    expect(paginaValida("", 13)).toBeNull();
+    expect(paginaValida("abc", 13)).toBeNull();
   });
 });

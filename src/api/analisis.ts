@@ -12,8 +12,8 @@ function base(empresaId: string, anio: number) {
 }
 
 /** Filas GRI con evidencia, sanciones, puntaje ESG, pendientes y estado de la validación. */
-export function consultarAnalisis(empresaId: string, anio: number) {
-  return api<AnalisisGri>(base(empresaId, anio));
+export function consultarAnalisis(empresaId: string, anio: number, opts: { silencioso?: boolean } = {}) {
+  return api<AnalisisGri>(base(empresaId, anio), { silencioso: opts.silencioso });
 }
 
 /**

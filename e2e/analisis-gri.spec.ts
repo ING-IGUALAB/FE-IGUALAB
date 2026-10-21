@@ -4,7 +4,7 @@ import type { Page } from "@playwright/test";
 async function consultar(page: Page, sector: string, empresa: string, anio: number) {
   await campo(page, "Sector").selectOption({ label: sector });
   await campo(page, "Empresa").selectOption({ label: empresa });
-  await campo(page, "Año").fill(String(anio));
+  await campo(page, "Año").selectOption(String(anio));
   await page.getByRole("button", { name: "Consultar análisis" }).click();
 }
 

@@ -5,13 +5,16 @@ import type {
   EmpresaApi,
   EstadoGriApi,
   EstadoProgreso,
+  EventoAuditoriaApi,
   FilaGri,
   HistorialGriItem,
   PuntajeEsg,
+  ReporteResumen,
   Rol,
   SancionVista,
   SectorApi,
   TipoDocumentoApi,
+  TipoEventoAuditoria,
   Usuario,
   ValidacionVista,
 } from "../../src/types";
@@ -31,6 +34,13 @@ export const API_BASE = "/mock-api";
 interface Respuesta {
   status: number;
   body?: unknown;
+  /** Respuesta binaria (p. ej. un PDF). */
+  archivo?: { contenido: Buffer; tipo: string; nombre?: string };
+}
+interface FalloForzado {
+  metodo: string;
+  ruta: string;
+  respuesta: Respuesta;
 }
 interface Cuenta extends Usuario {
   password: string;
@@ -70,6 +80,9 @@ export class ServicioSimulado {
   documentos: DocumentoResumen[] = [];
   analisis = new Map<string, EstadoAnalisis>();
   llamadas: Llamada[] = [];
+  reportes: ReporteResumen[] = [];
+  eventos: EventoAuditoriaApi[] = [];
+  private fallos: FalloForzado[] = [];
   private sesionesExpiradas = false;
   private seq = 100;
   private readonly rutas: { metodo: string; patron: RegExp; fn: Manejador }[];
@@ -103,6 +116,44 @@ export class ServicioSimulado {
     fila.version_fila += 5;
   }
 
+  /** La próxima llamada a `metodo ruta` responde este error (una sola vez). */
+  fallarProxima(metodo: string, ruta: string, status: number, code: string, message: string) {
+    this.fallos.push({ metodo, ruta, respuesta: error(status, code, message) });
+  }
+
+  /** Agrega `n` eventos de auditoría más antiguos (para probar la paginación con muchas páginas). */
+  agregarEventos(n: number) {
+    for (let i = 0; i < n; i += 1) {
+      const dia = String(1 + (i % 28)).padStart(2, "0");
+      this.eventos.push({
+        id: `ev-extra-${i + 1}`,
+        usuario_id: i % 2 === 0 ? "u-super" : "u-admin",
+        tipo_evento: "Inicio de sesión",
+        detalle: `Evento histórico #${i + 1}`,
+        fecha_hora_utc: `2026-09-${dia}T10:00:00Z`,
+      });
+    }
+  }
+
+  /** Deja validado el análisis de una empresa y año (requisito para generar su reporte). */
+  validarAnalisisPorFuera(empresaId: string, anio: number) {
+    const s = this.estadoDe(empresaId, anio);
+    s.filas.forEach((f) => Object.assign(f, { estado: f.estado ?? "OK" }));
+    s.validacion = {
+      numero: 1,
+      vigente: true,
+      motivos_no_vigente: [],
+      validado_por: { id: "u-admin", nombre: "Ana García" },
+      validado_en: AHORA,
+      version_estados: s.version,
+      huella_documentos: "huella-1",
+      documentos_validados: 1,
+      filas_validadas: s.filas.length,
+      puntaje_suma: 0,
+      puntaje_filas: s.filas.length,
+    };
+  }
+
   llamadasA(metodo: string, ruta: string | RegExp) {
     return this.llamadas.filter((l) => l.metodo === metodo && (typeof ruta === "string" ? l.ruta === ruta : ruta.test(l.ruta)));
   }
@@ -117,7 +168,10 @@ export class ServicioSimulado {
 
     let r: Respuesta = error(404, "NOT_FOUND", `Ruta no simulada: ${metodo} ${ruta}`);
     const publica = ruta.startsWith("/auth/") && ruta !== "/auth/mi-contrasena" && ruta !== "/auth/logout";
-    if (this.sesionesExpiradas && !publica) {
+    const fallo = this.fallos.findIndex((f) => f.metodo === metodo && f.ruta === ruta);
+    if (fallo >= 0) {
+      r = this.fallos.splice(fallo, 1)[0].respuesta;
+    } else if (this.sesionesExpiradas && !publica) {
       r = error(401, "SESSION_EXPIRED", "Tu sesión expiró.");
     } else {
       for (const { metodo: m, patron, fn } of this.rutas) {
@@ -129,6 +183,11 @@ export class ServicioSimulado {
       }
     }
     if (r.status === 204) return route.fulfill({ status: 204 });
+    if (r.archivo) {
+      const headers: Record<string, string> = {};
+      if (r.archivo.nombre) headers["content-disposition"] = `attachment; filename="${r.archivo.nombre}"`;
+      return route.fulfill({ status: r.status, contentType: r.archivo.tipo, headers, body: r.archivo.contenido });
+    }
     return route.fulfill({ status: r.status, contentType: "application/json", body: JSON.stringify(r.body ?? null) });
   }
 
@@ -196,6 +255,15 @@ export class ServicioSimulado {
       { metodo: "POST", patron: /^\/documentos\/operaciones\/([^/]+)\/ingesta$/, fn: (m, req) => this.ingerir(m[1], req) },
       { metodo: "GET", patron: /^\/documentos$/, fn: (_m, _r, q) => ok(this.listarDocumentos(q)) },
       { metodo: "GET", patron: /^\/documentos\/([^/]+)$/, fn: (m) => this.detalleDocumento(m[1]) },
+      // Asistente de IA
+      { metodo: "POST", patron: /^\/asistente\/consultas$/, fn: (_m, req) => this.consultarAsistente(req) },
+      // Reportes de prospección
+      { metodo: "GET", patron: /^\/reportes$/, fn: () => ok(this.reportes) },
+      { metodo: "POST", patron: /^\/reportes$/, fn: (_m, req) => this.generarReporte(req) },
+      { metodo: "POST", patron: /^\/reportes\/vista-previa$/, fn: (_m, req) => this.vistaPrevia(req) },
+      { metodo: "GET", patron: /^\/reportes\/([^/]+)\/archivo$/, fn: (m) => this.archivoReporte(m[1]) },
+      // Auditoría
+      { metodo: "GET", patron: /^\/auditoria$/, fn: (_m, _r, q) => ok(this.listarEventos(q)) },
       // Análisis y validación GRI
       { metodo: "PUT", patron: new RegExp(`${A}/codigos/([^/]+)/estado$`), fn: (m, req) => this.asignarEstado(m, req) },
       { metodo: "GET", patron: new RegExp(`${A}/historial$`), fn: (m) => this.historial(m) },
@@ -322,7 +390,7 @@ export class ServicioSimulado {
       disponible_para_rag: true,
       fragmentos_total: 4,
       cantidad_advertencias: 0,
-      cargado_por: "Oscar Baldeón",
+      cargado_por: "u-super",
       creado_en: "2026-10-14T16:00:00Z",
       completado_en: "2026-10-14T16:00:05Z",
     };
@@ -538,6 +606,123 @@ export class ServicioSimulado {
     return ok({ validacion: s.validacion, puntaje: this.puntaje(s), estado_flujo: "VALIDADO", habilita_reporte: true }, 201);
   }
 
+  // ---------------------------------------------------------------- asistente de IA
+  private consultarAsistente(req: Request): Respuesta {
+    const cuerpo = req.postDataJSON() as { pregunta?: string; sector?: SectorApi; empresa_id?: string; anio?: number };
+    // Igual que el backend: sector, empresa y año son obligatorios (422 "Field required").
+    const faltan = (["pregunta", "sector", "empresa_id", "anio"] as const).filter((k) => cuerpo[k] === undefined || cuerpo[k] === null);
+    if (faltan.length > 0) {
+      return {
+        status: 422,
+        body: {
+          error: {
+            code: "REQUEST_VALIDATION_ERROR",
+            message: "Datos inválidos.",
+            details: faltan.map((k) => ({ loc: ["body", k], msg: "Field required", type: "missing" })),
+            request_id: "e2e",
+          },
+        },
+      };
+    }
+    const empresa = this.empresas.find((e) => e.id === cuerpo.empresa_id);
+    if (!empresa) return error(404, "COMPANY_NOT_FOUND", "La empresa no existe.");
+    if (empresa.sector !== cuerpo.sector) return error(400, "COMPANY_SECTOR_MISMATCH", "La empresa no pertenece al sector indicado.");
+    const doc = this.documentos.find((d) => d.empresa_id === empresa.id && d.anio === cuerpo.anio);
+    if (/f[uú]tbol/i.test(cuerpo.pregunta ?? "")) {
+      return ok({
+        respuesta: "",
+        afirmaciones: [],
+        citas: [],
+        sin_evidencia: true,
+        motivo: "FUERA_DE_DOMINIO",
+        mensaje: null,
+        afirmaciones_descartadas: 0,
+      });
+    }
+    if (!doc) {
+      return ok({ respuesta: "", afirmaciones: [], citas: [], sin_evidencia: true, motivo: "SIN_FRAGMENTOS", mensaje: null, afirmaciones_descartadas: 0 });
+    }
+    const cita = "OEFA impuso una multa de 59.078 UIT por incumplimiento ambiental.";
+    return ok({
+      respuesta: `Se identifica una multa del OEFA de 59.078 UIT [1].`,
+      afirmaciones: [{ texto: "Se identifica una multa del OEFA de 59.078 UIT por incumplimiento ambiental.", referencias: [1], cita_textual: cita }],
+      citas: [
+        {
+          referencia: 1,
+          documento_id: doc.id,
+          documento_nombre: doc.nombre_archivo,
+          empresa_id: empresa.id,
+          empresa_nombre: empresa.nombre,
+          anio: doc.anio,
+          seccion: "Memoria Anual > Contingencias",
+          extracto: `En el ejercicio, ${cita}`,
+        },
+      ],
+      sin_evidencia: false,
+      motivo: null,
+      mensaje: null,
+      afirmaciones_descartadas: 1,
+    });
+  }
+
+  // ---------------------------------------------------------------- reportes
+  private validarReporte(req: Request): { empresa?: EmpresaApi; anio: number; error?: Respuesta } {
+    const { empresa_id, anio } = req.postDataJSON() as { empresa_id: string; anio: number };
+    const empresa = this.empresas.find((e) => e.id === empresa_id);
+    if (!empresa) return { anio, error: error(404, "COMPANY_NOT_FOUND", "Empresa inexistente.") };
+    if (!this.analisis.get(`${empresa_id}:${anio}`)?.validacion?.vigente) {
+      return { anio, error: error(409, "ANALYSIS_NOT_VALIDATED", "El análisis GRI de esta empresa y año no está validado.") };
+    }
+    return { empresa, anio };
+  }
+
+  private vistaPrevia(req: Request): Respuesta {
+    const v = this.validarReporte(req);
+    if (v.error) return v.error;
+    return { status: 200, archivo: { contenido: pdfMinimo(`Vista previa - ${v.empresa!.nombre} ${v.anio}`), tipo: "application/pdf" } };
+  }
+
+  private generarReporte(req: Request): Respuesta {
+    const v = this.validarReporte(req);
+    if (v.error) return v.error;
+    const reporte: ReporteResumen = {
+      id: this.nuevoId("r"),
+      empresa_id: v.empresa!.id,
+      anio: v.anio,
+      generado_por: "u-admin",
+      sha256: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      creado_en: "2026-10-16T15:00:00Z",
+    };
+    this.reportes.unshift(reporte);
+    return ok(reporte, 201);
+  }
+
+  private archivoReporte(id: string): Respuesta {
+    const r = this.reportes.find((x) => x.id === id);
+    if (!r) return error(404, "REPORT_NOT_FOUND", "Reporte inexistente.");
+    const empresa = this.empresas.find((e) => e.id === r.empresa_id)?.nombre ?? "empresa";
+    return {
+      status: 200,
+      archivo: { contenido: pdfMinimo(`Reporte - ${empresa} ${r.anio}`), tipo: "application/pdf", nombre: `reporte-${r.id}.pdf` },
+    };
+  }
+
+  // ---------------------------------------------------------------- auditoría
+  private listarEventos(q: URLSearchParams) {
+    const desde = q.get("desde");
+    const hasta = q.get("hasta");
+    const xs = this.eventos.filter(
+      (e) =>
+        (!q.get("tipo_evento") || e.tipo_evento === q.get("tipo_evento")) &&
+        (!q.get("usuario_id") || e.usuario_id === q.get("usuario_id")) &&
+        (!desde || e.fecha_hora_utc >= desde) &&
+        (!hasta || e.fecha_hora_utc <= hasta),
+    );
+    const pagina = Number(q.get("pagina") ?? 1);
+    const tamano = Number(q.get("tamano") ?? 20);
+    return { items: xs.slice((pagina - 1) * tamano, pagina * tamano), pagina, tamano, total: xs.length };
+  }
+
   // ---------------------------------------------------------------- datos de prueba
   private cargarDatosIniciales() {
     const cuenta = (id: string, nombre: string, correo: string, rol: Rol, password: string, habilitado = true): Cuenta => ({
@@ -581,7 +766,7 @@ export class ServicioSimulado {
       disponible_para_rag: true,
       fragmentos_total: 3,
       cantidad_advertencias: 0,
-      cargado_por: "Oscar Baldeón",
+      cargado_por: "u-super",
       creado_en: "2026-10-09T15:00:00Z",
       completado_en: "2026-10-09T15:00:05Z",
     });
@@ -624,6 +809,39 @@ export class ServicioSimulado {
       advertencias: [],
       evidencias: [evidencia(`Mención de ${estandar} en el documento.`, identidad.length * 10)],
     });
+    this.reportes = [
+      {
+        id: "r-andina-2023",
+        empresa_id: "e-andina",
+        anio: 2023,
+        generado_por: "u-admin",
+        sha256: "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae",
+        creado_en: "2026-10-10T14:00:00Z",
+      },
+      {
+        id: "r-psur-2024",
+        empresa_id: "e-psur",
+        anio: 2024,
+        generado_por: "u-admin",
+        sha256: "fcde2b2edba56bf408601fb721fe9b5c338d10ee429ea04fae5511b68fbf8fb9",
+        creado_en: "2026-10-12T09:30:00Z",
+      },
+    ];
+
+    // 25 eventos de auditoría (2 páginas de 20), del más reciente al más antiguo.
+    const tipos: TipoEventoAuditoria[] = ["Inicio de sesión", "Ingesta de datos", "Generación de reporte", "Descarga", "Cambio de rol"];
+    this.eventos = Array.from({ length: 25 }, (_, i) => {
+      const tipo = tipos[i % tipos.length];
+      const dia = String(15 - Math.floor(i / 5)).padStart(2, "0");
+      return {
+        id: `ev-${i + 1}`,
+        usuario_id: i % 2 === 0 ? "u-super" : "u-admin",
+        tipo_evento: tipo,
+        detalle: `${tipo} #${i + 1}`,
+        fecha_hora_utc: `2026-10-${dia}T15:${String(59 - i).padStart(2, "0")}:00Z`,
+      };
+    });
+
     this.analisis.set("e-andina:2024", {
       version: 1,
       filas: [
@@ -651,4 +869,28 @@ export class ServicioSimulado {
       historial: [],
     });
   }
+}
+
+/** PDF mínimo válido de una página con una línea de texto (ASCII), para simular los reportes. */
+function pdfMinimo(texto: string): Buffer {
+  const limpio = texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[()\\]/g, "");
+  const contenido = `BT /F1 18 Tf 60 760 Td (${limpio}) Tj ET`;
+  const objetos = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+    `<< /Length ${contenido.length} >>\nstream\n${contenido}\nendstream`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets: number[] = [];
+  objetos.forEach((obj, i) => {
+    offsets.push(pdf.length);
+    pdf += `${i + 1} 0 obj\n${obj}\nendobj\n`;
+  });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objetos.length + 1}\n0000000000 65535 f \n`;
+  pdf += offsets.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("");
+  pdf += `trailer\n<< /Size ${objetos.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(pdf, "latin1");
 }

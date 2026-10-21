@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import SectionHeader from "../components/SectionHeader";
+import Paginacion from "../components/Paginacion";
 import Badge from "../components/Badge";
 import Spinner from "../components/Spinner";
 import Modal from "../components/Modal";
 import { useToast } from "../components/ToastProvider";
 import * as empresasApi from "../api/empresas";
 import * as documentosApi from "../api/documentos";
+import * as usuariosApi from "../api/usuarios";
 import { mensajeError } from "../api/client";
 import {
+  aniosDisponibles,
   SECTORES_API,
   TIPOS_API,
   etiquetaAnalisis,
@@ -16,6 +19,7 @@ import {
   etiquetaSector,
   etiquetaTipo,
   formatearTamano,
+  nombrePersona,
   paginarLocal,
   validarArchivoIngesta,
 } from "../lib/dominio";
@@ -31,7 +35,7 @@ import type {
 } from "../types";
 
 const ESTADOS: EstadoProgreso[] = ["COMPLETADO", "EN_PROCESO", "PUBLICACION_PENDIENTE", "FALLIDO", "FALLIDO_LIMPIEZA_PENDIENTE"];
-const ANIO_ACTUAL = new Date().getFullYear();
+const ANIOS = aniosDisponibles();
 const TAM_PAGINA = 10;
 
 export default function Ingesta() {
@@ -41,7 +45,7 @@ export default function Ingesta() {
   const [empresas, setEmpresas] = useState<EmpresaApi[]>([]);
   const [sector, setSector] = useState<SectorApi>(SECTORES_API[0]);
   const [empresaId, setEmpresaId] = useState("");
-  const [anio, setAnio] = useState(ANIO_ACTUAL - 1);
+  const [anio, setAnio] = useState(ANIOS[0]);
   const [tipo, setTipo] = useState<TipoDocumentoApi>(TIPOS_API[0]);
   const [archivo, setArchivo] = useState<File | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -57,6 +61,15 @@ export default function Ingesta() {
   const [fSector, setFSector] = useState<"" | SectorApi>("");
   const [pagina, setPagina] = useState(1);
   const [detalleId, setDetalleId] = useState<string | null>(null);
+  const [nombres, setNombres] = useState<Map<string, string>>(new Map());
+
+  // Nombres de los usuarios, para mostrar «Cargado por» con el nombre y no con su ID.
+  useEffect(() => {
+    usuariosApi
+      .listarUsuarios()
+      .then((us) => setNombres(new Map(us.map((u) => [u.id, u.nombre]))))
+      .catch(() => setNombres(new Map()));
+  }, []);
 
   const empresasSector = empresas.filter((e) => e.activa && e.sector === sector);
   const empresasInactivas = new Set(empresas.filter((e) => !e.activa).map((e) => e.id));
@@ -197,9 +210,11 @@ export default function Ingesta() {
                   <span className="text-label-sm text-on-surface-variant">No hay empresas activas en este sector. Regístralas en el Catálogo de empresas.</span>
                 )}
               </Campo>
-              <div className="grid grid-cols-2 gap-sm">
+              <div className="grid grid-cols-1 gap-md">
                 <Campo label="Año">
-                  <input type="number" min={2000} max={ANIO_ACTUAL} value={anio} onChange={(e) => setAnio(Number.parseInt(e.target.value, 10) || 0)} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" />
+                  <select value={anio} onChange={(e) => setAnio(Number(e.target.value))} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
+                  {ANIOS.map((a) => <option key={a} value={a}>{a}</option>)}
+                </select>
                 </Campo>
                 <Campo label="Tipo">
                   <select value={tipo} onChange={(e) => setTipo(e.target.value as TipoDocumentoApi)} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
@@ -240,18 +255,18 @@ export default function Ingesta() {
         </div>
 
         <div className="lg:col-span-2 bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
-          <div className="p-lg border-b border-outline-variant bg-surface-bright flex flex-col sm:flex-row sm:justify-between sm:items-center gap-md">
+          <div className="p-lg border-b border-outline-variant bg-surface-bright space-y-md">
             <h3 className="text-title-lg text-on-surface">Documentos ingestados</h3>
-            <div className="flex flex-wrap items-center gap-sm">
-              <select aria-label="Filtrar por sector" value={fSector} onChange={(e) => { setFSector(e.target.value as "" | SectorApi); setPagina(1); }} className="rounded-lg border border-outline-variant bg-surface-container-low py-xs px-sm text-label-md focus:border-primary outline-none">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-sm">
+              <select aria-label="Filtrar por sector" value={fSector} onChange={(e) => { setFSector(e.target.value as "" | SectorApi); setPagina(1); }} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
                 <option value="">Todo sector</option>
                 {SECTORES_API.map((s) => <option key={s} value={s}>{etiquetaSector(s)}</option>)}
               </select>
-              <select aria-label="Filtrar por tipo" value={fTipo} onChange={(e) => { setFTipo(e.target.value as "" | TipoDocumentoApi); setPagina(1); }} className="rounded-lg border border-outline-variant bg-surface-container-low py-xs px-sm text-label-md focus:border-primary outline-none">
+              <select aria-label="Filtrar por tipo" value={fTipo} onChange={(e) => { setFTipo(e.target.value as "" | TipoDocumentoApi); setPagina(1); }} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
                 <option value="">Todo tipo</option>
                 {TIPOS_API.map((t) => <option key={t} value={t}>{etiquetaTipo(t)}</option>)}
               </select>
-              <select aria-label="Filtrar por estado" value={fEstado} onChange={(e) => { setFEstado(e.target.value as "" | EstadoProgreso); setPagina(1); }} className="rounded-lg border border-outline-variant bg-surface-container-low py-xs px-sm text-label-md focus:border-primary outline-none">
+              <select aria-label="Filtrar por estado" value={fEstado} onChange={(e) => { setFEstado(e.target.value as "" | EstadoProgreso); setPagina(1); }} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
                 <option value="">Todo estado</option>
                 {ESTADOS.map((s) => <option key={s} value={s}>{etiquetaEstado(s)}</option>)}
               </select>
@@ -301,15 +316,13 @@ export default function Ingesta() {
             </table>
           </div>
           {totalPaginas > 1 && (
-            <div className="flex items-center justify-between p-md border-t border-outline-variant">
-              <button onClick={() => setPagina((p) => Math.max(1, p - 1))} disabled={paginaActual <= 1} className="px-md py-xs rounded-lg border border-outline-variant text-label-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface-container-low">Anterior</button>
-              <span className="text-label-md text-on-surface-variant">Página {paginaActual} de {totalPaginas}</span>
-              <button onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))} disabled={paginaActual >= totalPaginas} className="px-md py-xs rounded-lg border border-outline-variant text-label-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface-container-low">Siguiente</button>
+            <div className="p-md border-t border-outline-variant">
+              <Paginacion pagina={paginaActual} totalPaginas={totalPaginas} onCambiar={setPagina} deshabilitado={cargandoDocs} />
             </div>
           )}
         </div>
       </div>
-      <DetalleDocumentoModal id={detalleId} empresasInactivas={empresasInactivas} onClose={() => setDetalleId(null)} />
+      <DetalleDocumentoModal id={detalleId} empresasInactivas={empresasInactivas} nombres={nombres} onClose={() => setDetalleId(null)} />
     </>
   );
 }
@@ -340,8 +353,9 @@ function Dato({ label, children }: Readonly<{ label: string; children: ReactNode
 function DetalleDocumentoModal({
   id,
   empresasInactivas,
+  nombres,
   onClose,
-}: Readonly<{ id: string | null; empresasInactivas: Set<string>; onClose: () => void }>) {
+}: Readonly<{ id: string | null; empresasInactivas: Set<string>; nombres: Map<string, string>; onClose: () => void }>) {
   const toast = useToast();
   const [doc, setDoc] = useState<DocumentoDetalle | null>(null);
   const [cargando, setCargando] = useState(false);
@@ -390,15 +404,13 @@ function DetalleDocumentoModal({
               <Dato label="Análisis">{etiquetaAnalisis(doc.resultado_analisis)}</Dato>
               <Dato label="Disponible para el asistente de IA">{doc.disponible_para_rag ? "Sí" : "No"}</Dato>
               <Dato label="Fragmentos">{doc.fragmentos_total ?? doc.fragmentos_procesados}</Dato>
-              <Dato label="Etapa">{doc.etapa || "—"}</Dato>
               <Dato label="Advertencias">{doc.cantidad_advertencias}</Dato>
             </div>
 
             <div className="grid grid-cols-1 gap-md border-t border-surface-variant pt-md">
               <Dato label="Archivo">{doc.nombre_archivo} · {formatearTamano(doc.tamano_bytes)}</Dato>
-              <Dato label="SHA-256"><code className="text-label-sm">{doc.sha256}</code></Dato>
               <div className="grid grid-cols-2 gap-md">
-                <Dato label="Cargado por">{doc.cargado_por}</Dato>
+                <Dato label="Cargado por">{nombrePersona(doc.cargado_por, nombres)}</Dato>
                 <Dato label="Creado">{fechaHora(doc.creado_en)}</Dato>
                 <Dato label="Actualizado">{fechaHora(doc.actualizado_en)}</Dato>
                 <Dato label="Completado">{doc.completado_en ? fechaHora(doc.completado_en) : "—"}</Dato>
@@ -411,12 +423,7 @@ function DetalleDocumentoModal({
               </div>
             )}
 
-            {analisisJson && (
-              <div>
-                <p className="text-label-sm text-on-surface-variant uppercase tracking-wider mb-xs">Análisis (crudo)</p>
-                <pre className="rounded-lg bg-surface-container-low border border-outline-variant p-sm text-label-sm overflow-x-auto max-h-64">{analisisJson}</pre>
-              </div>
-            )}
+            <DetallesTecnicos sha256={doc.sha256} etapa={doc.etapa} analisisJson={analisisJson} />
           </div>
         )}
 
@@ -425,6 +432,54 @@ function DetalleDocumentoModal({
         </div>
       </div>
     </Modal>
+  );
+}
+
+function DetallesTecnicos({
+  sha256,
+  etapa,
+  analisisJson,
+}: Readonly<{ sha256: string; etapa?: string | null; analisisJson: string | null }>) {
+  const toast = useToast();
+  async function copiar() {
+    try {
+      await navigator.clipboard.writeText(sha256);
+      toast("Huella copiada.", "success");
+    } catch {
+      toast("No se pudo copiar. Selecciónala y cópiala manualmente.", "warn");
+    }
+  }
+  return (
+    <details className="rounded-lg border border-outline-variant bg-surface-container-low/50 group">
+      <summary className="cursor-pointer select-none px-md py-sm text-label-md text-on-surface-variant flex items-center gap-xs">
+        <span className="material-symbols-outlined text-[18px] transition-transform group-open:rotate-90" aria-hidden="true">chevron_right</span>
+        <span>Detalles técnicos</span>
+      </summary>
+      <div className="px-md pb-md space-y-md">
+        <div>
+          <p className="text-label-sm text-on-surface-variant uppercase tracking-wider">Huella del archivo (SHA-256)</p>
+          <p className="text-label-sm text-outline mt-xs">Identifica este archivo exacto: permite detectar cargas duplicadas y comprobar que no fue modificado.</p>
+          <div className="mt-xs flex items-start gap-sm">
+            <code className="flex-1 min-w-0 break-all rounded bg-surface-container-lowest border border-outline-variant px-sm py-xs text-label-sm">{sha256}</code>
+            <button onClick={copiar} title="Copiar huella" aria-label="Copiar huella" className="shrink-0 p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-variant">
+              <span className="material-symbols-outlined text-[18px]" aria-hidden="true">content_copy</span>
+            </button>
+          </div>
+        </div>
+        {etapa && (
+          <div>
+            <p className="text-label-sm text-on-surface-variant uppercase tracking-wider">Etapa del procesamiento</p>
+            <p className="text-label-md text-on-surface mt-xs">{etapa}</p>
+          </div>
+        )}
+        {analisisJson && (
+          <div>
+            <p className="text-label-sm text-on-surface-variant uppercase tracking-wider mb-xs">Resultado del análisis (datos sin procesar)</p>
+            <pre className="rounded-lg bg-surface-container-lowest border border-outline-variant p-sm text-label-sm overflow-x-auto max-h-64">{analisisJson}</pre>
+          </div>
+        )}
+      </div>
+    </details>
   );
 }
 
