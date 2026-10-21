@@ -260,3 +260,17 @@ export function nombrePersona(valor: string | null | undefined, nombres: Map<str
   if (nombre) return nombre;
   return UUID.test(valor) ? "Usuario no identificado" : valor;
 }
+
+/**
+ * De los años candidatos, deja los que tienen documentos analizados, según el resultado de consultar
+ * el análisis de cada año (en el mismo orden). Un año cuya consulta falló no se ofrece.
+ */
+export function aniosConDocumentos(
+  candidatos: number[],
+  resultados: PromiseSettledResult<{ documentos: unknown[] }>[],
+): number[] {
+  return candidatos.filter((_, i) => {
+    const r = resultados[i];
+    return r?.status === "fulfilled" && r.value.documentos.length > 0;
+  });
+}

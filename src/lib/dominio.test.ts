@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { PuntajeEsg } from "../types";
 import {
   ANIO_MIN_DATOS,
+  aniosConDocumentos,
   aniosDisponibles,
   ESTADOS_GRI_API,
   FLUJO_INFO,
@@ -282,5 +283,19 @@ describe("nombrePersona", () => {
   it("sin valor muestra guion", () => {
     expect(nombrePersona(null, nombres)).toBe("—");
     expect(nombrePersona("", nombres)).toBe("—");
+  });
+});
+
+describe("aniosConDocumentos", () => {
+  const conDocs = (n: number): PromiseSettledResult<{ documentos: unknown[] }> => ({ status: "fulfilled", value: { documentos: Array(n).fill({}) } });
+  it("deja solo los años con documentos, en el mismo orden", () => {
+    expect(aniosConDocumentos([2025, 2024, 2023], [conDocs(0), conDocs(2), conDocs(1)])).toEqual([2024, 2023]);
+  });
+  it("descarta los años cuya consulta falló", () => {
+    const fallo: PromiseSettledResult<{ documentos: unknown[] }> = { status: "rejected", reason: new Error("x") };
+    expect(aniosConDocumentos([2025, 2024], [fallo, conDocs(1)])).toEqual([2024]);
+  });
+  it("sin documentos en ningún año devuelve lista vacía", () => {
+    expect(aniosConDocumentos([2025, 2024], [conDocs(0), conDocs(0)])).toEqual([]);
   });
 });
