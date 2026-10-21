@@ -59,7 +59,6 @@ export default function Empresas() {
     <>
       <SectionHeader
         titulo="Catálogo de empresas"
-        sub="Registra y administra las empresas emisoras de la Bolsa de Valores de Lima que serán analizadas."
       />
 
       <div className="flex flex-col sm:flex-row sm:items-end gap-md justify-between">

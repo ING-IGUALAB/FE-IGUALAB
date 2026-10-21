@@ -52,7 +52,6 @@ export default function Descargas() {
     <>
       <SectionHeader
         titulo="Descargar reportes"
-        sub="Reportes de prospección generados, con la empresa, el año y la fecha de generación."
       />
 
       <div className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">

@@ -75,6 +75,16 @@ describe("api/documentos", () => {
     expect(fetchMock.mock.calls[0][1].method ?? "GET").toBe("GET");
   });
 
+  it("detalleDocumento puede ser silencioso (el modal muestra su propio «Cargando…»)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok({ id: "d1" })));
+    const { LOADING_START } = await import("./client");
+    const handler = vi.fn();
+    globalThis.addEventListener(LOADING_START, handler);
+    await documentosApi.detalleDocumento("d1", { silencioso: true });
+    globalThis.removeEventListener(LOADING_START, handler);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
   it("listarTodosDocumentos recorre todas las páginas de 100 en 100", async () => {
     const pagina = (n: number) => ({ items: [{ id: `d${n}` }], total: 2, pagina: n, tamano: 100, paginas: 2 });
     const fetchMock = vi.fn().mockResolvedValueOnce(ok(pagina(1))).mockResolvedValueOnce(ok(pagina(2)));

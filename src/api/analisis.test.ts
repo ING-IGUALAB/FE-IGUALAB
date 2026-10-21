@@ -58,6 +58,18 @@ describe("api/analisis", () => {
     expect(url).toContain("tamano=10");
   });
 
+  it("consultarHistorial puede ser silencioso y no envía la opción como parámetro", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(ok({ items: [], total: 0, pagina: 1, tamano: 10 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { LOADING_START } = await import("./client");
+    const handler = vi.fn();
+    globalThis.addEventListener(LOADING_START, handler);
+    await analisisApi.consultarHistorial("e1", 2024, { pagina: 1, tamano: 10, silencioso: true });
+    globalThis.removeEventListener(LOADING_START, handler);
+    expect(handler).not.toHaveBeenCalled();
+    expect(fetchMock.mock.calls[0][0]).not.toContain("silencioso");
+  });
+
   it("validarAnalisis hace POST con version y huella_documentos", async () => {
     const fetchMock = vi.fn().mockResolvedValue(ok({ estado_flujo: "VALIDADO" }, 201));
     vi.stubGlobal("fetch", fetchMock);

@@ -77,6 +77,6 @@ export async function listarTodosDocumentos(filtros: Omit<FiltrosDocumentos, "pa
   return todos;
 }
 
-export function detalleDocumento(id: string) {
-  return api<DocumentoDetalle>(`/documentos/${id}`);
+export function detalleDocumento(id: string, opts: { silencioso?: boolean } = {}) {
+  return api<DocumentoDetalle>(`/documentos/${id}`, { silencioso: opts.silencioso });
 }

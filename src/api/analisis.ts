@@ -37,13 +37,13 @@ export function asignarEstado(
 export function consultarHistorial(
   empresaId: string,
   anio: number,
-  filtros: { identidad?: string; pagina?: number; tamano?: number } = {},
+  filtros: { identidad?: string; pagina?: number; tamano?: number; silencioso?: boolean } = {},
 ) {
   const qs = new URLSearchParams();
   if (filtros.identidad) qs.set("identidad", filtros.identidad);
   qs.set("pagina", String(filtros.pagina ?? 1));
   qs.set("tamano", String(filtros.tamano ?? 20));
-  return api<PaginaHistorialGri>(`${base(empresaId, anio)}/historial?${qs.toString()}`);
+  return api<PaginaHistorialGri>(`${base(empresaId, anio)}/historial?${qs.toString()}`, { silencioso: filtros.silencioso });
 }
 
 /** Confirmación explícita del análisis sobre la versión y documentos consultados. */

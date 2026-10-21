@@ -75,6 +75,19 @@ test.describe("Caso de uso: Ingestar documentos", () => {
     await expect(dialogo).not.toContainText("u-super");
   });
 
+  test("al abrir el detalle se ve un solo indicador de carga (el del modal)", async ({ page, api }) => {
+    api.retrasar("GET", /^\/documentos\/d-andina-2024$/, 2000);
+    await page.getByRole("row", { name: /memoria-andina-2024.md/ }).click();
+
+    const dialogo = page.getByRole("dialog");
+    await expect(dialogo.getByText("Cargando…")).toBeVisible();
+    await page.waitForTimeout(1000); // el indicador global, si se disparara, ya estaría visible (~600 ms)
+    // Comprobación puntual (sin reintentos): mientras el modal carga, no hay indicador global.
+    expect(await page.getByTestId("carga-global").count()).toBe(0);
+    await expect(dialogo.getByText("Cargando…")).toBeVisible();
+    await expect(dialogo).toContainText("memoria-andina-2024.md");
+  });
+
   test("la huella SHA-256 queda en «Detalles técnicos», plegada y explicada", async ({ page }) => {
     await page.getByRole("row", { name: /memoria-andina-2024.md/ }).click();
     const dialogo = page.getByRole("dialog");

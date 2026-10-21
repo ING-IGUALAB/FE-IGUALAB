@@ -95,7 +95,6 @@ export default function Auditoria() {
     <>
       <SectionHeader
         titulo="Auditoría de eventos"
-        sub="Registro automático e inmutable de eventos sensibles. Solo lectura: consigna la cuenta, la fecha, la hora y el tipo de evento."
         acciones={
           <button onClick={exportar} disabled={exportando || total === 0} className="flex items-center gap-sm px-md py-sm bg-surface rounded-lg border border-outline-variant text-on-surface text-label-md font-semibold hover:bg-surface-container-low transition-colors disabled:opacity-50">
             {exportando ? <Spinner size={16} /> : <span className="material-symbols-outlined text-[18px]">download</span>} Exportar CSV

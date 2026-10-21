@@ -367,7 +367,7 @@ function DetalleDocumentoModal({
     }
     setCargando(true);
     documentosApi
-      .detalleDocumento(id)
+      .detalleDocumento(id, { silencioso: true })
       .then(setDoc)
       .catch((err) => {
         toast(mensajeError(err, "No se pudo cargar el detalle."), "error");

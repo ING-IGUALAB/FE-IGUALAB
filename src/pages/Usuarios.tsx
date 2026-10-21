@@ -52,7 +52,6 @@ export default function Usuarios() {
     <>
       <SectionHeader
         titulo="Usuarios y roles"
-        sub="Ciclo de vida de cuentas. Toda cuenta nueva nace como Administrador; el rol SuperAdmin solo se obtiene por transferencia."
         acciones={
           <button onClick={() => setCrearOpen(true)} className="flex items-center gap-sm px-md py-sm bg-primary text-on-primary rounded-lg text-label-md font-semibold hover:bg-surface-tint transition-colors shadow-sm">
             <span className="material-symbols-outlined text-[18px]">person_add</span> Crear usuario

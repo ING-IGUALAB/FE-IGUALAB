@@ -149,7 +149,6 @@ export default function AnalisisGri() {
     <>
       <SectionHeader
         titulo="Análisis y validación GRI"
-        sub="Revisa los códigos GRI detectados en los documentos de una empresa, asigna el estado de cada uno con base en su evidencia y valida el análisis."
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-lg">
@@ -509,7 +508,7 @@ function HistorialModal({
     if (!abierto || !empresaId || anio == null) return;
     setCargando(true);
     analisisApi
-      .consultarHistorial(empresaId, anio, { pagina, tamano: 10 })
+      .consultarHistorial(empresaId, anio, { pagina, tamano: 10, silencioso: true })
       .then(setData)
       .catch((err) => toast(mensajeError(err, "No se pudo cargar el historial."), "error"))
       .finally(() => setCargando(false));

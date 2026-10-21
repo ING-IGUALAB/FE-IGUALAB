@@ -84,7 +84,6 @@ export default function Reportes() {
     <>
       <SectionHeader
         titulo="Reportes de prospección"
-        sub="Genera el reporte en PDF de una empresa y año a partir de su análisis GRI validado."
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-lg">
