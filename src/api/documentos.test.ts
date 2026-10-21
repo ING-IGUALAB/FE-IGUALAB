@@ -75,12 +75,12 @@ describe("api/documentos", () => {
     expect(fetchMock.mock.calls[0][1].method ?? "GET").toBe("GET");
   });
 
-  it("detalleDocumento puede ser silencioso (el modal muestra su propio «Cargando…»)", async () => {
+  it("detalleDocumento no usa el indicador central (el modal muestra su propio «Cargando…»)", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok({ id: "d1" })));
     const { LOADING_START } = await import("./client");
     const handler = vi.fn();
     globalThis.addEventListener(LOADING_START, handler);
-    await documentosApi.detalleDocumento("d1", { silencioso: true });
+    await documentosApi.detalleDocumento("d1");
     globalThis.removeEventListener(LOADING_START, handler);
     expect(handler).not.toHaveBeenCalled();
   });
@@ -105,10 +105,15 @@ describe("api/documentos", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("reintentarPublicacion hace POST a la ruta de reintento", async () => {
+  it("reintentarPublicacion hace POST a la ruta de reintento y muestra el indicador central", async () => {
     const fetchMock = vi.fn().mockResolvedValue(ok({ operacion_id: "op1", exitosa: true }));
     vi.stubGlobal("fetch", fetchMock);
+    const { LOADING_START } = await import("./client");
+    const handler = vi.fn();
+    globalThis.addEventListener(LOADING_START, handler);
     await documentosApi.reintentarPublicacion("op1");
+    globalThis.removeEventListener(LOADING_START, handler);
+    expect(handler).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][0]).toContain("/documentos/operaciones/op1/reintentar-publicacion");
     expect(fetchMock.mock.calls[0][1].method).toBe("POST");
   });

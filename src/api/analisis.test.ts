@@ -17,12 +17,12 @@ describe("api/analisis", () => {
     expect(fetchMock.mock.calls[0][1].method).toBe("GET");
   });
 
-  it("consultarAnalisis puede ser silenciosa (sin indicador de carga)", async () => {
+  it("consultarAnalisis no usa el indicador central (la pantalla muestra su propio esqueleto)", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok({ filas: [], documentos: [] })));
     const { LOADING_START } = await import("./client");
     const handler = vi.fn();
     globalThis.addEventListener(LOADING_START, handler);
-    await analisisApi.consultarAnalisis("e1", 2024, { silencioso: true });
+    await analisisApi.consultarAnalisis("e1", 2024);
     globalThis.removeEventListener(LOADING_START, handler);
     expect(handler).not.toHaveBeenCalled();
   });
@@ -58,16 +58,15 @@ describe("api/analisis", () => {
     expect(url).toContain("tamano=10");
   });
 
-  it("consultarHistorial puede ser silencioso y no envía la opción como parámetro", async () => {
+  it("consultarHistorial no usa el indicador central", async () => {
     const fetchMock = vi.fn().mockResolvedValue(ok({ items: [], total: 0, pagina: 1, tamano: 10 }));
     vi.stubGlobal("fetch", fetchMock);
     const { LOADING_START } = await import("./client");
     const handler = vi.fn();
     globalThis.addEventListener(LOADING_START, handler);
-    await analisisApi.consultarHistorial("e1", 2024, { pagina: 1, tamano: 10, silencioso: true });
+    await analisisApi.consultarHistorial("e1", 2024, { pagina: 1, tamano: 10 });
     globalThis.removeEventListener(LOADING_START, handler);
     expect(handler).not.toHaveBeenCalled();
-    expect(fetchMock.mock.calls[0][0]).not.toContain("silencioso");
   });
 
   it("validarAnalisis hace POST con version y huella_documentos", async () => {

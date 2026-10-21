@@ -508,7 +508,7 @@ function HistorialModal({
     if (!abierto || !empresaId || anio == null) return;
     setCargando(true);
     analisisApi
-      .consultarHistorial(empresaId, anio, { pagina, tamano: 10, silencioso: true })
+      .consultarHistorial(empresaId, anio, { pagina, tamano: 10 })
       .then(setData)
       .catch((err) => toast(mensajeError(err, "No se pudo cargar el historial."), "error"))
       .finally(() => setCargando(false));

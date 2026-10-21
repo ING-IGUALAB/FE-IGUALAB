@@ -18,7 +18,7 @@ export function useAniosConDocumentos(empresaId: string) {
     let vigente = true;
     const candidatos = aniosDisponibles();
     setCargando(true);
-    Promise.allSettled(candidatos.map((a) => consultarAnalisis(empresaId, a, { silencioso: true })))
+    Promise.allSettled(candidatos.map((a) => consultarAnalisis(empresaId, a)))
       .then((resultados) => {
         if (vigente) setAnios(aniosConDocumentos(candidatos, resultados));
       })

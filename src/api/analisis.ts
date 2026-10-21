@@ -12,8 +12,8 @@ function base(empresaId: string, anio: number) {
 }
 
 /** Filas GRI con evidencia, sanciones, puntaje ESG, pendientes y estado de la validación. */
-export function consultarAnalisis(empresaId: string, anio: number, opts: { silencioso?: boolean } = {}) {
-  return api<AnalisisGri>(base(empresaId, anio), { silencioso: opts.silencioso });
+export function consultarAnalisis(empresaId: string, anio: number) {
+  return api<AnalisisGri>(base(empresaId, anio));
 }
 
 /**
@@ -37,13 +37,13 @@ export function asignarEstado(
 export function consultarHistorial(
   empresaId: string,
   anio: number,
-  filtros: { identidad?: string; pagina?: number; tamano?: number; silencioso?: boolean } = {},
+  filtros: { identidad?: string; pagina?: number; tamano?: number } = {},
 ) {
   const qs = new URLSearchParams();
   if (filtros.identidad) qs.set("identidad", filtros.identidad);
   qs.set("pagina", String(filtros.pagina ?? 1));
   qs.set("tamano", String(filtros.tamano ?? 20));
-  return api<PaginaHistorialGri>(`${base(empresaId, anio)}/historial?${qs.toString()}`, { silencioso: filtros.silencioso });
+  return api<PaginaHistorialGri>(`${base(empresaId, anio)}/historial?${qs.toString()}`);
 }
 
 /** Confirmación explícita del análisis sobre la versión y documentos consultados. */

@@ -23,6 +23,7 @@ export default function Reportes() {
   const [empresaId, setEmpresaId] = useState("");
   const [anio, setAnio] = useState(ANIOS[0]);
   const [reportes, setReportes] = useState<ReporteResumen[]>([]);
+  const [cargandoReportes, setCargandoReportes] = useState(true);
   const [vistaUrl, setVistaUrl] = useState<string | null>(null);
   const [accion, setAccion] = useState<"vista" | "generar" | null>(null);
 
@@ -37,6 +38,8 @@ export default function Reportes() {
       setReportes([...data].sort((a, b) => b.creado_en.localeCompare(a.creado_en)));
     } catch (err) {
       toast(mensajeError(err, "No se pudo cargar el historial de reportes."), "error");
+    } finally {
+      setCargandoReportes(false);
     }
   }, [toast]);
 
@@ -144,13 +147,19 @@ export default function Reportes() {
               <h3 className="text-title-lg text-on-surface">Reportes recientes</h3>
               <Link to="/descargas" className="text-label-md text-primary hover:underline">Ver todos</Link>
             </div>
-            <TablaReportes
-              reportes={reportes.slice(0, RECIENTES)}
-              nombreEmpresa={nombreEmpresa}
-              descargando={descargando}
-              onDescargar={descargar}
-              vacio="Aún no se han generado reportes."
-            />
+            {cargandoReportes ? (
+              <div className="p-lg space-y-sm">
+                {["c1", "c2", "c3"].map((k) => <div key={k} className="h-5 bg-surface-variant rounded animate-pulse" />)}
+              </div>
+            ) : (
+              <TablaReportes
+                reportes={reportes.slice(0, RECIENTES)}
+                nombreEmpresa={nombreEmpresa}
+                descargando={descargando}
+                onDescargar={descargar}
+                vacio="Aún no se han generado reportes."
+              />
+            )}
           </div>
         </div>
       </div>
