@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import SectionHeader from "../components/SectionHeader";
+import Paginacion from "../components/Paginacion";
 import Spinner from "../components/Spinner";
 import { useToast } from "../components/ToastProvider";
 import * as auditoriaApi from "../api/auditoria";
@@ -156,15 +157,9 @@ export default function Auditoria() {
             </tbody>
           </table>
         </div>
-        <div className="p-sm border-t border-outline-variant bg-surface-container-lowest flex items-center justify-between gap-md">
+        <div className="p-md border-t border-outline-variant bg-surface-container-lowest space-y-md">
           <span className="text-label-sm text-on-surface-variant">{total} eventos · Registro de solo lectura</span>
-          {paginas > 1 && (
-            <div className="flex items-center gap-sm">
-              <button onClick={() => setPagina((p) => Math.max(1, p - 1))} disabled={pagina <= 1 || cargando} className="px-md py-xs rounded-lg border border-outline-variant text-label-md disabled:opacity-40">Anterior</button>
-              <span className="text-label-md text-on-surface-variant">Página {pagina} de {paginas}</span>
-              <button onClick={() => setPagina((p) => Math.min(paginas, p + 1))} disabled={pagina >= paginas || cargando} className="px-md py-xs rounded-lg border border-outline-variant text-label-md disabled:opacity-40">Siguiente</button>
-            </div>
-          )}
+          <Paginacion pagina={pagina} totalPaginas={paginas} onCambiar={setPagina} deshabilitado={cargando} />
         </div>
       </div>
     </>

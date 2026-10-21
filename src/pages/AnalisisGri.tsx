@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import SectionHeader from "../components/SectionHeader";
+import Paginacion from "../components/Paginacion";
 import Badge from "../components/Badge";
 import Modal from "../components/Modal";
 import Spinner from "../components/Spinner";
@@ -552,13 +553,11 @@ function HistorialModal({
             </table>
           </div>
         )}
-        <div className="flex items-center justify-between mt-lg">
-          <div className="flex items-center gap-sm">
-            <button onClick={() => setPagina((p) => Math.max(1, p - 1))} disabled={pagina <= 1 || cargando} className="px-md py-xs rounded-lg border border-outline-variant text-label-md disabled:opacity-40">Anterior</button>
-            <span className="text-label-md text-on-surface-variant">Página {pagina} de {totalPaginas}</span>
-            <button onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))} disabled={pagina >= totalPaginas || cargando} className="px-md py-xs rounded-lg border border-outline-variant text-label-md disabled:opacity-40">Siguiente</button>
+        <div className="mt-lg space-y-md">
+          <Paginacion pagina={pagina} totalPaginas={totalPaginas} onCambiar={setPagina} deshabilitado={cargando} />
+          <div className="flex justify-end">
+            <button onClick={onClose} className="px-lg py-sm rounded-lg border border-outline-variant text-body-md text-on-surface-variant hover:bg-surface-container-low">Cerrar</button>
           </div>
-          <button onClick={onClose} className="px-lg py-sm rounded-lg border border-outline-variant text-body-md text-on-surface-variant hover:bg-surface-container-low">Cerrar</button>
         </div>
       </div>
     </Modal>

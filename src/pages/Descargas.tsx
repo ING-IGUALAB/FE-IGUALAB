@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import SectionHeader from "../components/SectionHeader";
+import Paginacion from "../components/Paginacion";
 import TablaReportes from "../components/TablaReportes";
 import { useToast } from "../components/ToastProvider";
 import { useDescargarReporte } from "../components/useDescargarReporte";
@@ -85,10 +86,8 @@ export default function Descargas() {
         )}
 
         {pag.paginas > 1 && (
-          <div className="flex items-center justify-between p-md border-t border-outline-variant">
-            <button onClick={() => setPagina((p) => Math.max(1, p - 1))} disabled={pag.pagina <= 1} className="px-md py-xs rounded-lg border border-outline-variant text-label-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface-container-low">Anterior</button>
-            <span className="text-label-md text-on-surface-variant">Página {pag.pagina} de {pag.paginas}</span>
-            <button onClick={() => setPagina((p) => Math.min(pag.paginas, p + 1))} disabled={pag.pagina >= pag.paginas} className="px-md py-xs rounded-lg border border-outline-variant text-label-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface-container-low">Siguiente</button>
+          <div className="p-md border-t border-outline-variant">
+            <Paginacion pagina={pag.pagina} totalPaginas={pag.paginas} onCambiar={setPagina} />
           </div>
         )}
       </div>
