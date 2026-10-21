@@ -274,3 +274,29 @@ export function aniosConDocumentos(
     return r?.status === "fulfilled" && r.value.documentos.length > 0;
   });
 }
+
+// ---- Paginación ----
+export type ItemPaginacion = number | "…";
+
+/**
+ * Números de página a mostrar: siempre la primera y la última, la actual con sus vecinas, y «…»
+ * donde se saltan páginas. Ej.: actual 11 de 13 → [1, "…", 10, 11, 12, 13].
+ */
+export function rangoPaginas(actual: number, total: number, vecinas = 1): ItemPaginacion[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const desde = Math.max(2, actual - vecinas);
+  const hasta = Math.min(total - 1, actual + vecinas);
+  const items: ItemPaginacion[] = [1];
+  if (desde > 2) items.push("…");
+  for (let p = desde; p <= hasta; p += 1) items.push(p);
+  if (hasta < total - 1) items.push("…");
+  items.push(total);
+  return items;
+}
+
+/** Página válida a partir de lo que escribió el usuario (null si no es un número). */
+export function paginaValida(texto: string, total: number): number | null {
+  const n = Number.parseInt(texto, 10);
+  if (Number.isNaN(n)) return null;
+  return Math.min(Math.max(1, n), total);
+}

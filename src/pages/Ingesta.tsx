@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import SectionHeader from "../components/SectionHeader";
+import Paginacion from "../components/Paginacion";
 import Badge from "../components/Badge";
 import Spinner from "../components/Spinner";
 import Modal from "../components/Modal";
@@ -315,10 +316,8 @@ export default function Ingesta() {
             </table>
           </div>
           {totalPaginas > 1 && (
-            <div className="flex items-center justify-between p-md border-t border-outline-variant">
-              <button onClick={() => setPagina((p) => Math.max(1, p - 1))} disabled={paginaActual <= 1} className="px-md py-xs rounded-lg border border-outline-variant text-label-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface-container-low">Anterior</button>
-              <span className="text-label-md text-on-surface-variant">Página {paginaActual} de {totalPaginas}</span>
-              <button onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))} disabled={paginaActual >= totalPaginas} className="px-md py-xs rounded-lg border border-outline-variant text-label-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface-container-low">Siguiente</button>
+            <div className="p-md border-t border-outline-variant">
+              <Paginacion pagina={paginaActual} totalPaginas={totalPaginas} onCambiar={setPagina} deshabilitado={cargandoDocs} />
             </div>
           )}
         </div>

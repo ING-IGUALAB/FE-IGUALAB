@@ -48,3 +48,28 @@ test.describe("Caso de uso: Consultar la auditoría", () => {
     await expect(page.getByText("Se exportaron 5 eventos.")).toBeVisible();
   });
 });
+
+test.describe("Paginación de la auditoría", () => {
+  test("permite ir directo a una página: por número, escribiéndola o a la primera/última", async ({ page, api }) => {
+    api.agregarEventos(235); // 25 + 235 = 260 eventos → 13 páginas de 20
+    await entrarComo(page, api, "superadmin", "/auditoria");
+    await expect(page.getByText("Página 1 de 13")).toBeVisible();
+
+    await page.getByRole("button", { name: "Página 2", exact: true }).click();
+    await expect(page.getByText("Página 2 de 13")).toBeVisible();
+
+    await page.getByRole("spinbutton", { name: "Ir a la página" }).fill("11");
+    await page.keyboard.press("Enter");
+    await expect(page.getByText("Página 11 de 13")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Página 11", exact: true })).toHaveAttribute("aria-current", "page");
+    expect(api.llamadasA("GET", "/auditoria").at(-1)!.query.get("pagina")).toBe("11");
+
+    await page.getByRole("button", { name: "Última página" }).click();
+    await expect(page.getByText("Página 13 de 13")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Siguiente" })).toBeDisabled();
+
+    await page.getByRole("button", { name: "Primera página" }).click();
+    await expect(page.getByText("Página 1 de 13")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Anterior" })).toBeDisabled();
+  });
+});

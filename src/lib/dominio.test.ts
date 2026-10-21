@@ -21,7 +21,9 @@ import {
   detallePuntaje,
   etiquetaEstadoGri,
   etiquetaFlujo,
+  paginaValida,
   paginarLocal,
+  rangoPaginas,
   plural,
   puedeValidar,
   textoMotivosNoVigente,
@@ -297,5 +299,30 @@ describe("aniosConDocumentos", () => {
   });
   it("sin documentos en ningún año devuelve lista vacía", () => {
     expect(aniosConDocumentos([2025, 2024], [conDocs(0), conDocs(0)])).toEqual([]);
+  });
+});
+
+describe("rangoPaginas", () => {
+  it("con pocas páginas las muestra todas", () => {
+    expect(rangoPaginas(1, 5)).toEqual([1, 2, 3, 4, 5]);
+    expect(rangoPaginas(3, 7)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  });
+  it("en medio muestra primera, vecinas, última y saltos", () => {
+    expect(rangoPaginas(6, 13)).toEqual([1, "…", 5, 6, 7, "…", 13]);
+  });
+  it("cerca del inicio o del final no pone saltos innecesarios", () => {
+    expect(rangoPaginas(2, 13)).toEqual([1, 2, 3, "…", 13]);
+    expect(rangoPaginas(12, 13)).toEqual([1, "…", 11, 12, 13]);
+    expect(rangoPaginas(11, 13)).toEqual([1, "…", 10, 11, 12, 13]);
+  });
+});
+
+describe("paginaValida", () => {
+  it("acota al rango y rechaza lo que no es número", () => {
+    expect(paginaValida("11", 13)).toBe(11);
+    expect(paginaValida("99", 13)).toBe(13);
+    expect(paginaValida("0", 13)).toBe(1);
+    expect(paginaValida("", 13)).toBeNull();
+    expect(paginaValida("abc", 13)).toBeNull();
   });
 });

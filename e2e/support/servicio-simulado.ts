@@ -121,6 +121,20 @@ export class ServicioSimulado {
     this.fallos.push({ metodo, ruta, respuesta: error(status, code, message) });
   }
 
+  /** Agrega `n` eventos de auditoría más antiguos (para probar la paginación con muchas páginas). */
+  agregarEventos(n: number) {
+    for (let i = 0; i < n; i += 1) {
+      const dia = String(1 + (i % 28)).padStart(2, "0");
+      this.eventos.push({
+        id: `ev-extra-${i + 1}`,
+        usuario_id: i % 2 === 0 ? "u-super" : "u-admin",
+        tipo_evento: "Inicio de sesión",
+        detalle: `Evento histórico #${i + 1}`,
+        fecha_hora_utc: `2026-09-${dia}T10:00:00Z`,
+      });
+    }
+  }
+
   /** Deja validado el análisis de una empresa y año (requisito para generar su reporte). */
   validarAnalisisPorFuera(empresaId: string, anio: number) {
     const s = this.estadoDe(empresaId, anio);
