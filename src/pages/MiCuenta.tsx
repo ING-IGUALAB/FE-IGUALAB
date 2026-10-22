@@ -4,12 +4,10 @@ import { cambiarMiContrasena } from "../api/auth";
 import { mensajeError } from "../api/client";
 import { REGLAS_PASSWORD } from "../lib/password";
 import { useToast } from "../components/ToastProvider";
-import { useAuth } from "../auth/AuthContext";
 import Spinner from "../components/Spinner";
 
 export default function MiCuenta() {
   const toast = useToast();
-  const { sesion } = useAuth();
   const [actual, setActual] = useState("");
   const [nueva, setNueva] = useState("");
   const [conf, setConf] = useState("");
