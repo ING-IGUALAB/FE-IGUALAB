@@ -294,6 +294,19 @@ export function rangoPaginas(actual: number, total: number, vecinas = 1): ItemPa
   return items;
 }
 
+/**
+ * Bloques de la paginación con salto: un grupo de 3 páginas que sigue a la actual, el campo «Ir a»
+ * en medio y las 3 últimas fijas. Con 7 páginas o menos se muestran todas y no hace falta el campo.
+ * Ej.: actual 1 de 16 → inicio [1, 2, 3], fin [14, 15, 16]; actual 7 → inicio [6, 7, 8].
+ */
+export function bloquesPaginacion(actual: number, total: number): { inicio: number[]; fin: number[] } {
+  if (total <= 7) return { inicio: Array.from({ length: total }, (_, i) => i + 1), fin: [] };
+  const fin = [total - 2, total - 1, total];
+  if (actual >= total - 2) return { inicio: [1, 2, 3], fin };
+  const desde = Math.min(Math.max(1, actual - 1), total - 5);
+  return { inicio: [desde, desde + 1, desde + 2], fin };
+}
+
 /** Página válida a partir de lo que escribió el usuario (null si no es un número). */
 export function paginaValida(texto: string, total: number): number | null {
   const n = Number.parseInt(texto, 10);

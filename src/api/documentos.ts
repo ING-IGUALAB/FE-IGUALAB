@@ -37,7 +37,8 @@ export function consultarOperacion(operacionId: string) {
 }
 
 export function reintentarPublicacion(operacionId: string) {
-  return api<Operacion>(`/documentos/operaciones/${operacionId}/reintentar-publicacion`, { method: "POST" });
+  // Sin indicador propio en pantalla: usa el indicador central.
+  return api<Operacion>(`/documentos/operaciones/${operacionId}/reintentar-publicacion`, { method: "POST", indicadorGlobal: true });
 }
 
 export interface FiltrosDocumentos {

@@ -155,6 +155,75 @@ pipeline {
             }
         }
 
+        // Análisis dinámico de seguridad sobre la app YA DESPLEGADA en QA (después de los e2e):
+        // spider tradicional + Client Spider (navegación JavaScript), escaneo pasivo y activo.
+        // Falla si hay alertas de riesgo Alto o Medio. Reportes HTML y JSON como artefactos.
+        stage('OWASP ZAP - Frontend') {
+            when {
+                branch 'qa'
+            }
+            environment {
+                ZAP_OBJETIVO = 'https://qa-igualab.ingsoftware.lat'
+                ZAP_CONTENEDOR = "zap-frontend-${env.BUILD_NUMBER}"
+            }
+            steps {
+                script {
+                    // Jenkins corre dentro de Docker: un "-v $WORKSPACE/..." apunta a una ruta del host que
+                    // no existe y ZAP no puede escribir ahí. Por eso los reportes se generan dentro del
+                    // contenedor de ZAP y al terminar se copian al workspace con "docker cp".
+                    def status = sh(
+                        script: '''
+                            rm -rf zap-reports && mkdir -p zap-reports
+                            docker rm -f "$ZAP_CONTENEDOR" >/dev/null 2>&1 || true
+                            docker create --name "$ZAP_CONTENEDOR" -e ZAP_OBJETIVO \
+                              --entrypoint bash ghcr.io/zaproxy/zaproxy:stable -c '
+                                mkdir -p /zap/wrk
+                                zap-full-scan.py -t "$ZAP_OBJETIVO" -j --client-spider -m 5 \
+                                  -r frontend-zap.html -J frontend-zap.json
+                                estado=$?
+                                python3 /zap/seguridad/zap-verificar.py /zap/wrk/frontend-zap.json \
+                                  /zap/seguridad/zap-excepciones.json | tee /zap/wrk/verificacion.txt
+                                echo "${PIPESTATUS[0]}" > /zap/wrk/verificacion.estado
+                                exit $estado
+                              ' >/dev/null
+                            docker cp seguridad/. "$ZAP_CONTENEDOR":/zap/seguridad/
+                            set +e
+                            docker start -a "$ZAP_CONTENEDOR"
+                            estado=$?
+                            docker cp "$ZAP_CONTENEDOR":/zap/wrk/. zap-reports/
+                            docker rm -f "$ZAP_CONTENEDOR" >/dev/null
+                            exit $estado
+                        ''',
+                        returnStatus: true
+                    )
+
+                    if (status == 1) {
+                        error('ZAP Frontend: reglas de seguridad incumplidas')
+                    } else if (status != 0 && status != 2) {
+                        error("ZAP Frontend: error de ejecución (${status})")
+                    }
+
+                    // Criterio de aceptación: ninguna alerta de riesgo Alto ni Medio
+                    // (salvo excepciones documentadas en seguridad/zap-excepciones.json).
+                    def verificacion = fileExists('zap-reports/verificacion.estado') ?
+                        readFile('zap-reports/verificacion.estado').trim() : 'sin resultado'
+                    if (verificacion != '0') {
+                        error('ZAP Frontend: hay vulnerabilidades de riesgo Alto o Medio')
+                    } else if (status == 2) {
+                        unstable('ZAP Frontend: sin riesgo Alto/Medio del frontend; quedan advertencias de riesgo Bajo o excepciones aceptadas (ver zap-reports/verificacion.txt)')
+                    }
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts(
+                        artifacts: 'zap-reports/**',
+                        allowEmptyArchive: true
+                    )
+                }
+            }
+        }
+
         stage('Deploy UAT (Docker Compose)') {
             when {
                 branch 'uat'

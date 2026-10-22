@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from "react";
-import { paginaValida, rangoPaginas } from "../lib/dominio";
+import { rangoPaginas } from "../lib/dominio";
+import { useIrAPagina, type PropsPaginacion } from "./useIrAPagina";
 
 // Forma común; el color va aparte para que el botón activo no compita con el normal.
 const CLS_FORMA = "min-w-[2.25rem] h-9 px-sm rounded-lg border text-label-md transition-colors disabled:cursor-not-allowed";
@@ -15,20 +15,9 @@ export default function Paginacion({
   totalPaginas,
   onCambiar,
   deshabilitado = false,
-}: Readonly<{ pagina: number; totalPaginas: number; onCambiar: (p: number) => void; deshabilitado?: boolean }>) {
-  const [ir, setIr] = useState("");
+}: PropsPaginacion) {
+  const { ir, setIr, irA, irDirecto } = useIrAPagina(pagina, totalPaginas, onCambiar);
   if (totalPaginas <= 1) return null;
-
-  const irA = (p: number) => {
-    if (p !== pagina) onCambiar(p);
-  };
-
-  function irDirecto(e: FormEvent) {
-    e.preventDefault();
-    const p = paginaValida(ir, totalPaginas);
-    if (p !== null) irA(p);
-    setIr("");
-  }
 
   const enPrimera = pagina <= 1 || deshabilitado;
   const enUltima = pagina >= totalPaginas || deshabilitado;

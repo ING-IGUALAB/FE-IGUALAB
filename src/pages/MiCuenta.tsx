@@ -4,12 +4,10 @@ import { cambiarMiContrasena } from "../api/auth";
 import { mensajeError } from "../api/client";
 import { REGLAS_PASSWORD } from "../lib/password";
 import { useToast } from "../components/ToastProvider";
-import { useAuth } from "../auth/AuthContext";
 import Spinner from "../components/Spinner";
 
 export default function MiCuenta() {
   const toast = useToast();
-  const { sesion } = useAuth();
   const [actual, setActual] = useState("");
   const [nueva, setNueva] = useState("");
   const [conf, setConf] = useState("");
@@ -43,7 +41,7 @@ export default function MiCuenta() {
 
   return (
     <>
-      <SectionHeader titulo="Mi cuenta" sub={`Sesión de ${sesion?.nombre}. Actualiza tu contraseña.`} />
+      <SectionHeader titulo="Mi cuenta" />
       <div className="max-w-lg bg-surface-container-lowest rounded-xl border border-surface-variant p-lg ambient-shadow">
         <form onSubmit={onSubmit} className="flex flex-col gap-md">
           <label className="flex flex-col gap-xs">

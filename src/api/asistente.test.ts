@@ -31,7 +31,7 @@ describe("api/asistente", () => {
     await expect(consultarAsistente(consulta)).rejects.toMatchObject({ status: 422, code: "REQUEST_VALIDATION_ERROR" });
   });
 
-  it("es silenciosa: no dispara el indicador de carga global", async () => {
+  it("no usa el indicador central: el chat muestra su propio «Buscando…»", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok({ respuesta: "r", citas: [], sin_evidencia: false })));
     const handler = vi.fn();
     globalThis.addEventListener(LOADING_START, handler);

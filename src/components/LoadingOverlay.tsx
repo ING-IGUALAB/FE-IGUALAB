@@ -64,6 +64,7 @@ export default function LoadingOverlay() {
     <AnimatePresence>
       {visible && (
         <motion.div
+          data-testid="carga-global"
           className="fixed inset-0 z-[90] flex items-center justify-center bg-inverse-surface/30 backdrop-blur-[3px]"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

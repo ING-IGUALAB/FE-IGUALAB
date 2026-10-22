@@ -23,9 +23,9 @@ export function editarEmpresa(id: string, payload: { nombre?: string; sector?: S
 }
 
 export function activarEmpresa(id: string) {
-  return api<EmpresaApi>(`/empresas/${id}/activar`, { method: "PATCH" });
+  return api<EmpresaApi>(`/empresas/${id}/activar`, { method: "PATCH", indicadorGlobal: true });
 }
 
 export function desactivarEmpresa(id: string) {
-  return api<EmpresaApi>(`/empresas/${id}/desactivar`, { method: "PATCH" });
+  return api<EmpresaApi>(`/empresas/${id}/desactivar`, { method: "PATCH", indicadorGlobal: true });
 }

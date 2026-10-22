@@ -138,15 +138,15 @@ describe("apiArchivo", () => {
   });
 });
 
-describe("opción silencioso", () => {
+describe("opción indicadorGlobal", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("por defecto avisa al indicador de carga; silenciosa no", async () => {
+  it("por defecto no muestra el indicador central; solo cuando se pide", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(resp(200, {})));
     const handler = vi.fn();
     globalThis.addEventListener(LOADING_START, handler);
     await api("/x");
-    await api("/x", { silencioso: true });
+    await api("/x", { indicadorGlobal: true });
     globalThis.removeEventListener(LOADING_START, handler);
     expect(handler).toHaveBeenCalledTimes(1);
   });

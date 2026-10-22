@@ -64,4 +64,23 @@ test.describe("Caso de uso: Gestionar catálogo de empresas", () => {
     await expect(page.getByText("Empresa activada. Sus documentos vuelven a considerarse en el análisis GRI.")).toBeVisible();
     await expect(fila).toContainText("Activa");
   });
+
+  test("al filtrar se ve solo el esqueleto de la tabla, no el indicador central", async ({ page, api }) => {
+    api.retrasar("GET", /^\/empresas$/, 2000);
+    await campo(page, "Sector").selectOption({ label: "Minería" });
+
+    await expect(page.locator("tbody .animate-pulse").first()).toBeVisible();
+    await page.waitForTimeout(1000); // el indicador central, si se disparara, ya estaría visible (~600 ms)
+    // Comprobación puntual (sin reintentos): mientras la tabla carga, no hay indicador central.
+    expect(await page.getByTestId("carga-global").count()).toBe(0);
+  });
+
+  test("desactivar, que no tiene indicador propio, sí muestra el indicador central", async ({ page, api }) => {
+    api.retrasar("PATCH", /\/desactivar$/, 1500);
+    const fila = page.getByRole("row", { name: /Petro Sur S.A./ });
+    await fila.getByRole("button", { name: "Desactivar" }).click();
+
+    await expect(page.getByTestId("carga-global")).toBeVisible();
+    await expect(fila).toContainText("Inactiva");
+  });
 });
