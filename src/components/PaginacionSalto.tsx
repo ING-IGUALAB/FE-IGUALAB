@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from "react";
-import { bloquesPaginacion, paginaValida } from "../lib/dominio";
+import { bloquesPaginacion } from "../lib/dominio";
+import { useIrAPagina, type PropsPaginacion } from "./useIrAPagina";
 
 const CLS_CIRCULO =
   "w-7 h-7 sm:w-9 sm:h-9 shrink-0 rounded-full border-2 text-label-md font-semibold tabular-nums transition-colors disabled:cursor-not-allowed";
@@ -17,20 +17,9 @@ export default function PaginacionSalto({
   totalPaginas,
   onCambiar,
   deshabilitado = false,
-}: Readonly<{ pagina: number; totalPaginas: number; onCambiar: (p: number) => void; deshabilitado?: boolean }>) {
-  const [ir, setIr] = useState("");
+}: PropsPaginacion) {
+  const { ir, setIr, irA, irDirecto } = useIrAPagina(pagina, totalPaginas, onCambiar);
   if (totalPaginas <= 1) return null;
-
-  const irA = (p: number) => {
-    if (p !== pagina) onCambiar(p);
-  };
-
-  function irDirecto(e: FormEvent) {
-    e.preventDefault();
-    const p = paginaValida(ir, totalPaginas);
-    if (p !== null) irA(p);
-    setIr("");
-  }
 
   const { inicio, fin } = bloquesPaginacion(pagina, totalPaginas);
   // En pantallas pequeñas el grupo final se reduce a la última página para que todo quepa en una línea.
