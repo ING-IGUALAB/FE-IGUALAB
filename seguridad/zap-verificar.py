@@ -1,11 +1,11 @@
 """Falla si el reporte JSON de OWASP ZAP tiene alertas de riesgo Alto o Medio.
 
-Uso: python3 zap-verificar.py <reporte.json> [excepciones.json]
+Uso: python3 zap-verificar.py <reporte.json> [zap-reglas.conf]
 Se ejecuta en Jenkins (stage «OWASP ZAP - Frontend») con el Python de la imagen de ZAP.
 
 - Las alertas que el propio ZAP marca como falso positivo (confianza 0) no cuentan.
-- excepciones.json: lista de {"regla": "<pluginid>", "motivo": "..."} para hallazgos que no
-  dependen del frontend (p. ej. la infraestructura). Se informan igual, pero no bloquean.
+- zap-reglas.conf: el mismo archivo de reglas que recibe ZAP (-c). Las reglas en IGNORE se
+  informan con su motivo, pero no bloquean.
 """
 import json
 import os
@@ -15,10 +15,18 @@ RIESGOS_BLOQUEANTES = {"3": "Alto", "2": "Medio"}
 
 
 def cargar_excepciones(ruta):
+    """Reglas en IGNORE del archivo de ZAP: id<TAB>IGNORE<TAB>(nombre)[<TAB>motivo]."""
     if not ruta or not os.path.exists(ruta):
         return {}
+    excepciones = {}
     with open(ruta, encoding="utf-8") as f:
-        return {str(e["regla"]): e["motivo"] for e in json.load(f)}
+        for linea in f:
+            if linea.startswith("#") or linea.count("\t") < 2:
+                continue
+            campos = linea.rstrip("\n").split("\t")
+            if campos[1] == "IGNORE":
+                excepciones[campos[0]] = campos[3] if len(campos) > 3 else campos[2]
+    return excepciones
 
 
 def main(ruta_reporte, ruta_excepciones=None):
