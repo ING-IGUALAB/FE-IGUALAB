@@ -13,7 +13,7 @@ test.describe("Caso de uso: Consultar la auditoría", () => {
     await expect(filas.first()).toContainText("Oscar Baldeón");
     await expect(page.getByText("Página 1 de 2")).toBeVisible();
 
-    await page.getByRole("button", { name: "Siguiente" }).click();
+    await page.getByRole("button", { name: "Página siguiente" }).click();
     await expect(page.getByText("Página 2 de 2")).toBeVisible();
     await expect(filas).toHaveCount(5);
   });
@@ -50,26 +50,32 @@ test.describe("Caso de uso: Consultar la auditoría", () => {
 });
 
 test.describe("Paginación de la auditoría", () => {
-  test("permite ir directo a una página: por número, escribiéndola o a la primera/última", async ({ page, api }) => {
-    api.agregarEventos(235); // 25 + 235 = 260 eventos → 13 páginas de 20
+  test("muestra las 3 primeras, el campo «Ir a» y las 3 últimas; permite saltar directo", async ({ page, api }) => {
+    api.agregarEventos(295); // 25 + 295 = 320 eventos → 16 páginas de 20
     await entrarComo(page, api, "superadmin", "/auditoria");
-    await expect(page.getByText("Página 1 de 13")).toBeVisible();
+    const nav = page.getByRole("navigation", { name: "Paginación" });
+    await expect(nav.getByText("Página 1 de 16")).toBeVisible();
+    for (const n of [1, 2, 3, 14, 15, 16]) await expect(nav.getByRole("button", { name: `Página ${n}`, exact: true })).toBeVisible();
+    await expect(nav.getByRole("button", { name: "Página 7", exact: true })).toHaveCount(0);
+    await expect(nav.getByRole("button", { name: "Página anterior" })).toBeDisabled();
 
-    await page.getByRole("button", { name: "Página 2", exact: true }).click();
-    await expect(page.getByText("Página 2 de 13")).toBeVisible();
+    // Escribiendo la página en «Ir a» y pulsando la lupa.
+    await nav.getByRole("spinbutton", { name: "Ir a la página" }).fill("7");
+    await nav.getByRole("button", { name: "Ir a la página escrita" }).click();
+    await expect(nav.getByText("Página 7 de 16")).toBeVisible();
+    await expect(nav.getByRole("button", { name: "Página 7", exact: true })).toHaveAttribute("aria-current", "page");
+    expect(api.llamadasA("GET", "/auditoria").at(-1)!.query.get("pagina")).toBe("7");
+    await expect(nav.getByRole("spinbutton", { name: "Ir a la página" })).toHaveValue("");
 
-    await page.getByRole("spinbutton", { name: "Ir a la página" }).fill("11");
+    // Con Enter, y un número fuera de rango lleva a la última.
+    await nav.getByRole("spinbutton", { name: "Ir a la página" }).fill("99");
     await page.keyboard.press("Enter");
-    await expect(page.getByText("Página 11 de 13")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Página 11", exact: true })).toHaveAttribute("aria-current", "page");
-    expect(api.llamadasA("GET", "/auditoria").at(-1)!.query.get("pagina")).toBe("11");
+    await expect(nav.getByText("Página 16 de 16")).toBeVisible();
+    await expect(nav.getByRole("button", { name: "Página siguiente" })).toBeDisabled();
 
-    await page.getByRole("button", { name: "Última página" }).click();
-    await expect(page.getByText("Página 13 de 13")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Siguiente" })).toBeDisabled();
-
-    await page.getByRole("button", { name: "Primera página" }).click();
-    await expect(page.getByText("Página 1 de 13")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Anterior" })).toBeDisabled();
+    await nav.getByRole("button", { name: "Página anterior" }).click();
+    await expect(nav.getByText("Página 15 de 16")).toBeVisible();
+    await nav.getByRole("button", { name: "Página 1", exact: true }).click();
+    await expect(nav.getByText("Página 1 de 16")).toBeVisible();
   });
 });

@@ -15,9 +15,16 @@ export const test = base.extend<{ api: ServicioSimulado }>({
       // Red de seguridad: cualquier intento de llamar a un backend real (dev/qa/uat) se corta.
       // El frontend desplegado sí se permite: en Jenkins las pruebas corren sobre él.
       await page.route(/bck-igualab\./, (r) => r.abort());
+      // Contra la app servida por nginx (Jenkins/QA o el contenedor local) rige la CSP: si el
+      // navegador bloquea algo (script, estilo, fuente, conexión…), la prueba falla.
+      const violacionesCsp: string[] = [];
+      page.on("console", (msg) => {
+        if (msg.type() === "error" && msg.text().includes("Content Security Policy")) violacionesCsp.push(msg.text());
+      });
       const api = new ServicioSimulado();
       await api.instalar(page);
       await use(api);
+      expect(violacionesCsp, "El navegador bloqueó recursos por la CSP").toEqual([]);
     },
     { auto: true },
   ],

@@ -61,4 +61,17 @@ describe("api/empresas", () => {
     expect(fetchMock.mock.calls[0][1].method).toBe("PATCH");
     expect(fetchMock.mock.calls[1][0]).toContain("/empresas/e1/desactivar");
   });
+
+  it("activar/desactivar muestran el indicador central; el listado no (usa su esqueleto)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok([])));
+    const { LOADING_START } = await import("./client");
+    const handler = vi.fn();
+    globalThis.addEventListener(LOADING_START, handler);
+    await empresasApi.listarEmpresas();
+    expect(handler).not.toHaveBeenCalled();
+    await empresasApi.activarEmpresa("e1");
+    await empresasApi.desactivarEmpresa("e1");
+    globalThis.removeEventListener(LOADING_START, handler);
+    expect(handler).toHaveBeenCalledTimes(2);
+  });
 });

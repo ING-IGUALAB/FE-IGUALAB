@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import SectionHeader from "../components/SectionHeader";
-import Paginacion from "../components/Paginacion";
+import PaginacionSalto from "../components/PaginacionSalto";
 import Spinner from "../components/Spinner";
 import { useToast } from "../components/ToastProvider";
 import * as auditoriaApi from "../api/auditoria";
@@ -95,7 +95,6 @@ export default function Auditoria() {
     <>
       <SectionHeader
         titulo="Auditoría de eventos"
-        sub="Registro automático e inmutable de eventos sensibles. Solo lectura: consigna la cuenta, la fecha, la hora y el tipo de evento."
         acciones={
           <button onClick={exportar} disabled={exportando || total === 0} className="flex items-center gap-sm px-md py-sm bg-surface rounded-lg border border-outline-variant text-on-surface text-label-md font-semibold hover:bg-surface-container-low transition-colors disabled:opacity-50">
             {exportando ? <Spinner size={16} /> : <span className="material-symbols-outlined text-[18px]">download</span>} Exportar CSV
@@ -159,7 +158,7 @@ export default function Auditoria() {
         </div>
         <div className="p-md border-t border-outline-variant bg-surface-container-lowest space-y-md">
           <span className="text-label-sm text-on-surface-variant">{total} eventos · Registro de solo lectura</span>
-          <Paginacion pagina={pagina} totalPaginas={paginas} onCambiar={setPagina} deshabilitado={cargando} />
+          <PaginacionSalto pagina={pagina} totalPaginas={paginas} onCambiar={setPagina} deshabilitado={cargando} />
         </div>
       </div>
     </>

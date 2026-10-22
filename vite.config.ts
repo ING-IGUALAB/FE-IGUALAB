@@ -5,6 +5,9 @@ import react from "@vitejs/plugin-react";
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // Vite pone este nonce en los <script>/<link> que genera; nginx lo cambia por uno aleatorio
+  // por petición, el mismo que declara en la cabecera Content-Security-Policy.
+  html: { cspNonce: "CSP_NONCE_IGUALAB" },
   server: {
     port: 5173,
     // No saltar a otro puerto si 5173 está ocupado: el backend solo permite CORS

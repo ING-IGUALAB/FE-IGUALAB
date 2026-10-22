@@ -38,8 +38,11 @@ interface Opts {
   method?: string;
   body?: unknown;
   auth?: boolean;
-  /** No muestra el indicador de carga global (p. ej. el chat, que tiene su propio indicador). */
-  silencioso?: boolean;
+  /**
+   * Muestra el indicador de carga central. Solo para acciones que no tienen indicador propio
+   * (esqueleto, spinner en el botón, «Cargando…» del modal): así nunca se ven dos a la vez.
+   */
+  indicadorGlobal?: boolean;
 }
 
 // Construye el ApiError desde el contrato del backend y, si corresponde, cierra la sesión.
@@ -79,7 +82,7 @@ function prepararPeticion(opts: Opts): RequestInit {
 
 // Ejecuta la petición avisando al indicador de carga y traduce la falta de red a ApiError.
 async function ejecutar(path: string, opts: Opts): Promise<Response> {
-  const avisar = !opts.silencioso;
+  const avisar = opts.indicadorGlobal === true;
   if (avisar) globalThis.dispatchEvent(new CustomEvent(LOADING_START));
   try {
     return await fetch(`${API}${path}`, prepararPeticion(opts));

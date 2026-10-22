@@ -83,6 +83,7 @@ export class ServicioSimulado {
   reportes: ReporteResumen[] = [];
   eventos: EventoAuditoriaApi[] = [];
   private fallos: FalloForzado[] = [];
+  private demoras: { metodo: string; ruta: RegExp; ms: number }[] = [];
   private sesionesExpiradas = false;
   private seq = 100;
   private readonly rutas: { metodo: string; patron: RegExp; fn: Manejador }[];
@@ -119,6 +120,11 @@ export class ServicioSimulado {
   /** La próxima llamada a `metodo ruta` responde este error (una sola vez). */
   fallarProxima(metodo: string, ruta: string, status: number, code: string, message: string) {
     this.fallos.push({ metodo, ruta, respuesta: error(status, code, message) });
+  }
+
+  /** Hace que las respuestas a `metodo ruta` tarden `ms` (para probar los indicadores de carga). */
+  retrasar(metodo: string, ruta: RegExp, ms: number) {
+    this.demoras.push({ metodo, ruta, ms });
   }
 
   /** Agrega `n` eventos de auditoría más antiguos (para probar la paginación con muchas páginas). */
@@ -182,6 +188,8 @@ export class ServicioSimulado {
         }
       }
     }
+    const demora = this.demoras.find((d) => d.metodo === metodo && d.ruta.test(ruta));
+    if (demora) await new Promise((resolve) => setTimeout(resolve, demora.ms));
     if (r.status === 204) return route.fulfill({ status: 204 });
     if (r.archivo) {
       const headers: Record<string, string> = {};

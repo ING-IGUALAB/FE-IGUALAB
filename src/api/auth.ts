@@ -10,7 +10,7 @@ export function login(correo: string, password: string) {
 }
 
 export function logout() {
-  return api<null>("/auth/logout", { method: "POST" });
+  return api<null>("/auth/logout", { method: "POST", indicadorGlobal: true });
 }
 
 export function recuperarContrasena(correo: string) {
