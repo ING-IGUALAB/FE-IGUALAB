@@ -15,3 +15,9 @@ window.__ENV__ = {
 EOF
 
 echo "[entrypoint] env.js generado con VITE_API_URL=${VITE_API_URL}"
+
+# Origen del backend (esquema://host[:puerto]) para la directiva connect-src de la CSP.
+# Solo se aceptan caracteres de URL simples para no poder inyectar nada en la config de nginx.
+API_ORIGEN=$(printf '%s' "$VITE_API_URL" | sed -nE 's#^(https?://[A-Za-z0-9.-]+(:[0-9]+)?).*#\1#p')
+echo "set \$igualab_api \"${API_ORIGEN}\";" > /etc/nginx/igualab-api.conf
+echo "[entrypoint] CSP connect-src: 'self' ${API_ORIGEN}"

@@ -155,6 +155,68 @@ pipeline {
             }
         }
 
+        // Análisis dinámico de seguridad sobre la app YA DESPLEGADA en QA (después de los e2e):
+        // spider tradicional + Client Spider (navegación JavaScript), escaneo pasivo y activo.
+        // Falla si hay alertas de riesgo Alto o Medio. Reportes HTML y JSON como artefactos.
+        stage('OWASP ZAP - Frontend') {
+            when {
+                branch 'qa'
+            }
+            steps {
+                script {
+                    def status = sh(
+                        script: '''
+                            mkdir -p zap-reports
+                            chmod 0777 zap-reports
+
+                            docker run --rm \
+                              -v "$WORKSPACE/zap-reports:/zap/wrk:rw" \
+                              ghcr.io/zaproxy/zaproxy:stable \
+                              zap-full-scan.py \
+                              -t https://qa-igualab.ingsoftware.lat \
+                              -j \
+                              --client-spider \
+                              -m 5 \
+                              -r frontend-zap.html \
+                              -J frontend-zap.json
+                        ''',
+                        returnStatus: true
+                    )
+
+                    if (status == 1) {
+                        error('ZAP Frontend: reglas de seguridad incumplidas')
+                    } else if (status != 0 && status != 2) {
+                        error("ZAP Frontend: error de ejecución (${status})")
+                    }
+
+                    // Criterio de aceptación: ninguna alerta de riesgo Alto ni Medio.
+                    def bloqueantes = sh(
+                        script: '''
+                            docker run --rm \
+                              -v "$WORKSPACE:/w:ro" \
+                              --entrypoint python3 \
+                              ghcr.io/zaproxy/zaproxy:stable \
+                              /w/seguridad/zap-verificar.py /w/zap-reports/frontend-zap.json
+                        ''',
+                        returnStatus: true
+                    )
+                    if (bloqueantes != 0) {
+                        error('ZAP Frontend: hay vulnerabilidades de riesgo Alto o Medio')
+                    } else if (status == 2) {
+                        unstable('ZAP Frontend: solo advertencias de riesgo Bajo/Informativo')
+                    }
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts(
+                        artifacts: 'zap-reports/**',
+                        allowEmptyArchive: true
+                    )
+                }
+            }
+        }
+
         stage('Deploy UAT (Docker Compose)') {
             when {
                 branch 'uat'

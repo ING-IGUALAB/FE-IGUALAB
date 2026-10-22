@@ -70,7 +70,7 @@ export default {
         "container-max": "1440px",
       },
       fontFamily: {
-        body: ["Inter", "system-ui", "sans-serif"],
+        body: ["Inter Variable", "Inter", "system-ui", "sans-serif"],
       },
       fontSize: {
         "body-md": ["14px", { lineHeight: "20px", fontWeight: "400" }],
