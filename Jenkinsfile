@@ -210,7 +210,7 @@ pipeline {
                     if (verificacion != '0') {
                         error('ZAP Frontend: hay vulnerabilidades de riesgo Alto o Medio')
                     } else if (status == 2) {
-                        unstable('ZAP Frontend: solo advertencias de riesgo Bajo/Informativo')
+                        unstable('ZAP Frontend: sin riesgo Alto/Medio del frontend; quedan advertencias de riesgo Bajo o excepciones aceptadas (ver zap-reports/verificacion.txt)')
                     }
                 }
             }
