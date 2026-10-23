@@ -24,6 +24,7 @@ import {
   paginaValida,
   paginarLocal,
   rangoPaginas,
+  textoSinAnios,
   reporteDe,
   bloquesPaginacion,
   plural,
@@ -261,15 +262,23 @@ describe("textoDescartadas", () => {
 });
 
 describe("aniosDisponibles", () => {
-  it("va de 2023 al último año cerrado, del más reciente al más antiguo", () => {
-    expect(ANIO_MIN_DATOS).toBe(2023);
-    expect(aniosDisponibles(new Date("2026-10-20T12:00:00"))).toEqual([2025, 2024, 2023]);
+  it("va de 2020 al año en curso, del más reciente al más antiguo", () => {
+    expect(ANIO_MIN_DATOS).toBe(2020);
+    expect(aniosDisponibles(new Date("2026-10-20T12:00:00"))).toEqual([2026, 2025, 2024, 2023, 2022, 2021, 2020]);
   });
   it("se actualiza solo con el paso del tiempo", () => {
-    expect(aniosDisponibles(new Date("2028-03-01T12:00:00"))).toEqual([2027, 2026, 2025, 2024, 2023]);
+    expect(aniosDisponibles(new Date("2027-03-01T12:00:00"))[0]).toBe(2027);
   });
   it("nunca devuelve una lista vacía", () => {
-    expect(aniosDisponibles(new Date("2023-06-01T12:00:00"))).toEqual([2023]);
+    expect(aniosDisponibles(new Date("2019-06-01T12:00:00"))).toEqual([2020]);
+  });
+});
+
+describe("textoSinAnios", () => {
+  it("sin empresa muestra un guion; mientras busca, «Buscando…»; si no hay, «Sin documentos»", () => {
+    expect(textoSinAnios(false, false)).toBe("—");
+    expect(textoSinAnios(true, true)).toBe("Buscando…");
+    expect(textoSinAnios(true, false)).toBe("Sin documentos");
   });
 });
 
