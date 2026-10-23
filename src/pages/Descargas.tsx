@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import SectionHeader from "../components/SectionHeader";
 import Paginacion from "../components/Paginacion";
 import TablaReportes from "../components/TablaReportes";
@@ -6,7 +7,7 @@ import { useToast } from "../components/ToastProvider";
 import { useDescargarReporte } from "../components/useDescargarReporte";
 import * as empresasApi from "../api/empresas";
 import * as reportesApi from "../api/reportes";
-import { mensajeError } from "../api/client";
+import { mensajeError, tipoAviso } from "../api/client";
 import { SECTORES_API, etiquetaSector, paginarLocal } from "../lib/dominio";
 import type { EmpresaApi, ReporteResumen, SectorApi } from "../types";
 
@@ -14,8 +15,17 @@ const TAM_PAGINA = 10;
 const CLS_FILTRO =
   "rounded-lg border border-outline-variant bg-surface-container-low py-xs px-sm text-label-md focus:border-primary outline-none";
 
+/** Reportes que cumplen los filtros de sector y año. */
+function filtrar(reportes: ReporteResumen[], empresas: EmpresaApi[], sector: "" | SectorApi, anio: string) {
+  return reportes.filter(
+    (r) => (!sector || empresas.find((e) => e.id === r.empresa_id)?.sector === sector) && (!anio || r.anio === Number(anio)),
+  );
+}
+
 export default function Descargas() {
   const toast = useToast();
+  // Al llegar desde «Ver reporte generado» se destaca ese reporte.
+  const resaltar = (useLocation().state as { resaltar?: string } | null)?.resaltar;
   const [empresas, setEmpresas] = useState<EmpresaApi[]>([]);
   const [reportes, setReportes] = useState<ReporteResumen[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -34,16 +44,23 @@ export default function Descargas() {
   useEffect(() => {
     Promise.all([empresasApi.listarEmpresas({ soloActivas: true }), reportesApi.listarReportes()])
       .then(([emps, reps]) => {
+        const ordenados = [...reps].sort((a, b) => b.creado_en.localeCompare(a.creado_en));
         setEmpresas(emps);
-        setReportes([...reps].sort((a, b) => b.creado_en.localeCompare(a.creado_en)));
+        setReportes(ordenados);
+        const destacado = ordenados.find((r) => r.id === resaltar);
+        if (destacado) {
+          const sectorDestacado = emps.find((e) => e.id === destacado.empresa_id)?.sector ?? "";
+          const lista = filtrar(ordenados, emps, sectorDestacado, String(destacado.anio));
+          setFSector(sectorDestacado);
+          setFAnio(String(destacado.anio));
+          setPagina(Math.floor(lista.indexOf(destacado) / TAM_PAGINA) + 1);
+        }
       })
-      .catch((err) => toast(mensajeError(err, "No se pudieron cargar los reportes."), "error"))
+      .catch((err) => toast(mensajeError(err, "No se pudieron cargar los reportes."), tipoAviso(err)))
       .finally(() => setCargando(false));
-  }, [toast]);
+  }, [toast, resaltar]);
 
-  const filtrados = reportes.filter(
-    (r) => (!fSector || empresaDe(r.empresa_id)?.sector === fSector) && (!fAnio || r.anio === Number(fAnio)),
-  );
+  const filtrados = filtrar(reportes, empresas, fSector, fAnio);
   const pag = paginarLocal(filtrados, pagina, TAM_PAGINA);
   const anios = [...new Set(reportes.map((r) => r.anio))].sort((a, b) => b - a);
   const hayFiltros = !!(fSector || fAnio);
@@ -81,6 +98,7 @@ export default function Descargas() {
             descargando={descargando}
             onDescargar={descargar}
             vacio={hayFiltros ? "No hay reportes con estos filtros." : "Aún no se han generado reportes."}
+            resaltado={resaltar}
           />
         )}
 

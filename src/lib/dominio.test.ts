@@ -24,6 +24,7 @@ import {
   paginaValida,
   paginarLocal,
   rangoPaginas,
+  reporteDe,
   bloquesPaginacion,
   plural,
   puedeValidar,
@@ -300,6 +301,17 @@ describe("aniosConDocumentos", () => {
   });
   it("sin documentos en ningún año devuelve lista vacía", () => {
     expect(aniosConDocumentos([2025, 2024], [conDocs(0), conDocs(0)])).toEqual([]);
+  });
+});
+
+describe("reporteDe", () => {
+  const reportes = [{ id: "r1", empresa_id: "e1", anio: 2024 }, { id: "r2", empresa_id: "e1", anio: 2023 }];
+  it("encuentra el reporte de la empresa y el año", () => {
+    expect(reporteDe(reportes, "e1", 2023)?.id).toBe("r2");
+  });
+  it("si no hay reporte de esa empresa y año, no devuelve nada", () => {
+    expect(reporteDe(reportes, "e1", 2025)).toBeUndefined();
+    expect(reporteDe(reportes, "e2", 2024)).toBeUndefined();
   });
 });
 

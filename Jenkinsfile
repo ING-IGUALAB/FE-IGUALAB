@@ -177,12 +177,12 @@ pipeline {
                             docker rm -f "$ZAP_CONTENEDOR" >/dev/null 2>&1 || true
                             docker create --name "$ZAP_CONTENEDOR" -e ZAP_OBJETIVO \
                               --entrypoint bash ghcr.io/zaproxy/zaproxy:stable -c '
-                                mkdir -p /zap/wrk
+                                mkdir -p /zap/wrk && cp /zap/seguridad/zap-reglas.conf /zap/wrk/
                                 zap-full-scan.py -t "$ZAP_OBJETIVO" -j --client-spider -m 5 \
-                                  -r frontend-zap.html -J frontend-zap.json
+                                  -c zap-reglas.conf -r frontend-zap.html -J frontend-zap.json
                                 estado=$?
                                 python3 /zap/seguridad/zap-verificar.py /zap/wrk/frontend-zap.json \
-                                  /zap/seguridad/zap-excepciones.json | tee /zap/wrk/verificacion.txt
+                                  /zap/seguridad/zap-reglas.conf | tee /zap/wrk/verificacion.txt
                                 echo "${PIPESTATUS[0]}" > /zap/wrk/verificacion.estado
                                 exit $estado
                               ' >/dev/null
@@ -203,8 +203,8 @@ pipeline {
                         error("ZAP Frontend: error de ejecución (${status})")
                     }
 
-                    // Criterio de aceptación: ninguna alerta de riesgo Alto ni Medio
-                    // (salvo excepciones documentadas en seguridad/zap-excepciones.json).
+                    // Criterio de aceptación: ninguna alerta de riesgo Alto ni Medio (salvo las reglas en
+                    // IGNORE de seguridad/zap-reglas.conf: solo la 40025, indicada por el encargado del servidor).
                     def verificacion = fileExists('zap-reports/verificacion.estado') ?
                         readFile('zap-reports/verificacion.estado').trim() : 'sin resultado'
                     if (verificacion != '0') {

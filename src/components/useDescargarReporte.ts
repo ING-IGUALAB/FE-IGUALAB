@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useToast } from "./ToastProvider";
 import { descargarReporte } from "../api/reportes";
-import { mensajeError } from "../api/client";
+import { mensajeError, tipoAviso } from "../api/client";
 import { descargarBlob } from "../lib/descargas";
 import { nombreArchivoReporte } from "../lib/dominio";
 import type { ReporteResumen } from "../types";
@@ -18,7 +18,7 @@ export function useDescargarReporte(nombreEmpresa: (empresaId: string) => string
       descargarBlob(blob, nombre ?? nombreArchivoReporte(nombreEmpresa(r.empresa_id), r.anio));
       toast("Descarga iniciada.", "success");
     } catch (err) {
-      toast(mensajeError(err, "No se pudo descargar el reporte."), "error");
+      toast(mensajeError(err, "No se pudo descargar el reporte."), tipoAviso(err));
     } finally {
       setDescargando(null);
     }

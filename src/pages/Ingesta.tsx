@@ -9,7 +9,7 @@ import { useToast } from "../components/ToastProvider";
 import * as empresasApi from "../api/empresas";
 import * as documentosApi from "../api/documentos";
 import * as usuariosApi from "../api/usuarios";
-import { mensajeError } from "../api/client";
+import { mensajeError, tipoAviso } from "../api/client";
 import {
   aniosDisponibles,
   SECTORES_API,
@@ -78,7 +78,7 @@ export default function Ingesta() {
     empresasApi
       .listarEmpresas()
       .then(setEmpresas)
-      .catch((err) => toast(mensajeError(err, "No se pudieron cargar las empresas."), "error"));
+      .catch((err) => toast(mensajeError(err, "No se pudieron cargar las empresas."), tipoAviso(err)));
   }, [toast]);
 
   const cargarDocs = useCallback(async () => {
@@ -99,7 +99,7 @@ export default function Ingesta() {
         setTotalPaginas(Math.max(1, data.paginas));
       }
     } catch (err) {
-      toast(mensajeError(err, "No se pudieron cargar los documentos."), "error");
+      toast(mensajeError(err, "No se pudieron cargar los documentos."), tipoAviso(err));
     } finally {
       setCargandoDocs(false);
     }
@@ -161,7 +161,7 @@ export default function Ingesta() {
         toast("La ingesta no se completó. Revisa el detalle.", "error");
       }
     } catch (err) {
-      toast(mensajeError(err, "No se pudo realizar la ingesta."), "error");
+      toast(mensajeError(err, "No se pudo realizar la ingesta."), tipoAviso(err));
     } finally {
       setEnviando(false);
     }
@@ -174,7 +174,7 @@ export default function Ingesta() {
       toast(op.exitosa ? "Publicación completada." : "Aún no se pudo publicar.", op.exitosa ? "success" : "warn");
       if (op.exitosa) cargarDocs();
     } catch (err) {
-      toast(mensajeError(err, "No se pudo reintentar la publicación."), "error");
+      toast(mensajeError(err, "No se pudo reintentar la publicación."), tipoAviso(err));
     }
   }
 
@@ -370,7 +370,7 @@ function DetalleDocumentoModal({
       .detalleDocumento(id)
       .then(setDoc)
       .catch((err) => {
-        toast(mensajeError(err, "No se pudo cargar el detalle."), "error");
+        toast(mensajeError(err, "No se pudo cargar el detalle."), tipoAviso(err));
         onClose();
       })
       .finally(() => setCargando(false));

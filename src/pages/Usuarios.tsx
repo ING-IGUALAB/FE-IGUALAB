@@ -6,7 +6,7 @@ import Modal from "../components/Modal";
 import { useToast } from "../components/ToastProvider";
 import Spinner from "../components/Spinner";
 import { useAuth } from "../auth/AuthContext";
-import { mensajeError } from "../api/client";
+import { mensajeError, tipoAviso } from "../api/client";
 import * as usuariosApi from "../api/usuarios";
 import { REGLAS_PASSWORD } from "../lib/password";
 import { fechaCorta } from "../lib/format";
@@ -281,7 +281,7 @@ function ToggleModal({ usuario, onClose, onHecho }: Readonly<{ usuario: Usuario 
       onClose();
       onHecho();
     } catch (err) {
-      toast(mensajeError(err, "No se pudo actualizar la cuenta."), "error");
+      toast(mensajeError(err, "No se pudo actualizar la cuenta."), tipoAviso(err));
     } finally {
       setCargando(false);
     }
@@ -322,7 +322,7 @@ function TransferirModal({ usuario, onClose }: Readonly<{ usuario: Usuario | nul
       // Ya no tiene permiso sobre /usuarios: no re-consultar; redirigir a /ia.
       navigate("/ia", { replace: true });
     } catch (err) {
-      toast(mensajeError(err, "No se pudo transferir el rol."), "error");
+      toast(mensajeError(err, "No se pudo transferir el rol."), tipoAviso(err));
       setCargando(false);
     }
   }

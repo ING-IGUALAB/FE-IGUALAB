@@ -1,6 +1,0 @@
-[
-  {
-    "regla": "40025",
-    "motivo": "Proxy Disclosure: lo identifica el proxy Caddy del servidor (ingsoftware.lat), que responde por si mismo a TRACE/OPTIONS/TRACK antes de llegar al frontend; el nginx del frontend no queda identificado (Unknown). Se corrige en la configuracion de Caddy, fuera de este repositorio."
-  }
-]

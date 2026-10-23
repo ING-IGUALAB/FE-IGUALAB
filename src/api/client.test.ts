@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api, apiArchivo, ApiError, AUTH_401_EVENT, LOADING_START, mensajeError, nombreArchivoDe } from "./client";
+import { api, apiArchivo, ApiError, AUTH_401_EVENT, LOADING_START, mensajeError, nombreArchivoDe, tipoAviso } from "./client";
 
 function resp(status: number, data: unknown): Response {
   return {
@@ -8,6 +8,17 @@ function resp(status: number, data: unknown): Response {
     json: async () => data,
   } as unknown as Response;
 }
+
+describe("tipoAviso", () => {
+  it("un 409 (condición pendiente o datos cambiados) es advertencia", () => {
+    expect(tipoAviso(new ApiError(409, { code: "ANALYSIS_NOT_VALIDATED" }))).toBe("warn");
+  });
+  it("lo demás es error: servidor, permisos, no encontrado o fallas de red", () => {
+    expect(tipoAviso(new ApiError(502, { code: "PDF_GENERATION_ERROR" }))).toBe("error");
+    expect(tipoAviso(new ApiError(404))).toBe("error");
+    expect(tipoAviso(new Error("red"))).toBe("error");
+  });
+});
 
 describe("mensajeError", () => {
   it("usa message del backend", () => {
