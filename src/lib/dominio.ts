@@ -307,6 +307,11 @@ export function bloquesPaginacion(actual: number, total: number): { inicio: numb
   return { inicio: [desde, desde + 1, desde + 2], fin };
 }
 
+/** Reporte ya generado de una empresa y año (los reportes son únicos e inmutables), si existe. */
+export function reporteDe<T extends { empresa_id: string; anio: number }>(reportes: T[], empresaId: string, anio: number): T | undefined {
+  return reportes.find((r) => r.empresa_id === empresaId && r.anio === anio);
+}
+
 /** Página válida a partir de lo que escribió el usuario (null si no es un número). */
 export function paginaValida(texto: string, total: number): number | null {
   const n = Number.parseInt(texto, 10);
