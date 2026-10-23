@@ -63,8 +63,8 @@ type Manejador = (m: RegExpMatchArray, req: Request, q: URLSearchParams) => Resp
 const AHORA = "2026-10-01T15:00:00Z";
 const PUNTOS: Record<EstadoGriApi, number> = { OK: 100, BAJA_SUSTANCIA: 50, SUB_REPORTADO: 0 };
 
-function error(status: number, code: string, message: string): Respuesta {
-  return { status, body: { error: { code, message, details: null, request_id: "e2e" } } };
+function error(status: number, code: string, message: string, details: unknown = null): Respuesta {
+  return { status, body: { error: { code, message, details, request_id: "e2e" } } };
 }
 const ok = (body: unknown, status = 200): Respuesta => ({ status, body });
 
@@ -693,6 +693,11 @@ export class ServicioSimulado {
   private generarReporte(req: Request): Respuesta {
     const v = this.validarReporte(req);
     if (v.error) return v.error;
+    // Inmutable: un solo reporte por empresa y año.
+    const previo = this.reportes.find((r) => r.empresa_id === v.empresa!.id && r.anio === v.anio);
+    if (previo) {
+      return error(409, "REPORT_ALREADY_EXISTS", "Ya existe un reporte para esta empresa y año.", { reporte_id: previo.id });
+    }
     const reporte: ReporteResumen = {
       id: this.nuevoId("r"),
       empresa_id: v.empresa!.id,

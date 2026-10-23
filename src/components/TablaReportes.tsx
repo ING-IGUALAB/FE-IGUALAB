@@ -15,6 +15,7 @@ export default function TablaReportes({
   descargando,
   onDescargar,
   vacio,
+  resaltado,
 }: Readonly<{
   reportes: ReporteResumen[];
   nombreEmpresa: (id: string) => string;
@@ -22,6 +23,8 @@ export default function TablaReportes({
   descargando: string | null;
   onDescargar: (r: ReporteResumen) => void;
   vacio: string;
+  /** Id del reporte a destacar (p. ej. al llegar desde «Ver reporte generado»). */
+  resaltado?: string;
 }>) {
   const columnas = ["Reporte", ...(sectorDe ? ["Sector"] : []), "Año", "Generado", "Huella", ""];
   return (
@@ -39,7 +42,11 @@ export default function TablaReportes({
             <tr><td colSpan={columnas.length} className="py-xl text-center text-on-surface-variant">{vacio}</td></tr>
           )}
           {reportes.map((r) => (
-            <tr key={r.id} className="border-b border-surface-variant hover:bg-surface/50 transition-colors">
+            <tr
+              key={r.id}
+              aria-current={r.id === resaltado ? "true" : undefined}
+              className={`border-b border-surface-variant transition-colors ${r.id === resaltado ? "bg-primary-container/30" : "hover:bg-surface/50"}`}
+            >
               <td className="py-md px-md">
                 <div className="flex items-center gap-sm">
                   <span className="material-symbols-outlined text-error">picture_as_pdf</span>

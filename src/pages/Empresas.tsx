@@ -4,7 +4,7 @@ import Modal from "../components/Modal";
 import Spinner from "../components/Spinner";
 import { useToast } from "../components/ToastProvider";
 import * as empresasApi from "../api/empresas";
-import { mensajeError } from "../api/client";
+import { mensajeError, tipoAviso } from "../api/client";
 import { SECTORES_API, etiquetaSector } from "../lib/dominio";
 import type { EmpresaApi, SectorApi } from "../types";
 
@@ -28,7 +28,7 @@ export default function Empresas() {
       });
       setEmpresas(data);
     } catch (err) {
-      toast(mensajeError(err, "No se pudieron cargar las empresas."), "error");
+      toast(mensajeError(err, "No se pudieron cargar las empresas."), tipoAviso(err));
     } finally {
       setCargando(false);
     }
@@ -51,7 +51,7 @@ export default function Empresas() {
         "success",
       );
     } catch (err) {
-      toast(mensajeError(err, "No se pudo cambiar el estado."), "error");
+      toast(mensajeError(err, "No se pudo cambiar el estado."), tipoAviso(err));
     }
   }
 

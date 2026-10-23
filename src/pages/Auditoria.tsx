@@ -5,7 +5,7 @@ import Spinner from "../components/Spinner";
 import { useToast } from "../components/ToastProvider";
 import * as auditoriaApi from "../api/auditoria";
 import * as usuariosApi from "../api/usuarios";
-import { mensajeError } from "../api/client";
+import { mensajeError, tipoAviso } from "../api/client";
 import { descargarBlob } from "../lib/descargas";
 import { TIPOS_EVENTO_AUDITORIA, aCsv, finDiaUtc, inicioDiaUtc, totalPaginas } from "../lib/dominio";
 import type { EventoAuditoriaApi, TipoEventoAuditoria, Usuario } from "../types";
@@ -43,7 +43,7 @@ export default function Auditoria() {
     usuariosApi
       .listarUsuarios()
       .then(setUsuarios)
-      .catch((err) => toast(mensajeError(err, "No se pudieron cargar los usuarios."), "error"));
+      .catch((err) => toast(mensajeError(err, "No se pudieron cargar los usuarios."), tipoAviso(err)));
   }, [toast]);
 
   const cargar = useCallback(async () => {
@@ -54,7 +54,7 @@ export default function Auditoria() {
       setEventos(data.items);
       setTotal(data.total);
     } catch (err) {
-      toast(mensajeError(err, "No se pudo cargar la auditoría."), "error");
+      toast(mensajeError(err, "No se pudo cargar la auditoría."), tipoAviso(err));
     } finally {
       setCargando(false);
     }
@@ -75,7 +75,7 @@ export default function Auditoria() {
       descargarBlob(new Blob([aCsv(filas)], { type: "text/csv;charset=utf-8" }), "auditoria_igualab.csv");
       toast(`Se exportaron ${todos.length} eventos.`, "success");
     } catch (err) {
-      toast(mensajeError(err, "No se pudo exportar la auditoría."), "error");
+      toast(mensajeError(err, "No se pudo exportar la auditoría."), tipoAviso(err));
     } finally {
       setExportando(false);
     }

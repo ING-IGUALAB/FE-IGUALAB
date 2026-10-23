@@ -7,7 +7,7 @@ import Spinner from "../components/Spinner";
 import { useToast } from "../components/ToastProvider";
 import * as empresasApi from "../api/empresas";
 import * as analisisApi from "../api/analisis";
-import { ApiError, mensajeError } from "../api/client";
+import { ApiError, mensajeError, tipoAviso } from "../api/client";
 import {
   ESTADOS_GRI_API,
   ESTADO_GRI_LABEL,
@@ -71,7 +71,7 @@ export default function AnalisisGri() {
     empresasApi
       .listarEmpresas({ soloActivas: true })
       .then(setEmpresas)
-      .catch((err) => toast(mensajeError(err, "No se pudieron cargar las empresas."), "error"));
+      .catch((err) => toast(mensajeError(err, "No se pudieron cargar las empresas."), tipoAviso(err)));
   }, [toast]);
 
   const empresasSector = empresas.filter((e) => e.sector === sector);
@@ -83,7 +83,7 @@ export default function AnalisisGri() {
         setAnalisis(normalizar(await analisisApi.consultarAnalisis(empId, a)));
       } catch (err) {
         setAnalisis(null);
-        toast(mensajeError(err, "No se pudo consultar el análisis."), "error");
+        toast(mensajeError(err, "No se pudo consultar el análisis."), tipoAviso(err));
       } finally {
         setCargando(false);
       }
@@ -123,7 +123,7 @@ export default function AnalisisGri() {
         toast("Este código cambió desde que lo consultaste. Se actualizó el análisis.", "warn");
         await recargar();
       } else {
-        toast(mensajeError(err, "No se pudo asignar el estado."), "error");
+        toast(mensajeError(err, "No se pudo asignar el estado."), tipoAviso(err));
       }
     } finally {
       setGuardando(null);
@@ -138,7 +138,7 @@ export default function AnalisisGri() {
       toast("Análisis validado.", "success");
       await recargar();
     } catch (err) {
-      toast(mensajeError(err, "No se pudo validar el análisis."), "error");
+      toast(mensajeError(err, "No se pudo validar el análisis."), tipoAviso(err));
       if (err instanceof ApiError && err.status === 409) await recargar();
     } finally {
       setValidando(false);
@@ -510,7 +510,7 @@ function HistorialModal({
     analisisApi
       .consultarHistorial(empresaId, anio, { pagina, tamano: 10 })
       .then(setData)
-      .catch((err) => toast(mensajeError(err, "No se pudo cargar el historial."), "error"))
+      .catch((err) => toast(mensajeError(err, "No se pudo cargar el historial."), tipoAviso(err)))
       .finally(() => setCargando(false));
   }, [abierto, empresaId, anio, pagina, toast]);
 

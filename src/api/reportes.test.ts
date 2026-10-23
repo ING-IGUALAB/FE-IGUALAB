@@ -61,4 +61,12 @@ describe("api/reportes", () => {
     );
     await expect(reportesApi.vistaPreviaReporte("e1", 2024)).rejects.toMatchObject({ status: 409, code: "ANALYSIS_NOT_VALIDATED" });
   });
+
+  it("reporteYaExistente reconoce el 409 «ya existe» y devuelve el id del reporte", async () => {
+    const { ApiError } = await import("./client");
+    expect(reportesApi.reporteYaExistente(new ApiError(409, { code: "REPORT_ALREADY_EXISTS", details: { reporte_id: "r9" } }))).toEqual({ reporteId: "r9" });
+    expect(reportesApi.reporteYaExistente(new ApiError(409, { code: "REPORT_ALREADY_EXISTS" }))).toEqual({});
+    expect(reportesApi.reporteYaExistente(new ApiError(409, { code: "ANALYSIS_NOT_VALIDATED" }))).toBeNull();
+    expect(reportesApi.reporteYaExistente(new Error("red"))).toBeNull();
+  });
 });

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import SectionHeader from "../components/SectionHeader";
 import Spinner from "../components/Spinner";
 import TablaReportes from "../components/TablaReportes";
@@ -7,8 +7,8 @@ import { useToast } from "../components/ToastProvider";
 import { useDescargarReporte } from "../components/useDescargarReporte";
 import * as empresasApi from "../api/empresas";
 import * as reportesApi from "../api/reportes";
-import { mensajeError } from "../api/client";
-import { SECTORES_API, aniosDisponibles, anioIngestaValido, etiquetaSector } from "../lib/dominio";
+import { mensajeError, tipoAviso } from "../api/client";
+import { SECTORES_API, aniosDisponibles, anioIngestaValido, etiquetaSector, reporteDe } from "../lib/dominio";
 import type { EmpresaApi, ReporteResumen, SectorApi } from "../types";
 
 const ANIOS = aniosDisponibles();
@@ -26,18 +26,22 @@ export default function Reportes() {
   const [cargandoReportes, setCargandoReportes] = useState(true);
   const [vistaUrl, setVistaUrl] = useState<string | null>(null);
   const [accion, setAccion] = useState<"vista" | "generar" | null>(null);
+  const navigate = useNavigate();
 
   const nombreEmpresa = (id: string) => empresas.find((e) => e.id === id)?.nombre ?? "Empresa";
   const { descargar, descargando } = useDescargarReporte(nombreEmpresa);
   const empresasSector = empresas.filter((e) => e.activa && e.sector === sector);
   const listo = !!empresaId && anioIngestaValido(anio);
+  // Los reportes son únicos por empresa y año: si ya existe, se va a descargarlo en vez de generarlo.
+  const existente = empresaId ? reporteDe(reportes, empresaId, anio) : undefined;
+  const irADescargas = (reporteId?: string) => navigate("/descargas", { state: { resaltar: reporteId } });
 
   const cargarReportes = useCallback(async () => {
     try {
       const data = await reportesApi.listarReportes();
       setReportes([...data].sort((a, b) => b.creado_en.localeCompare(a.creado_en)));
     } catch (err) {
-      toast(mensajeError(err, "No se pudo cargar el historial de reportes."), "error");
+      toast(mensajeError(err, "No se pudo cargar el historial de reportes."), tipoAviso(err));
     } finally {
       setCargandoReportes(false);
     }
@@ -47,7 +51,7 @@ export default function Reportes() {
     empresasApi
       .listarEmpresas({ soloActivas: true })
       .then(setEmpresas)
-      .catch((err) => toast(mensajeError(err, "No se pudieron cargar las empresas."), "error"));
+      .catch((err) => toast(mensajeError(err, "No se pudieron cargar las empresas."), tipoAviso(err)));
     cargarReportes();
   }, [toast, cargarReportes]);
 
@@ -64,20 +68,30 @@ export default function Reportes() {
       const { blob } = await reportesApi.vistaPreviaReporte(empresaId, anio);
       setVistaUrl(URL.createObjectURL(blob));
     } catch (err) {
-      toast(mensajeError(err, "No se pudo generar la vista previa."), "error");
+      toast(mensajeError(err, "No se pudo generar la vista previa."), tipoAviso(err));
     } finally {
       setAccion(null);
     }
   }
 
   async function generar() {
+    if (existente) {
+      irADescargas(existente.id);
+      return;
+    }
     setAccion("generar");
     try {
       await reportesApi.generarReporte(empresaId, anio);
       toast(`Reporte de ${nombreEmpresa(empresaId)} (${anio}) generado.`, "success");
       await cargarReportes();
     } catch (err) {
-      toast(mensajeError(err, "No se pudo generar el reporte."), "error");
+      // Otro usuario pudo generarlo recién: se lleva a descargarlo, sin alerta.
+      const previo = reportesApi.reporteYaExistente(err);
+      if (previo) {
+        irADescargas(previo.reporteId);
+        return;
+      }
+      toast(mensajeError(err, "No se pudo generar el reporte."), tipoAviso(err));
     } finally {
       setAccion(null);
     }
@@ -116,9 +130,16 @@ export default function Reportes() {
                 {accion === "vista" ? <Spinner size={18} /> : <span className="material-symbols-outlined">visibility</span>} Vista previa
               </button>
               <button onClick={generar} disabled={!listo || accion !== null} className="w-full bg-primary text-on-primary py-md px-lg rounded-lg flex items-center justify-center gap-sm shadow-md hover:bg-surface-tint transition-all text-body-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
-                {accion === "generar" ? <Spinner size={18} /> : <span className="material-symbols-outlined">picture_as_pdf</span>} Generar reporte
+                {accion === "generar" && <Spinner size={18} />}
+                {accion !== "generar" && <span className="material-symbols-outlined">{existente ? "download" : "picture_as_pdf"}</span>}
+                {existente ? "Ver reporte generado" : "Generar reporte"}
               </button>
             </div>
+            {existente && (
+              <p className="text-label-sm text-on-surface-variant mt-sm">
+                Ya existe el reporte de esta empresa y año; los reportes no se vuelven a generar.
+              </p>
+            )}
             <p className="text-label-sm text-outline mt-md">
               El reporte se arma con el análisis GRI de la empresa y año. Si aún no está validado, valídalo en{" "}
               <Link to="/analisis" className="text-primary hover:underline">Análisis GRI</Link>.
