@@ -5,6 +5,8 @@ import Badge from "../components/Badge";
 import Modal from "../components/Modal";
 import Spinner from "../components/Spinner";
 import { useToast } from "../components/ToastProvider";
+import { useAniosConDocumentos } from "../components/useAniosConDocumentos";
+import SelectAnioConDocumentos from "../components/SelectAnioConDocumentos";
 import * as empresasApi from "../api/empresas";
 import * as analisisApi from "../api/analisis";
 import { ApiError, mensajeError, tipoAviso } from "../api/client";
@@ -13,8 +15,6 @@ import {
   ESTADO_GRI_LABEL,
   FLUJO_INFO,
   SECTORES_API,
-  aniosDisponibles,
-  anioIngestaValido,
   detallePuntaje,
   etiquetaEstadoGri,
   etiquetaSector,
@@ -38,7 +38,6 @@ import type {
   ValidacionVista,
 } from "../types";
 
-const ANIOS = aniosDisponibles();
 const CLS_SELECT =
   "w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none";
 const CLS_CARD = "bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden";
@@ -60,7 +59,6 @@ export default function AnalisisGri() {
   const [empresas, setEmpresas] = useState<EmpresaApi[]>([]);
   const [sector, setSector] = useState<SectorApi>(SECTORES_API[0]);
   const [empresaId, setEmpresaId] = useState("");
-  const [anio, setAnio] = useState(ANIOS[0]);
   const [analisis, setAnalisis] = useState<Analisis | null>(null);
   const [cargando, setCargando] = useState(false);
   const [guardando, setGuardando] = useState<string | null>(null);
@@ -75,6 +73,10 @@ export default function AnalisisGri() {
   }, [toast]);
 
   const empresasSector = empresas.filter((e) => e.sector === sector);
+
+  // Solo se ofrecen los años en que la empresa tiene documentos subidos (se buscan al elegirla).
+  const aniosEmpresa = useAniosConDocumentos(empresaId);
+  const { anio, sinDocumentos } = aniosEmpresa;
 
   const cargar = useCallback(
     async (empId: string, a: number) => {
@@ -96,8 +98,8 @@ export default function AnalisisGri() {
       toast("Selecciona una empresa.", "warn");
       return;
     }
-    if (!anioIngestaValido(anio)) {
-      toast("Ingresa un año válido.", "warn");
+    if (anio === null) {
+      toast("Esta empresa aún no tiene documentos subidos.", "warn");
       return;
     }
     cargar(empresaId, anio);
@@ -175,12 +177,13 @@ export default function AnalisisGri() {
                 )}
               </Campo>
               <Campo label="Año">
-                <select value={anio} onChange={(e) => setAnio(Number(e.target.value))} className={CLS_SELECT}>
-                  {ANIOS.map((a) => <option key={a} value={a}>{a}</option>)}
-                </select>
+                <SelectAnioConDocumentos seleccion={aniosEmpresa} className={`${CLS_SELECT} disabled:opacity-60`} />
               </Campo>
+              {sinDocumentos && (
+                <p className="text-label-sm text-on-surface-variant -mt-sm">Esta empresa aún no tiene documentos subidos.</p>
+              )}
             </div>
-            <button onClick={consultar} disabled={cargando} className="w-full mt-lg bg-primary text-on-primary py-md px-lg rounded-lg flex items-center justify-center gap-sm shadow-md hover:bg-surface-tint transition-all text-body-lg font-semibold disabled:opacity-60">
+            <button onClick={consultar} disabled={cargando || anio === null} className="w-full mt-lg bg-primary text-on-primary py-md px-lg rounded-lg flex items-center justify-center gap-sm shadow-md hover:bg-surface-tint transition-all text-body-lg font-semibold disabled:opacity-60">
               {cargando ? <Spinner size={18} /> : <span className="material-symbols-outlined">search</span>} Consultar análisis
             </button>
           </div>

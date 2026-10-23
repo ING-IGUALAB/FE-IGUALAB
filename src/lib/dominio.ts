@@ -236,15 +236,22 @@ export function textoDescartadas(n: number): string {
 
 // ---- Años con datos ----
 /** Primer año con documentos en la plataforma. Para habilitar años anteriores, cambiar solo esta constante. */
-export const ANIO_MIN_DATOS = 2023;
+export const ANIO_MIN_DATOS = 2020;
 
 /**
- * Años que se pueden elegir, del más reciente al más antiguo: desde ANIO_MIN_DATOS hasta el último año
- * cerrado (las memorias y reportes de un año se publican al siguiente). Se actualiza solo cada año.
+ * Años que se pueden elegir, del más reciente al más antiguo: desde ANIO_MIN_DATOS hasta el año en
+ * curso. Se actualiza solo cada año.
  */
 export function aniosDisponibles(hoy: Date = new Date()): number[] {
-  const ultimo = Math.max(ANIO_MIN_DATOS, hoy.getFullYear() - 1);
+  const ultimo = Math.max(ANIO_MIN_DATOS, hoy.getFullYear());
   return Array.from({ length: ultimo - ANIO_MIN_DATOS + 1 }, (_, i) => ultimo - i);
+}
+
+/** Texto de la lista de años cuando todavía no hay años que ofrecer (según los documentos subidos). */
+export function textoSinAnios(hayEmpresa: boolean, cargando: boolean): string {
+  if (!hayEmpresa) return "—";
+  if (cargando) return "Buscando…";
+  return "Sin documentos";
 }
 
 // ---- Personas ----

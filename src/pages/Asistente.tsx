@@ -5,6 +5,7 @@ import { consultarAsistente } from "../api/asistente";
 import { mensajeError, tipoAviso } from "../api/client";
 import { SECTORES_API, etiquetaSector, textoDescartadas, textoSinEvidencia } from "../lib/dominio";
 import { useAniosConDocumentos } from "../components/useAniosConDocumentos";
+import SelectAnioConDocumentos from "../components/SelectAnioConDocumentos";
 import type { AfirmacionAsistente, CitaAsistente, EmpresaApi, MotivoSinEvidencia, SectorApi } from "../types";
 
 interface Mensaje {
@@ -29,13 +30,6 @@ const SUGERENCIAS: { icono: string; texto: string }[] = [
 const CLS_CONTROL =
   "rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none";
 
-/** Texto de la lista de años cuando todavía no hay años que ofrecer. */
-function textoSinAnios(hayEmpresa: boolean, cargando: boolean): string {
-  if (!hayEmpresa) return "—";
-  if (cargando) return "Buscando…";
-  return "Sin documentos";
-}
-
 let msgSeq = 0;
 function nuevoId(): string {
   msgSeq += 1;
@@ -51,7 +45,6 @@ export default function Asistente() {
   const [empresas, setEmpresas] = useState<EmpresaApi[]>([]);
   const [sector, setSector] = useState<"" | SectorApi>("");
   const [empresaId, setEmpresaId] = useState("");
-  const [anio, setAnio] = useState<number | null>(null);
   const [texto, setTexto] = useState("");
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [consultando, setConsultando] = useState(false);
@@ -66,14 +59,9 @@ export default function Asistente() {
 
   const empresasSector = empresas.filter((e) => !sector || e.sector === sector);
   const empresa = empresasSector.find((e) => e.id === empresaId) ?? null;
-  const { anios, cargando: buscandoAnios } = useAniosConDocumentos(empresa?.id ?? "");
-  const sinDocumentos = !!empresa && !buscandoAnios && anios.length === 0;
+  const aniosEmpresa = useAniosConDocumentos(empresa?.id ?? "");
+  const { anio, sinDocumentos } = aniosEmpresa;
   const ctxOk = !!(sector && empresa && anio !== null);
-
-  // Al cambiar de empresa, se elige su año más reciente con documentos (o ninguno).
-  useEffect(() => {
-    setAnio((actual) => (actual !== null && anios.includes(actual) ? actual : anios[0] ?? null));
-  }, [anios]);
 
   const scrollLog = () => {
     setTimeout(() => logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: "smooth" }), 30);
@@ -149,15 +137,7 @@ export default function Asistente() {
             </select>
           </Campo>
           <Campo label="Año" className="w-32">
-            <select
-              value={anio ?? ""}
-              onChange={(e) => setAnio(Number(e.target.value))}
-              disabled={anios.length === 0}
-              className={`${CLS_CONTROL} w-full`}
-            >
-              {anios.length === 0 && <option value="">{textoSinAnios(!!empresa, buscandoAnios)}</option>}
-              {anios.map((a) => <option key={a} value={a}>{a}</option>)}
-            </select>
+            <SelectAnioConDocumentos seleccion={aniosEmpresa} className={`${CLS_CONTROL} w-full`} />
           </Campo>
           <div className="w-full sm:w-auto sm:ml-auto self-center">
             <EstadoContexto ctxOk={ctxOk} sinDocumentos={sinDocumentos} />
