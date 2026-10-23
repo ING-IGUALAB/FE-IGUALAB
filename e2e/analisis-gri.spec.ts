@@ -16,12 +16,22 @@ test.describe("Caso de uso: Analizar y validar códigos GRI", () => {
     await expect(page.getByRole("heading", { name: "Análisis y validación GRI" })).toBeVisible();
   });
 
-  test("sin documentos analizados lo informa y no permite validar", async ({ page }) => {
-    await consultar(page, "Energía", "Utec ELEC S.A.", 2025);
+  test("el año solo ofrece los años en que la empresa tiene documentos subidos", async ({ page }) => {
+    await campo(page, "Sector").selectOption({ label: "Minería" });
+    await campo(page, "Empresa").selectOption({ label: "Minera Andina S.A.A." });
 
-    await expect(page.getByText("Sin documentos analizados")).toBeVisible();
-    await expect(page.getByText("No hay documentos completados y analizados")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Validar análisis" })).toBeDisabled();
+    // Se revisan todos los años posibles (2020 al actual) y solo queda el que tiene documentos.
+    await expect(campo(page, "Año").locator("option")).toHaveText(["2024"]);
+  });
+
+  test("una empresa sin documentos no ofrece años ni permite consultar", async ({ page }) => {
+    await campo(page, "Sector").selectOption({ label: "Energía" });
+    await campo(page, "Empresa").selectOption({ label: "Utec ELEC S.A." });
+
+    await expect(campo(page, "Año")).toBeDisabled();
+    await expect(campo(page, "Año").locator("option")).toHaveText(["Sin documentos"]);
+    await expect(page.getByText("Esta empresa aún no tiene documentos subidos.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Consultar análisis" })).toBeDisabled();
   });
 
   test("muestra los códigos GRI con su evidencia y las sanciones", async ({ page }) => {
