@@ -17,8 +17,22 @@ test.describe("Caso de uso: Generar reporte de prospección", () => {
     await elegir(page, "Minería", "Minera Andina S.A.A.", 2024);
     await page.getByRole("button", { name: "Generar reporte" }).click();
 
-    await expect(page.getByText("El análisis GRI de esta empresa y año no está validado.")).toBeVisible();
+    const aviso = page.locator("[data-sonner-toast]", { hasText: "El análisis GRI de esta empresa y año no está validado." });
+    await expect(aviso).toBeVisible();
+    // Es una condición pendiente (409), no una falla: se muestra como advertencia (amarillo), no como error.
+    await expect(aviso).toHaveAttribute("data-type", "warning");
     expect(api.reportes).toHaveLength(2);
+  });
+
+  test("si el servidor no puede armar el PDF, lo muestra como error (rojo)", async ({ page, api }) => {
+    api.validarAnalisisPorFuera("e-andina", 2024);
+    api.fallarProxima("POST", "/reportes/vista-previa", 502, "PDF_GENERATION_ERROR", "No se pudo compilar el PDF.");
+    await elegir(page, "Minería", "Minera Andina S.A.A.", 2024);
+    await page.getByRole("button", { name: "Vista previa" }).click();
+
+    const aviso = page.locator("[data-sonner-toast]", { hasText: "No se pudo compilar el PDF." });
+    await expect(aviso).toBeVisible();
+    await expect(aviso).toHaveAttribute("data-type", "error");
   });
 
   test("con el análisis validado muestra la vista previa del PDF sin guardarla", async ({ page, api }) => {

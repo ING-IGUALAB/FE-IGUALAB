@@ -7,7 +7,7 @@ import { useToast } from "../components/ToastProvider";
 import { useDescargarReporte } from "../components/useDescargarReporte";
 import * as empresasApi from "../api/empresas";
 import * as reportesApi from "../api/reportes";
-import { mensajeError } from "../api/client";
+import { mensajeError, tipoAviso } from "../api/client";
 import { SECTORES_API, aniosDisponibles, anioIngestaValido, etiquetaSector } from "../lib/dominio";
 import type { EmpresaApi, ReporteResumen, SectorApi } from "../types";
 
@@ -37,7 +37,7 @@ export default function Reportes() {
       const data = await reportesApi.listarReportes();
       setReportes([...data].sort((a, b) => b.creado_en.localeCompare(a.creado_en)));
     } catch (err) {
-      toast(mensajeError(err, "No se pudo cargar el historial de reportes."), "error");
+      toast(mensajeError(err, "No se pudo cargar el historial de reportes."), tipoAviso(err));
     } finally {
       setCargandoReportes(false);
     }
@@ -47,7 +47,7 @@ export default function Reportes() {
     empresasApi
       .listarEmpresas({ soloActivas: true })
       .then(setEmpresas)
-      .catch((err) => toast(mensajeError(err, "No se pudieron cargar las empresas."), "error"));
+      .catch((err) => toast(mensajeError(err, "No se pudieron cargar las empresas."), tipoAviso(err)));
     cargarReportes();
   }, [toast, cargarReportes]);
 
@@ -64,7 +64,7 @@ export default function Reportes() {
       const { blob } = await reportesApi.vistaPreviaReporte(empresaId, anio);
       setVistaUrl(URL.createObjectURL(blob));
     } catch (err) {
-      toast(mensajeError(err, "No se pudo generar la vista previa."), "error");
+      toast(mensajeError(err, "No se pudo generar la vista previa."), tipoAviso(err));
     } finally {
       setAccion(null);
     }
@@ -77,7 +77,7 @@ export default function Reportes() {
       toast(`Reporte de ${nombreEmpresa(empresaId)} (${anio}) generado.`, "success");
       await cargarReportes();
     } catch (err) {
-      toast(mensajeError(err, "No se pudo generar el reporte."), "error");
+      toast(mensajeError(err, "No se pudo generar el reporte."), tipoAviso(err));
     } finally {
       setAccion(null);
     }

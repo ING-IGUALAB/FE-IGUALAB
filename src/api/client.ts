@@ -140,6 +140,15 @@ function detallesToStrings(details: unknown): string[] {
 }
 
 /** Traduce un error de la API a un mensaje legible para el usuario. */
+/**
+ * Cómo avisar un error de la API: un 409 indica que falta cumplir una condición o que los datos
+ * cambiaron (p. ej. análisis sin validar, reporte ya generado), así que es una advertencia (amarillo).
+ * Todo lo demás —caídas del servidor, red, permisos, no encontrado— es un error (rojo).
+ */
+export function tipoAviso(err: unknown): "warn" | "error" {
+  return err instanceof ApiError && err.status === 409 ? "warn" : "error";
+}
+
 export function mensajeError(err: unknown, fallback = "Ocurrió un error inesperado."): string {
   if (err instanceof ApiError) {
     const detalles = detallesToStrings(err.details);

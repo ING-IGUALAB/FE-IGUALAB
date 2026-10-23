@@ -6,7 +6,7 @@ import { useToast } from "../components/ToastProvider";
 import { useDescargarReporte } from "../components/useDescargarReporte";
 import * as empresasApi from "../api/empresas";
 import * as reportesApi from "../api/reportes";
-import { mensajeError } from "../api/client";
+import { mensajeError, tipoAviso } from "../api/client";
 import { SECTORES_API, etiquetaSector, paginarLocal } from "../lib/dominio";
 import type { EmpresaApi, ReporteResumen, SectorApi } from "../types";
 
@@ -37,7 +37,7 @@ export default function Descargas() {
         setEmpresas(emps);
         setReportes([...reps].sort((a, b) => b.creado_en.localeCompare(a.creado_en)));
       })
-      .catch((err) => toast(mensajeError(err, "No se pudieron cargar los reportes."), "error"))
+      .catch((err) => toast(mensajeError(err, "No se pudieron cargar los reportes."), tipoAviso(err)))
       .finally(() => setCargando(false));
   }, [toast]);
 

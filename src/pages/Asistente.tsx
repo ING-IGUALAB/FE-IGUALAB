@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useToast } from "../components/ToastProvider";
 import * as empresasApi from "../api/empresas";
 import { consultarAsistente } from "../api/asistente";
-import { mensajeError } from "../api/client";
+import { mensajeError, tipoAviso } from "../api/client";
 import { SECTORES_API, etiquetaSector, textoDescartadas, textoSinEvidencia } from "../lib/dominio";
 import { useAniosConDocumentos } from "../components/useAniosConDocumentos";
 import type { AfirmacionAsistente, CitaAsistente, EmpresaApi, MotivoSinEvidencia, SectorApi } from "../types";
@@ -61,7 +61,7 @@ export default function Asistente() {
     empresasApi
       .listarEmpresas({ soloActivas: true })
       .then(setEmpresas)
-      .catch((err) => toast(mensajeError(err, "No se pudieron cargar las empresas."), "error"));
+      .catch((err) => toast(mensajeError(err, "No se pudieron cargar las empresas."), tipoAviso(err)));
   }, [toast]);
 
   const empresasSector = empresas.filter((e) => !sector || e.sector === sector);
