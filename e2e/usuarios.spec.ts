@@ -28,6 +28,18 @@ test.describe("Caso de uso: Gestionar usuarios", () => {
     await expect(dialogo).toHaveCount(0);
   });
 
+  test("la contraseña de la cuenta nueva se oculta y se puede mostrar", async ({ page }) => {
+    await page.getByRole("button", { name: "Crear usuario" }).click();
+    const dialogo = page.getByRole("dialog");
+    const pass = dialogo.getByLabel("Contraseña", { exact: true });
+    await expect(pass).toHaveAttribute("type", "password");
+    await pass.fill("Maria123!");
+    await dialogo.getByRole("button", { name: "Mostrar contraseña" }).click();
+    await expect(pass).toHaveAttribute("type", "text");
+    await dialogo.getByRole("button", { name: "Ocultar contraseña" }).click();
+    await expect(pass).toHaveAttribute("type", "password");
+  });
+
   test("crea una cuenta nueva como Administrador", async ({ page, api }) => {
     await page.getByRole("button", { name: "Crear usuario" }).click();
     const dialogo = page.getByRole("dialog");

@@ -15,6 +15,15 @@ test.describe("Caso de uso: Recuperar contraseña", () => {
 });
 
 test.describe("Caso de uso: Restablecer contraseña", () => {
+  test("las contraseñas nuevas se ocultan y se pueden mostrar", async ({ page }) => {
+    await page.goto("/restablecer?token=token-valido");
+    const nueva = page.getByLabel("Nueva contraseña", { exact: true });
+    await expect(nueva).toHaveAttribute("type", "password");
+    await expect(page.getByLabel("Confirmar contraseña", { exact: true })).toHaveAttribute("type", "password");
+    await page.getByRole("button", { name: "Mostrar contraseña" }).first().click();
+    await expect(nueva).toHaveAttribute("type", "text");
+  });
+
   test("con un enlace válido cambia la contraseña y vuelve al login", async ({ page }) => {
     await page.goto("/restablecer?token=token-valido");
     await page.getByLabel("Nueva contraseña", { exact: true }).fill("Nueva123!");
@@ -41,6 +50,25 @@ test.describe("Caso de uso: Cambiar mi contraseña", () => {
     await entrarComo(page, api, "administrador");
     await page.getByRole("link", { name: "Cambiar contraseña" }).click();
     await expect(page.getByRole("heading", { name: "Mi cuenta" })).toBeVisible();
+  });
+
+  test("las contraseñas se ocultan al escribir y cada una se puede mostrar u ocultar", async ({ page }) => {
+    for (const etiqueta of ["Contraseña actual", "Nueva contraseña", "Confirmar nueva contraseña"]) {
+      await expect(page.getByLabel(etiqueta, { exact: true })).toHaveAttribute("type", "password");
+    }
+    const actual = page.getByLabel("Contraseña actual", { exact: true });
+    await actual.fill("Admin123!");
+
+    // El botón solo afecta a su propio campo.
+    await page.getByRole("button", { name: "Mostrar contraseña" }).first().click();
+    await expect(actual).toHaveAttribute("type", "text");
+    await expect(page.getByLabel("Nueva contraseña", { exact: true })).toHaveAttribute("type", "password");
+
+    const ocultar = page.getByRole("button", { name: "Ocultar contraseña" });
+    await expect(ocultar).toHaveAttribute("aria-pressed", "true");
+    await ocultar.click();
+    await expect(actual).toHaveAttribute("type", "password");
+    await expect(actual).toHaveValue("Admin123!");
   });
 
   test("no permite guardar si la nueva contraseña no cumple la política", async ({ page }) => {

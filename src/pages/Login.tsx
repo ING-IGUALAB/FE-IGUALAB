@@ -104,7 +104,8 @@ export default function Login() {
                 type="button"
                 onClick={() => setVerPass((v) => !v)}
                 disabled={!password}
-                aria-label="Mostrar contraseña"
+                aria-label={verPass ? "Ocultar contraseña" : "Mostrar contraseña"}
+                aria-pressed={verPass}
                 className="absolute right-[12px] text-outline-variant enabled:hover:text-on-surface-variant disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <span className="material-symbols-outlined text-[20px]">{verPass ? "visibility_off" : "visibility"}</span>

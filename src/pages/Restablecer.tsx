@@ -5,6 +5,9 @@ import { mensajeError } from "../api/client";
 import { REGLAS_PASSWORD } from "../lib/password";
 import { useToast } from "../components/ToastProvider";
 import Spinner from "../components/Spinner";
+import CampoContrasena from "../components/CampoContrasena";
+
+const CLS_CAMPO = "h-[48px] rounded-xl border border-outline-variant px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none";
 
 export default function Restablecer() {
   const [params] = useSearchParams();
@@ -59,14 +62,8 @@ export default function Restablecer() {
         )}
 
         <form onSubmit={onSubmit} className="w-full flex flex-col gap-md" noValidate>
-          <label className="flex flex-col gap-xs">
-            <span className="text-label-md text-on-surface-variant">Nueva contraseña</span>
-            <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} className="h-[48px] rounded-xl border border-outline-variant px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" />
-          </label>
-          <label className="flex flex-col gap-xs">
-            <span className="text-label-md text-on-surface-variant">Confirmar contraseña</span>
-            <input type="password" value={conf} onChange={(e) => setConf(e.target.value)} className="h-[48px] rounded-xl border border-outline-variant px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" />
-          </label>
+          <CampoContrasena etiqueta="Nueva contraseña" valor={pass} onCambiar={setPass} autoComplete="new-password" className={CLS_CAMPO} />
+          <CampoContrasena etiqueta="Confirmar contraseña" valor={conf} onCambiar={setConf} autoComplete="new-password" className={CLS_CAMPO} />
 
           <ul className="grid grid-cols-2 gap-xs text-label-sm">
             {reglas.map((r) => (

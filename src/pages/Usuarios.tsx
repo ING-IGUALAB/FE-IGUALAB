@@ -12,6 +12,7 @@ import { REGLAS_PASSWORD } from "../lib/password";
 import { fechaCorta } from "../lib/format";
 import { esCorreoValido } from "../lib/validacion";
 import type { Usuario } from "../types";
+import CampoContrasena from "../components/CampoContrasena";
 
 const SKELETON_ROWS = ["r1", "r2", "r3", "r4"];
 const SKELETON_CELLS = [
@@ -228,18 +229,16 @@ function CrearUsuarioModal({ open, onClose, onCreado }: Readonly<{ open: boolean
             {errs.correo && <span id="cu-err-correo" className="text-label-sm text-error">{errs.correo}</span>}
           </label>
           <div className="flex flex-col gap-xs">
-            <label className="flex flex-col gap-xs">
-              <span className="text-label-md text-on-surface-variant">Contraseña</span>
-              <input
-                type="text"
-                value={password}
-                onChange={(e) => { setPassword(e.target.value); setErrs((p) => ({ ...p, password: undefined })); }}
-                aria-invalid={!!errs.password}
-                aria-describedby={errs.password ? "cu-err-password" : undefined}
-                className={claseInput(!!errs.password)}
-                placeholder="Mín. 8 · mayús., minús., dígito y símbolo"
-              />
-            </label>
+            <CampoContrasena
+              etiqueta="Contraseña"
+              valor={password}
+              onCambiar={(v) => { setPassword(v); setErrs((p) => ({ ...p, password: undefined })); }}
+              autoComplete="new-password"
+              invalido={!!errs.password}
+              idDescripcion={errs.password ? "cu-err-password" : undefined}
+              className={claseInput(!!errs.password)}
+              placeholder="Mín. 8 · mayús., minús., dígito y símbolo"
+            />
             {errs.password && <span id="cu-err-password" className="text-label-sm text-error">{errs.password}</span>}
             <ul className="grid grid-cols-2 gap-xs text-label-sm mt-xs">
               {reglas.map((r) => (
