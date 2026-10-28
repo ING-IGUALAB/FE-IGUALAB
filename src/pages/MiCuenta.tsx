@@ -5,6 +5,9 @@ import { mensajeError } from "../api/client";
 import { REGLAS_PASSWORD } from "../lib/password";
 import { useToast } from "../components/ToastProvider";
 import Spinner from "../components/Spinner";
+import CampoContrasena from "../components/CampoContrasena";
+
+const CLS_CAMPO = "h-[44px] rounded-xl border border-outline-variant px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none";
 
 export default function MiCuenta() {
   const toast = useToast();
@@ -44,18 +47,9 @@ export default function MiCuenta() {
       <SectionHeader titulo="Mi cuenta" />
       <div className="max-w-lg bg-surface-container-lowest rounded-xl border border-surface-variant p-lg ambient-shadow">
         <form onSubmit={onSubmit} className="flex flex-col gap-md">
-          <label className="flex flex-col gap-xs">
-            <span className="text-label-md text-on-surface-variant">Contraseña actual</span>
-            <input type="password" value={actual} onChange={(e) => setActual(e.target.value)} className="h-[44px] rounded-xl border border-outline-variant px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" />
-          </label>
-          <label className="flex flex-col gap-xs">
-            <span className="text-label-md text-on-surface-variant">Nueva contraseña</span>
-            <input type="password" value={nueva} onChange={(e) => setNueva(e.target.value)} className="h-[44px] rounded-xl border border-outline-variant px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" />
-          </label>
-          <label className="flex flex-col gap-xs">
-            <span className="text-label-md text-on-surface-variant">Confirmar nueva contraseña</span>
-            <input type="password" value={conf} onChange={(e) => setConf(e.target.value)} className="h-[44px] rounded-xl border border-outline-variant px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none" />
-          </label>
+          <CampoContrasena etiqueta="Contraseña actual" valor={actual} onCambiar={setActual} autoComplete="current-password" className={CLS_CAMPO} />
+          <CampoContrasena etiqueta="Nueva contraseña" valor={nueva} onCambiar={setNueva} autoComplete="new-password" className={CLS_CAMPO} />
+          <CampoContrasena etiqueta="Confirmar nueva contraseña" valor={conf} onCambiar={setConf} autoComplete="new-password" className={CLS_CAMPO} />
           <ul className="grid grid-cols-2 gap-xs text-label-sm">
             {reglas.map((r) => (
               <li key={r.msg} className={`flex items-center gap-xs ${r.ok ? "text-primary" : "text-on-surface-variant"}`}>
