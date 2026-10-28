@@ -13,6 +13,9 @@ RUN npm run build
 # ---------- Etapa de runtime ----------
 FROM nginx:alpine AS runtime
 
+# Parches de seguridad del sistema base (Trivy bloquea el despliegue si quedan HIGH/CRITICAL corregibles).
+RUN apk upgrade --no-cache
+
 # Config de Nginx con fallback SPA (react-router)
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Cabeceras de seguridad (CSP, anti-clickjacking, HSTS…) que incluye cada location.

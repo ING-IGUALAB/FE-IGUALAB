@@ -4,6 +4,8 @@ name: igualab-frontend-uat
 services:
   frontend:
     build: .
+    # Nombre fijo: Jenkins la construye, Trivy la escanea y el despliegue usa esta misma imagen.
+    image: igualab-frontend-uat:latest
     container_name: igualab-frontend-uat
     env_file:
       - .env
