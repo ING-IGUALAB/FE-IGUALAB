@@ -221,3 +221,6 @@ playwright/.cache/
 
 # Reportes de OWASP ZAP
 zap-reports
+
+# Reportes de Trivy
+trivy-reports
