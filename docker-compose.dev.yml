@@ -5,6 +5,8 @@ name: igualab-frontend-dev
 services:
   frontend:
     build: .
+    # Nombre fijo: Jenkins la construye, Trivy la escanea y el despliegue usa esta misma imagen.
+    image: igualab-frontend-dev:latest
     container_name: igualab-frontend-dev
     # Jenkins copia el secreto a .env (cp "$SECRET_FILE" .env). Aquí se inyecta al
     # contenedor; el entrypoint genera /env.js en runtime con VITE_API_URL.

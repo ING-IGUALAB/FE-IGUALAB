@@ -1,3 +1,7 @@
+// Imagen Docker de cada rama que se despliega (el mismo nombre que «image:» en su docker-compose).
+IMAGEN_POR_RAMA = [development: 'igualab-frontend-dev:latest', qa: 'igualab-frontend-qa:latest', uat: 'igualab-frontend-uat:latest']
+TRIVY = 'aquasec/trivy:0.76.1'
+
 pipeline {
     agent any
 
@@ -86,6 +90,82 @@ pipeline {
             }
         }
 
+        // La imagen se construye ANTES de desplegar para que Trivy la revise; el despliegue usa esta
+        // misma imagen (sin --build).
+        stage('Construir Imagen Docker') {
+            when {
+                anyOf {
+                    branch 'development'
+                    branch 'qa'
+                    branch 'uat'
+                }
+            }
+            steps {
+                script {
+                    env.IMAGEN_FRONTEND = IMAGEN_POR_RAMA[env.BRANCH_NAME]
+                }
+                sh 'docker build -t "$IMAGEN_FRONTEND" .'
+            }
+        }
+
+        // Análisis de vulnerabilidades de la imagen. Si no cumple el criterio, el pipeline se detiene
+        // y no se despliega. El reporte HTML (todas las severidades) queda en los artefactos.
+        stage('Trivy - Escaneo de Imagen') {
+            when {
+                anyOf {
+                    branch 'development'
+                    branch 'qa'
+                    branch 'uat'
+                }
+            }
+            environment {
+                TRIVY_IMAGEN = "${TRIVY}"
+            }
+            steps {
+                script {
+                    // Trivy lee la imagen del Docker del servidor (socket) y escribe en la salida estándar,
+                    // así los reportes llegan al workspace sin montar carpetas.
+                    sh '''
+                        rm -rf trivy-reports && mkdir -p trivy-reports
+                        docker run --rm \
+                          -v /var/run/docker.sock:/var/run/docker.sock \
+                          -v trivy-cache:/root/.cache/ \
+                          "$TRIVY_IMAGEN" image --quiet \
+                          --scanners vuln,secret,misconfig \
+                          --format template --template "@/contrib/html.tpl" \
+                          "$IMAGEN_FRONTEND" > trivy-reports/frontend-trivy.html
+                    '''
+
+                    // Criterio de aceptación: ninguna vulnerabilidad CRITICAL ni HIGH con corrección disponible.
+                    def estado = sh(
+                        script: '''
+                            docker run --rm \
+                              -v /var/run/docker.sock:/var/run/docker.sock \
+                              -v trivy-cache:/root/.cache/ \
+                              "$TRIVY_IMAGEN" image --quiet \
+                              --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed \
+                              --exit-code 1 --format table \
+                              "$IMAGEN_FRONTEND" > trivy-reports/frontend-trivy.txt
+                            estado=$?
+                            cat trivy-reports/frontend-trivy.txt
+                            exit $estado
+                        ''',
+                        returnStatus: true
+                    )
+                    if (estado == 1) {
+                        error('Trivy: la imagen tiene vulnerabilidades CRITICAL/HIGH corregibles; no se despliega')
+                    } else if (estado != 0) {
+                        error("Trivy: error de ejecución (${estado})")
+                    }
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'trivy-reports/**', allowEmptyArchive: true
+                }
+            }
+        }
+
         stage('Deploy Dev (Docker Compose)') {
             when {
                 branch 'development'
@@ -96,7 +176,7 @@ pipeline {
                         rm -f .env
                         cp "$SECRET_FILE" .env
                         docker compose -f docker-compose.dev.yml down
-                        docker compose -f docker-compose.dev.yml up -d --build
+                        docker compose -f docker-compose.dev.yml up -d
                     '''
                 }
             }
@@ -112,7 +192,7 @@ pipeline {
                         rm -f .env
                         cp "$SECRET_FILE" .env
                         docker compose -f docker-compose.qa.yml down
-                        docker compose -f docker-compose.qa.yml up -d --build
+                        docker compose -f docker-compose.qa.yml up -d
                     '''
                 }
             }
@@ -234,7 +314,7 @@ pipeline {
                         rm -f .env
                         cp "$SECRET_FILE" .env
                         docker compose -f docker-compose.uat.yml down
-                        docker compose -f docker-compose.uat.yml up -d --build
+                        docker compose -f docker-compose.uat.yml up -d
                     '''
                 }
             }
