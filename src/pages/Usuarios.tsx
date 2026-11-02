@@ -13,6 +13,7 @@ import { fechaCorta } from "../lib/format";
 import { esCorreoValido } from "../lib/validacion";
 import type { Usuario } from "../types";
 import CampoContrasena from "../components/CampoContrasena";
+import { useCuentaRegresiva } from "../components/useCuentaRegresiva";
 
 const SKELETON_ROWS = ["r1", "r2", "r3", "r4"];
 const SKELETON_CELLS = [
@@ -324,19 +325,28 @@ function ToggleModal({ usuario, onClose, onHecho }: Readonly<{ usuario: Usuario 
   );
 }
 
+// Espera antes de poder confirmar una acción que no se puede deshacer por cuenta propia.
+const ESPERA_TRANSFERENCIA_S = 10;
+
 function TransferirModal({ usuario, onClose }: Readonly<{ usuario: Usuario | null; onClose: () => void }>) {
+  // Se monta de nuevo en cada apertura: la cuenta regresiva siempre empieza completa.
+  return usuario ? <ConfirmarTransferencia key={usuario.id} usuario={usuario} onClose={onClose} /> : null;
+}
+
+function ConfirmarTransferencia({ usuario, onClose }: Readonly<{ usuario: Usuario; onClose: () => void }>) {
   const toast = useToast();
   const navigate = useNavigate();
   const { actualizarRol } = useAuth();
   const [cargando, setCargando] = useState(false);
-  if (!usuario) return null;
+  const restante = useCuentaRegresiva(ESPERA_TRANSFERENCIA_S);
+  const esperando = restante > 0;
 
   async function confirmar() {
     setCargando(true);
     try {
-      await usuariosApi.transferirSuperadmin(usuario!.id);
+      await usuariosApi.transferirSuperadmin(usuario.id);
       // Tras la transferencia, la cuenta actual pasa a Administrador (RF-050).
-      toast(`Rol SuperAdmin transferido a ${usuario!.nombre}. Ahora eres Administrador.`, "success");
+      toast(`Rol SuperAdmin transferido a ${usuario.nombre}. Ahora eres Administrador.`, "success");
       actualizarRol("administrador"); // actualiza sesión + localStorage
       onClose();
       // Ya no tiene permiso sobre /usuarios: no re-consultar; redirigir a /ia.
@@ -348,16 +358,24 @@ function TransferirModal({ usuario, onClose }: Readonly<{ usuario: Usuario | nul
   }
 
   return (
-    <Modal open={!!usuario} onClose={onClose}>
+    <Modal open onClose={onClose}>
       <div className="p-xl text-center">
         <span className="material-symbols-outlined text-[48px] text-tertiary">swap_horiz</span>
         <h3 className="text-title-lg text-on-background mt-md">Transferir rol SuperAdmin</h3>
         <p className="text-body-md text-on-surface-variant mt-sm">
-          Se transferirá el rol <strong>SuperAdmin</strong> a <strong>{usuario.nombre}</strong>. La operación es atómica: tu cuenta pasará a Administrador.
+          Se transferirá el rol <strong>SuperAdmin</strong> a <strong>{usuario.nombre}</strong> ({usuario.correo}). Tu cuenta pasará a Administrador y no podrás revertirlo por tu cuenta.
         </p>
+        <p className="text-label-md text-on-surface-variant mt-sm">Revisa que sea la cuenta correcta antes de confirmar.</p>
         <div className="flex justify-center gap-sm mt-lg">
           <button onClick={onClose} className="px-lg py-sm rounded-lg border border-outline-variant text-body-md text-on-surface-variant">Cancelar</button>
-          <button onClick={confirmar} disabled={cargando} className="px-lg py-sm rounded-lg bg-tertiary text-on-tertiary text-label-md font-semibold disabled:opacity-60 flex items-center gap-sm">{cargando && <Spinner size={16} />}{cargando ? "Transfiriendo…" : "Confirmar transferencia"}</button>
+          <button
+            onClick={confirmar}
+            disabled={esperando || cargando}
+            className={`px-lg py-sm rounded-lg text-label-md font-semibold flex items-center gap-sm tabular-nums ${esperando ? "bg-surface-variant text-on-surface-variant cursor-not-allowed" : "bg-tertiary text-on-tertiary disabled:opacity-60"}`}
+          >
+            {cargando && <Spinner size={16} />}
+            {cargando ? "Transfiriendo…" : `Confirmar transferencia${esperando ? ` (${restante} s)` : ""}`}
+          </button>
         </div>
       </div>
     </Modal>

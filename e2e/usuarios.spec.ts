@@ -123,8 +123,36 @@ test.describe("Caso de uso: Gestionar usuarios", () => {
     await expect(fila).toContainText("Inactivo");
   });
 
+  test("la transferencia solo se puede confirmar después de 10 segundos", async ({ page, api }) => {
+    await page.clock.install();
+    const abrir = page.getByRole("row", { name: /Luis Pérez/ }).getByTitle("Transferir rol SuperAdmin");
+    await abrir.click();
+    const dialogo = page.getByRole("dialog");
+    const confirmar = dialogo.getByRole("button", { name: /^Confirmar transferencia/ });
+
+    await expect(confirmar).toBeDisabled();
+    await expect(confirmar).toHaveText("Confirmar transferencia (10 s)");
+
+    await page.clock.fastForward(9000);
+    await expect(confirmar).toHaveText("Confirmar transferencia (1 s)");
+    await expect(confirmar).toBeDisabled();
+
+    // Cancelar y volver a abrir reinicia la espera completa.
+    await dialogo.getByRole("button", { name: "Cancelar" }).click();
+    await abrir.click();
+    await expect(confirmar).toHaveText("Confirmar transferencia (10 s)");
+    await expect(confirmar).toBeDisabled();
+
+    await page.clock.fastForward(10000);
+    await expect(confirmar).toHaveText("Confirmar transferencia");
+    await expect(confirmar).toBeEnabled();
+    expect(api.cuentaDe("superadmin").rol).toBe("superadmin");
+  });
+
   test("transfiere el rol SuperAdmin y la sesión pasa a Administrador", async ({ page, api }) => {
+    await page.clock.install();
     await page.getByRole("row", { name: /Luis Pérez/ }).getByTitle("Transferir rol SuperAdmin").click();
+    await page.clock.fastForward(10000);
     await page.getByRole("dialog").getByRole("button", { name: "Confirmar transferencia" }).click();
 
     await expect(page.getByText("Rol SuperAdmin transferido a Luis Pérez. Ahora eres Administrador.")).toBeVisible();
