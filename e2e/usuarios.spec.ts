@@ -44,9 +44,12 @@ test.describe("Caso de uso: Gestionar usuarios", () => {
   test("el ojo queda centrado verticalmente en el campo de contraseña", async ({ page }) => {
     await page.getByRole("button", { name: "Crear usuario" }).click();
     const dialogo = page.getByRole("dialog");
-    const campo = await dialogo.getByLabel("Contraseña", { exact: true }).boundingBox();
-    const icono = await dialogo.getByRole("button", { name: "Mostrar contraseña" }).first().locator("span").boundingBox();
-    expect(Math.abs(campo!.y + campo!.height / 2 - (icono!.y + icono!.height / 2))).toBeLessThanOrEqual(1);
+    // Se reintenta porque el diálogo se abre con una animación que altera las medidas.
+    await expect(async () => {
+      const campo = await dialogo.getByLabel("Contraseña", { exact: true }).boundingBox();
+      const icono = await dialogo.getByRole("button", { name: "Mostrar contraseña" }).first().locator("span").boundingBox();
+      expect(Math.abs(campo!.y + campo!.height / 2 - (icono!.y + icono!.height / 2))).toBeLessThanOrEqual(1);
+    }).toPass({ timeout: 3000 });
   });
 
   test("exige confirmar la contraseña y que ambas coincidan", async ({ page, api }) => {

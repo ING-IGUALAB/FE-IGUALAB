@@ -87,11 +87,33 @@ test.describe("Caso de uso: Generar reporte de prospección", () => {
     await elegir(page, "Minería", "Minera Andina S.A.A.", 2024);
     await page.getByRole("button", { name: "Vista previa" }).click();
 
-    const visor = page.getByTitle("Vista previa del reporte");
-    await expect(visor).toBeVisible();
-    await expect(visor).toHaveAttribute("src", /^blob:/);
+    const visor = page.getByRole("region", { name: "Vista previa del reporte" });
+    const hoja = visor.getByRole("img", { name: "Página 1 de 1" });
+    await expect(hoja).toBeVisible();
     await expect(page.getByText("No se guarda en el historial")).toBeVisible();
     expect(api.reportes).toHaveLength(2);
+
+    // La hoja tiene contenido dibujado (no está en blanco).
+    const conTinta = await hoja.evaluate((c: HTMLCanvasElement) => {
+      const { data } = c.getContext("2d")!.getImageData(0, 0, c.width, c.height);
+      return data.some((v, i) => i % 4 !== 3 && v < 128);
+    });
+    expect(conTinta).toBe(true);
+
+    // Solo se lee: sin el visor de PDF del navegador ni su menú de guardar imagen.
+    await expect(page.locator("iframe, embed, object")).toHaveCount(0);
+    expect(await hoja.evaluate((c) => !c.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true })))).toBe(true);
+  });
+
+  test("al cambiar de empresa o año, la vista previa anterior deja de mostrarse", async ({ page, api }) => {
+    api.validarAnalisisPorFuera("e-andina", 2024);
+    await elegir(page, "Minería", "Minera Andina S.A.A.", 2024);
+    await page.getByRole("button", { name: "Vista previa" }).click();
+    await expect(page.getByRole("img", { name: "Página 1 de 1" })).toBeVisible();
+
+    await campo(page, "Año").selectOption("2023");
+    await expect(page.getByRole("img", { name: "Página 1 de 1" })).toHaveCount(0);
+    await expect(page.getByText("Elige empresa y año y pulsa «Vista previa»")).toBeVisible();
   });
 
   test("genera el reporte y aparece en Reportes recientes", async ({ page, api }) => {

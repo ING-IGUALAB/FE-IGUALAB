@@ -5,6 +5,7 @@ import { useAniosConDocumentos } from "../components/useAniosConDocumentos";
 import SectionHeader from "../components/SectionHeader";
 import Spinner from "../components/Spinner";
 import TablaReportes from "../components/TablaReportes";
+import VistaPreviaPdf from "../components/VistaPreviaPdf";
 import { useToast } from "../components/ToastProvider";
 import { useDescargarReporte } from "../components/useDescargarReporte";
 import * as empresasApi from "../api/empresas";
@@ -24,7 +25,7 @@ export default function Reportes() {
   const [empresaId, setEmpresaId] = useState("");
   const [reportes, setReportes] = useState<ReporteResumen[]>([]);
   const [cargandoReportes, setCargandoReportes] = useState(true);
-  const [vistaUrl, setVistaUrl] = useState<string | null>(null);
+  const [vista, setVista] = useState<Blob | null>(null);
   const [accion, setAccion] = useState<"vista" | "generar" | null>(null);
   const navigate = useNavigate();
 
@@ -63,19 +64,17 @@ export default function Reportes() {
     cargarReportes();
   }, [toast, cargarReportes]);
 
-  // Libera el PDF de la vista previa anterior al reemplazarlo o al salir de la pantalla.
+  // La vista previa corresponde a una empresa y año: al cambiarlos, deja de mostrarse.
   useEffect(() => {
-    return () => {
-      if (vistaUrl) URL.revokeObjectURL(vistaUrl);
-    };
-  }, [vistaUrl]);
+    setVista(null);
+  }, [empresaId, anio]);
 
   async function verVistaPrevia() {
     if (anio === null) return;
     setAccion("vista");
     try {
       const { blob } = await reportesApi.vistaPreviaReporte(empresaId, anio);
-      setVistaUrl(URL.createObjectURL(blob));
+      setVista(blob);
     } catch (err) {
       toast(mensajeError(err, "No se pudo generar la vista previa."), tipoAviso(err));
     } finally {
@@ -162,10 +161,10 @@ export default function Reportes() {
           <div className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
             <div className="p-lg border-b border-outline-variant bg-surface-bright flex justify-between items-center">
               <h3 className="text-title-lg text-on-surface">Vista previa</h3>
-              {vistaUrl && <span className="text-label-sm text-on-surface-variant">No se guarda en el historial</span>}
+              {vista && <span className="text-label-sm text-on-surface-variant">No se guarda en el historial</span>}
             </div>
-            {vistaUrl ? (
-              <iframe title="Vista previa del reporte" src={vistaUrl} className="w-full h-[70vh] bg-surface-container-low" />
+            {vista ? (
+              <VistaPreviaPdf archivo={vista} titulo="Vista previa del reporte" />
             ) : (
               <div className="p-xl text-center">
                 <span className="material-symbols-outlined text-[40px] text-outline">picture_as_pdf</span>
@@ -254,7 +253,7 @@ function EstadoReporte({
 }
 
 const TONOS = {
-  ok: "bg-primary-container/40 text-on-primary-container",
+  ok: "bg-primary/10 text-primary",
   pendiente: "bg-tertiary-fixed/60 text-on-tertiary-fixed",
   neutro: "bg-surface-container-low text-on-surface-variant",
 } as const;
