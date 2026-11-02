@@ -282,6 +282,34 @@ export function aniosConDocumentos(
   });
 }
 
+/** Estado del análisis GRI de un año: si ya permite la vista previa y generar el reporte. */
+export interface EstadoAnio {
+  habilitaReporte: boolean;
+  estadoFlujo: EstadoFlujo;
+}
+
+/** Estado del análisis de cada año con documentos, a partir de las consultas hechas por año. */
+export function estadosPorAnio(
+  candidatos: number[],
+  resultados: PromiseSettledResult<{ documentos: unknown[]; habilita_reporte: boolean; estado_flujo: EstadoFlujo }>[],
+): Record<number, EstadoAnio> {
+  const estados: Record<number, EstadoAnio> = {};
+  candidatos.forEach((anio, i) => {
+    const r = resultados[i];
+    if (r?.status === "fulfilled" && r.value.documentos.length > 0) {
+      estados[anio] = { habilitaReporte: r.value.habilita_reporte, estadoFlujo: r.value.estado_flujo };
+    }
+  });
+  return estados;
+}
+
+/** Texto de un año en la lista de Reportes: si ya tiene reporte o si su análisis está validado. */
+export function etiquetaAnioReporte(anio: number, estado?: EstadoAnio, generado = false): string {
+  if (generado) return `${anio} · Reporte generado`;
+  if (!estado) return String(anio);
+  return `${anio} · ${estado.habilitaReporte ? "Validado" : "Sin validar"}`;
+}
+
 // ---- Paginación ----
 export type ItemPaginacion = number | "…";
 

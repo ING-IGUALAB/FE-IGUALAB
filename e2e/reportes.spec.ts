@@ -13,15 +13,35 @@ test.describe("Caso de uso: Generar reporte de prospección", () => {
     await expect(page.getByRole("heading", { name: "Reportes de prospección" })).toBeVisible();
   });
 
-  test("sin análisis GRI validado, informa el motivo y no genera", async ({ page, api }) => {
+  test("cada año muestra si está validado; sin validar explica qué falta y lleva a validarlo", async ({ page, api }) => {
     await elegir(page, "Minería", "Minera Andina S.A.A.", 2024);
-    await page.getByRole("button", { name: "Generar reporte" }).click();
 
-    const aviso = page.locator("[data-sonner-toast]", { hasText: "El análisis GRI de esta empresa y año no está validado." });
-    await expect(aviso).toBeVisible();
-    // Es una condición pendiente (409), no una falla: se muestra como advertencia (amarillo), no como error.
-    await expect(aviso).toHaveAttribute("data-type", "warning");
+    // Se ve antes de pulsar nada: años con su estado, botones desactivados y el motivo.
+    await expect(campo(page, "Año").locator("option")).toHaveText(["2024 · Sin validar", "2023 · Reporte generado"]);
+    await expect(page.getByText("El análisis GRI de este año aún no está validado")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Vista previa" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Generar reporte" })).toBeDisabled();
+
+    // El enlace abre Análisis GRI con esa empresa y año, ya consultado.
+    await page.getByRole("button", { name: "Ir a validarlo en Análisis GRI" }).click();
+    await expect(page).toHaveURL(/\/analisis$/);
+    await expect(campo(page, "Empresa")).toHaveValue("e-andina");
+    await expect(campo(page, "Año")).toHaveValue("2024");
+    await expect(page.getByText("Pendiente de estados")).toBeVisible();
     expect(api.reportes).toHaveLength(2);
+  });
+
+  test("con el análisis validado lo indica y habilita la vista previa y la generación", async ({ page, api }) => {
+    api.validarAnalisisPorFuera("e-andina", 2024);
+    await campo(page, "Sector").selectOption({ label: "Minería" });
+    await campo(page, "Empresa").selectOption({ label: "Minera Andina S.A.A." });
+
+    // Sin tocar el año, queda elegido el más reciente con documentos (no el del reporte de 2023).
+    await expect(campo(page, "Año")).toHaveValue("2024");
+    await expect(campo(page, "Año").locator("option").first()).toHaveText("2024 · Validado");
+    await expect(page.getByText("Análisis validado: ya puedes ver la vista previa y generar el reporte.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Vista previa" })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Generar reporte" })).toBeEnabled();
   });
 
   test("si ya existe el reporte, ofrece verlo y lleva a Descargar reportes con ese reporte resaltado", async ({ page }) => {

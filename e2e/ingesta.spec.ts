@@ -76,7 +76,8 @@ test.describe("Caso de uso: Ingestar documentos", () => {
   });
 
   test("al abrir el detalle se ve un solo indicador de carga (el del modal)", async ({ page, api }) => {
-    api.retrasar("GET", /^\/documentos\/d-andina-2024$/, 2000);
+    // Carga lenta con margen de sobra: el modal debe seguir «Cargando…» durante todas las comprobaciones.
+    api.retrasar("GET", /^\/documentos\/d-andina-2024$/, 4000);
     await page.getByRole("row", { name: /memoria-andina-2024.md/ }).click();
 
     const dialogo = page.getByRole("dialog");

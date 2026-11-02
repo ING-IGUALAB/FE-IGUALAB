@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useLocation } from "react-router-dom";
 import SectionHeader from "../components/SectionHeader";
 import Paginacion from "../components/Paginacion";
 import Badge from "../components/Badge";
@@ -57,8 +58,10 @@ function normalizar(a: Analisis): Analisis {
 export default function AnalisisGri() {
   const toast = useToast();
   const [empresas, setEmpresas] = useState<EmpresaApi[]>([]);
-  const [sector, setSector] = useState<SectorApi>(SECTORES_API[0]);
-  const [empresaId, setEmpresaId] = useState("");
+  // Al llegar desde Reportes («Ir a validarlo») vienen la empresa y el año a abrir.
+  const destino = useLocation().state as { sector?: SectorApi; empresaId?: string; anio?: number } | null;
+  const [sector, setSector] = useState<SectorApi>(destino?.sector ?? SECTORES_API[0]);
+  const [empresaId, setEmpresaId] = useState(destino?.empresaId ?? "");
   const [analisis, setAnalisis] = useState<Analisis | null>(null);
   const [cargando, setCargando] = useState(false);
   const [guardando, setGuardando] = useState<string | null>(null);
@@ -75,7 +78,7 @@ export default function AnalisisGri() {
   const empresasSector = empresas.filter((e) => e.sector === sector);
 
   // Solo se ofrecen los años en que la empresa tiene documentos subidos (se buscan al elegirla).
-  const aniosEmpresa = useAniosConDocumentos(empresaId);
+  const aniosEmpresa = useAniosConDocumentos(empresaId, destino?.anio);
   const { anio, sinDocumentos } = aniosEmpresa;
 
   const cargar = useCallback(
@@ -92,6 +95,14 @@ export default function AnalisisGri() {
     },
     [toast],
   );
+
+  // Si se llegó con empresa y año, se consulta ese análisis una sola vez en cuanto el año está listo.
+  const consultaInicial = useRef(false);
+  useEffect(() => {
+    if (consultaInicial.current || !destino?.empresaId || empresaId !== destino.empresaId || anio !== destino.anio) return;
+    consultaInicial.current = true;
+    cargar(destino.empresaId, destino.anio);
+  }, [destino, empresaId, anio, cargar]);
 
   function consultar() {
     if (!empresaId) {

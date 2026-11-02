@@ -24,6 +24,8 @@ import {
   paginaValida,
   paginarLocal,
   rangoPaginas,
+  estadosPorAnio,
+  etiquetaAnioReporte,
   textoSinAnios,
   reporteDe,
   bloquesPaginacion,
@@ -310,6 +312,24 @@ describe("aniosConDocumentos", () => {
   });
   it("sin documentos en ningún año devuelve lista vacía", () => {
     expect(aniosConDocumentos([2025, 2024], [conDocs(0), conDocs(0)])).toEqual([]);
+  });
+});
+
+describe("estadosPorAnio y etiquetaAnioReporte", () => {
+  const analisis = (docs: number, habilita: boolean, flujo: "VALIDADO" | "PENDIENTE_ESTADOS") =>
+    ({ status: "fulfilled", value: { documentos: Array(docs).fill({}), habilita_reporte: habilita, estado_flujo: flujo } }) as const;
+  it("guarda el estado solo de los años con documentos", () => {
+    const estados = estadosPorAnio(
+      [2025, 2024, 2023],
+      [analisis(1, true, "VALIDADO"), analisis(0, false, "PENDIENTE_ESTADOS"), { status: "rejected", reason: "x" }],
+    );
+    expect(estados).toEqual({ 2025: { habilitaReporte: true, estadoFlujo: "VALIDADO" } });
+  });
+  it("muestra si el año está validado", () => {
+    expect(etiquetaAnioReporte(2025, { habilitaReporte: true, estadoFlujo: "VALIDADO" })).toBe("2025 · Validado");
+    expect(etiquetaAnioReporte(2024, { habilitaReporte: false, estadoFlujo: "PENDIENTE_ESTADOS" })).toBe("2024 · Sin validar");
+    expect(etiquetaAnioReporte(2023)).toBe("2023");
+    expect(etiquetaAnioReporte(2022, { habilitaReporte: true, estadoFlujo: "VALIDADO" }, true)).toBe("2022 · Reporte generado");
   });
 });
 

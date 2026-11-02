@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import SelectAnioConDocumentos from "../components/SelectAnioConDocumentos";
+import { useAniosConDocumentos } from "../components/useAniosConDocumentos";
 import SectionHeader from "../components/SectionHeader";
 import Spinner from "../components/Spinner";
 import TablaReportes from "../components/TablaReportes";
@@ -8,10 +10,9 @@ import { useDescargarReporte } from "../components/useDescargarReporte";
 import * as empresasApi from "../api/empresas";
 import * as reportesApi from "../api/reportes";
 import { mensajeError, tipoAviso } from "../api/client";
-import { SECTORES_API, aniosDisponibles, anioIngestaValido, etiquetaSector, reporteDe } from "../lib/dominio";
+import { SECTORES_API, etiquetaAnioReporte, etiquetaFlujo, etiquetaSector, reporteDe, type EstadoAnio } from "../lib/dominio";
 import type { EmpresaApi, ReporteResumen, SectorApi } from "../types";
 
-const ANIOS = aniosDisponibles();
 const RECIENTES = 5;
 const CLS_SELECT =
   "w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none";
@@ -21,7 +22,6 @@ export default function Reportes() {
   const [empresas, setEmpresas] = useState<EmpresaApi[]>([]);
   const [sector, setSector] = useState<SectorApi>(SECTORES_API[0]);
   const [empresaId, setEmpresaId] = useState("");
-  const [anio, setAnio] = useState(ANIOS[0]);
   const [reportes, setReportes] = useState<ReporteResumen[]>([]);
   const [cargandoReportes, setCargandoReportes] = useState(true);
   const [vistaUrl, setVistaUrl] = useState<string | null>(null);
@@ -31,10 +31,18 @@ export default function Reportes() {
   const nombreEmpresa = (id: string) => empresas.find((e) => e.id === id)?.nombre ?? "Empresa";
   const { descargar, descargando } = useDescargarReporte(nombreEmpresa);
   const empresasSector = empresas.filter((e) => e.activa && e.sector === sector);
-  const listo = !!empresaId && anioIngestaValido(anio);
+  // Años de la empresa: los que tienen documentos (con el estado de su análisis) y los que ya tienen reporte.
+  const aniosConReporte = reportes.filter((r) => r.empresa_id === empresaId).map((r) => r.anio);
+  const aniosEmpresa = useAniosConDocumentos(empresaId, undefined, aniosConReporte);
+  const { anio, estados } = aniosEmpresa;
+  const estadoAnio = anio === null ? undefined : estados[anio];
+  const listo = !!empresaId && anio !== null;
   // Los reportes son únicos por empresa y año: si ya existe, se va a descargarlo en vez de generarlo.
-  const existente = empresaId ? reporteDe(reportes, empresaId, anio) : undefined;
+  const existente = listo ? reporteDe(reportes, empresaId, anio) : undefined;
+  // La vista previa y la generación solo proceden con el análisis GRI validado.
+  const habilitado = !!estadoAnio?.habilitaReporte;
   const irADescargas = (reporteId?: string) => navigate("/descargas", { state: { resaltar: reporteId } });
+  const irAAnalisis = () => navigate("/analisis", { state: { sector, empresaId, anio } });
 
   const cargarReportes = useCallback(async () => {
     try {
@@ -63,6 +71,7 @@ export default function Reportes() {
   }, [vistaUrl]);
 
   async function verVistaPrevia() {
+    if (anio === null) return;
     setAccion("vista");
     try {
       const { blob } = await reportesApi.vistaPreviaReporte(empresaId, anio);
@@ -79,6 +88,7 @@ export default function Reportes() {
       irADescargas(existente.id);
       return;
     }
+    if (anio === null) return;
     setAccion("generar");
     try {
       await reportesApi.generarReporte(empresaId, anio);
@@ -120,30 +130,31 @@ export default function Reportes() {
                 </select>
               </Campo>
               <Campo label="Año">
-                <select value={anio} onChange={(e) => setAnio(Number(e.target.value))} className={CLS_SELECT}>
-                  {ANIOS.map((a) => <option key={a} value={a}>{a}</option>)}
-                </select>
+                <SelectAnioConDocumentos
+                  seleccion={aniosEmpresa}
+                  className={`${CLS_SELECT} disabled:opacity-60`}
+                  etiqueta={(a) => etiquetaAnioReporte(a, estados[a], aniosConReporte.includes(a))}
+                />
               </Campo>
             </div>
             <div className="grid gap-sm mt-lg">
-              <button onClick={verVistaPrevia} disabled={!listo || accion !== null} className="w-full bg-surface border border-primary text-primary py-md px-lg rounded-lg flex items-center justify-center gap-sm hover:bg-primary/5 transition-all text-body-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
+              <button onClick={verVistaPrevia} disabled={!listo || !habilitado || accion !== null} className="w-full bg-surface border border-primary text-primary py-md px-lg rounded-lg flex items-center justify-center gap-sm hover:bg-primary/5 transition-all text-body-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
                 {accion === "vista" ? <Spinner size={18} /> : <span className="material-symbols-outlined">visibility</span>} Vista previa
               </button>
-              <button onClick={generar} disabled={!listo || accion !== null} className="w-full bg-primary text-on-primary py-md px-lg rounded-lg flex items-center justify-center gap-sm shadow-md hover:bg-surface-tint transition-all text-body-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
+              <button onClick={generar} disabled={!listo || (!existente && !habilitado) || accion !== null} className="w-full bg-primary text-on-primary py-md px-lg rounded-lg flex items-center justify-center gap-sm shadow-md hover:bg-surface-tint transition-all text-body-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
                 {accion === "generar" && <Spinner size={18} />}
                 {accion !== "generar" && <span className="material-symbols-outlined">{existente ? "download" : "picture_as_pdf"}</span>}
                 {existente ? "Ver reporte generado" : "Generar reporte"}
               </button>
             </div>
-            {existente && (
-              <p className="text-label-sm text-on-surface-variant mt-sm">
-                Ya existe el reporte de esta empresa y año; los reportes no se vuelven a generar.
-              </p>
-            )}
-            <p className="text-label-sm text-outline mt-md">
-              El reporte se arma con el análisis GRI de la empresa y año. Si aún no está validado, valídalo en{" "}
-              <Link to="/analisis" className="text-primary hover:underline">Análisis GRI</Link>.
-            </p>
+            <EstadoReporte
+              hayEmpresa={!!empresaId}
+              buscando={aniosEmpresa.cargando}
+              sinDocumentos={aniosEmpresa.sinDocumentos}
+              existente={!!existente}
+              estado={estadoAnio}
+              onIrAAnalisis={irAAnalisis}
+            />
           </div>
         </div>
 
@@ -194,5 +205,65 @@ function Campo({ label, children }: Readonly<{ label: string; children: ReactNod
       <span className="text-label-md text-on-surface-variant">{label}</span>
       {children}
     </label>
+  );
+}
+
+/** Qué se puede hacer con la empresa y el año elegidos, y qué falta si todavía no se puede. */
+function EstadoReporte({
+  hayEmpresa,
+  buscando,
+  sinDocumentos,
+  existente,
+  estado,
+  onIrAAnalisis,
+}: Readonly<{
+  hayEmpresa: boolean;
+  buscando: boolean;
+  sinDocumentos: boolean;
+  existente: boolean;
+  estado?: EstadoAnio;
+  onIrAAnalisis: () => void;
+}>) {
+  if (!hayEmpresa) {
+    return <p className="text-label-sm text-outline mt-md">El reporte se arma con el análisis GRI validado de la empresa y el año.</p>;
+  }
+  if (buscando) {
+    return <p className="text-label-sm text-on-surface-variant mt-md flex items-center gap-xs"><Spinner size={14} /> Revisando los años con documentos…</p>;
+  }
+  if (sinDocumentos) {
+    return <Aviso tono="neutro" icono="info">Esta empresa aún no tiene documentos subidos, así que no hay reporte que generar.</Aviso>;
+  }
+  if (existente) {
+    return <Aviso tono="neutro" icono="inventory_2">Ya existe el reporte de esta empresa y año; los reportes no se vuelven a generar.</Aviso>;
+  }
+  if (estado?.habilitaReporte) {
+    return <Aviso tono="ok" icono="check_circle">Análisis validado: ya puedes ver la vista previa y generar el reporte.</Aviso>;
+  }
+  return (
+    <Aviso tono="pendiente" icono="pending_actions">
+      <span>
+        El análisis GRI de este año aún no está validado
+        {estado ? ` (${etiquetaFlujo(estado.estadoFlujo).toLowerCase()})` : ""}. Valídalo para poder ver la vista previa y
+        generar el reporte.
+      </span>
+      <button type="button" onClick={onIrAAnalisis} className="mt-xs inline-flex items-center gap-xs font-semibold underline">
+        Ir a validarlo en Análisis GRI <span className="material-symbols-outlined text-[16px]" aria-hidden="true">arrow_forward</span>
+      </button>
+    </Aviso>
+  );
+}
+
+const TONOS = {
+  ok: "bg-primary-container/40 text-on-primary-container",
+  pendiente: "bg-tertiary-fixed/60 text-on-tertiary-fixed",
+  neutro: "bg-surface-container-low text-on-surface-variant",
+} as const;
+
+function Aviso({ tono, icono, children }: Readonly<{ tono: keyof typeof TONOS; icono: string; children: ReactNode }>) {
+  return (
+    <div role="status" className={`mt-md rounded-lg px-md py-sm text-label-md flex gap-sm ${TONOS[tono]}`}>
+      <span className="material-symbols-outlined text-[18px] shrink-0" aria-hidden="true">{icono}</span>
+      <div className="flex flex-col items-start">{children}</div>
+    </div>
   );
 }
