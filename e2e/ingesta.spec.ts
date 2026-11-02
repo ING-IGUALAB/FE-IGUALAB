@@ -57,10 +57,59 @@ test.describe("Caso de uso: Ingestar documentos", () => {
     const filas = page.locator("tbody tr");
     await expect(filas).toHaveCount(4);
 
+    // Los filtros están plegados en el botón «Filtros», que además indica cuántos hay activos.
+    const filtros = page.getByRole("button", { name: /^Filtros/ });
+    await expect(page.getByLabel("Filtrar por sector")).toHaveCount(0);
+    await filtros.click();
     await page.getByLabel("Filtrar por sector").selectOption({ label: "Petróleo y Gas" });
     await expect(filas).toHaveCount(2);
     await expect(page.locator("tbody")).toContainText("Petro Sur S.A.");
     await expect(page.locator("tbody")).not.toContainText("Minera Andina S.A.A.");
+
+    await filtros.click();
+    await expect(page.getByLabel("Filtrar por sector")).toHaveCount(0);
+    await expect(filtros).toContainText("1");
+    await expect(filas).toHaveCount(2);
+
+    await filtros.click();
+    await page.getByRole("button", { name: "Limpiar filtros" }).click();
+    await expect(filas).toHaveCount(4);
+  });
+
+  test("busca por una parte del nombre de la empresa, sin distinguir mayúsculas ni tildes", async ({ page, api }) => {
+    const filas = page.locator("tbody tr");
+    await expect(filas).toHaveCount(4);
+    const antes = api.llamadasA("GET", "/documentos").length;
+    const buscar = page.getByRole("searchbox", { name: "Buscar por empresa" });
+
+    await buscar.pressSequentially("PETRO");
+    await expect(filas).toHaveCount(2);
+    await expect(page.locator("tbody")).not.toContainText("Minera Andina S.A.A.");
+    // Se traen los documentos una sola vez, no una petición por cada letra.
+    expect(api.llamadasA("GET", "/documentos").length - antes).toBe(1);
+
+    await buscar.fill("minéra");
+    await expect(filas).toHaveCount(1);
+    await expect(filas.first()).toContainText("Minera Andina S.A.A.");
+
+    await buscar.fill("no existe");
+    await expect(page.getByText("No hay documentos que coincidan con la búsqueda y los filtros.")).toBeVisible();
+
+    await page.getByRole("button", { name: "Borrar búsqueda" }).click();
+    await expect(buscar).toHaveValue("");
+    await expect(filas).toHaveCount(4);
+  });
+
+  test("la búsqueda se combina con los filtros", async ({ page }) => {
+    const filas = page.locator("tbody tr");
+    await expect(filas).toHaveCount(4);
+    await page.getByRole("searchbox", { name: "Buscar por empresa" }).fill("petro");
+    await expect(filas).toHaveCount(2);
+
+    await page.getByRole("button", { name: /^Filtros/ }).click();
+    await page.getByLabel("Filtrar por tipo").selectOption({ label: "Memoria Anual" });
+    await expect(filas).toHaveCount(1);
+    await expect(filas.first()).toContainText("Petro Norte S.A.");
   });
 
   test("muestra el detalle de un documento con el nombre de quien lo cargó", async ({ page }) => {

@@ -153,6 +153,22 @@ export function textoMotivosNoVigente(motivos: MotivoNoVigente[]): string {
 }
 
 /** Paginación en el cliente (para filtros que el backend no soporta, p. ej. sector). */
+/** Texto para comparar sin distinguir mayúsculas ni tildes. */
+function normalizarTexto(texto: string): string {
+  return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
+/** Documentos del sector elegido cuya empresa contiene el texto buscado (basta una parte del nombre). */
+export function filtrarDocumentos<T extends { sector: string; empresa_nombre: string }>(
+  documentos: T[],
+  filtros: { sector?: string; busqueda?: string },
+): T[] {
+  const buscado = normalizarTexto(filtros.busqueda ?? "");
+  return documentos.filter(
+    (d) => (!filtros.sector || d.sector === filtros.sector) && normalizarTexto(d.empresa_nombre).includes(buscado),
+  );
+}
+
 export function paginarLocal<T>(items: T[], pagina: number, tamano: number): { items: T[]; pagina: number; paginas: number } {
   const paginas = Math.max(1, Math.ceil(items.length / tamano));
   const actual = Math.min(Math.max(1, pagina), paginas);

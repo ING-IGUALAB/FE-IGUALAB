@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import SectionHeader from "../components/SectionHeader";
 import Paginacion from "../components/Paginacion";
@@ -18,6 +18,7 @@ import {
   etiquetaEstado,
   etiquetaSector,
   etiquetaTipo,
+  filtrarDocumentos,
   formatearTamano,
   nombrePersona,
   paginarLocal,
@@ -52,10 +53,11 @@ export default function Ingesta() {
   const [resultado, setResultado] = useState<ResultadoIngesta | Operacion | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const [docs, setDocs] = useState<DocumentoResumen[]>([]);
-  const [paginaActual, setPaginaActual] = useState(1);
-  const [totalPaginas, setTotalPaginas] = useState(1);
+  // Lista paginada por el backend, o todos los documentos cuando se filtra aquí (null: aún no se traen).
+  const [paginaServidor, setPaginaServidor] = useState<{ items: DocumentoResumen[]; pagina: number; paginas: number }>({ items: [], pagina: 1, paginas: 1 });
+  const [todosDocs, setTodosDocs] = useState<DocumentoResumen[] | null>(null);
   const [cargandoDocs, setCargandoDocs] = useState(true);
+  const [busqueda, setBusqueda] = useState("");
   const [fEstado, setFEstado] = useState<"" | EstadoProgreso>("");
   const [fTipo, setFTipo] = useState<"" | TipoDocumentoApi>("");
   const [fSector, setFSector] = useState<"" | SectorApi>("");
@@ -81,33 +83,39 @@ export default function Ingesta() {
       .catch((err) => toast(mensajeError(err, "No se pudieron cargar las empresas."), tipoAviso(err)));
   }, [toast]);
 
+  // El backend no busca por nombre de empresa ni filtra por sector: en esos casos se traen todos los
+  // documentos una vez y se filtra aquí, así escribir en la búsqueda no hace una petición por tecla.
+  const filtroLocal = !!fSector || !!busqueda.trim();
+  const paginaAPedir = filtroLocal ? 1 : pagina;
+
   const cargarDocs = useCallback(async () => {
     setCargandoDocs(true);
     try {
       const filtros = { estado: fEstado || undefined, tipo: fTipo || undefined };
-      if (fSector) {
-        // El backend no filtra por sector: se traen todas las páginas y se pagina aquí.
-        const todos = await documentosApi.listarTodosDocumentos(filtros);
-        const pag = paginarLocal(todos.filter((d) => d.sector === fSector), pagina, TAM_PAGINA);
-        setDocs(pag.items);
-        setPaginaActual(pag.pagina);
-        setTotalPaginas(pag.paginas);
+      if (filtroLocal) {
+        setTodosDocs(await documentosApi.listarTodosDocumentos(filtros));
       } else {
-        const data = await documentosApi.listarDocumentos({ ...filtros, pagina, tamano: TAM_PAGINA });
-        setDocs(data.items);
-        setPaginaActual(data.pagina);
-        setTotalPaginas(Math.max(1, data.paginas));
+        const data = await documentosApi.listarDocumentos({ ...filtros, pagina: paginaAPedir, tamano: TAM_PAGINA });
+        setPaginaServidor({ items: data.items, pagina: data.pagina, paginas: Math.max(1, data.paginas) });
+        setTodosDocs(null);
       }
     } catch (err) {
+      setTodosDocs((actual) => actual ?? []);
       toast(mensajeError(err, "No se pudieron cargar los documentos."), tipoAviso(err));
     } finally {
       setCargandoDocs(false);
     }
-  }, [fEstado, fTipo, fSector, pagina, toast]);
+  }, [fEstado, fTipo, filtroLocal, paginaAPedir, toast]);
 
   useEffect(() => {
     cargarDocs();
   }, [cargarDocs]);
+
+  const listaVisible = filtroLocal
+    ? paginarLocal(filtrarDocumentos(todosDocs ?? [], { sector: fSector, busqueda }), pagina, TAM_PAGINA)
+    : paginaServidor;
+  const { items: docs, pagina: paginaActual, paginas: totalPaginas } = listaVisible;
+  const mostrandoCarga = cargandoDocs || (filtroLocal && todosDocs === null);
 
   function elegirArchivo(files: FileList | null) {
     const f = files?.[0];
@@ -257,20 +265,16 @@ export default function Ingesta() {
         <div className="lg:col-span-2 bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
           <div className="p-lg border-b border-outline-variant bg-surface-bright space-y-md">
             <h3 className="text-title-lg text-on-surface">Documentos ingestados</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-sm">
-              <select aria-label="Filtrar por sector" value={fSector} onChange={(e) => { setFSector(e.target.value as "" | SectorApi); setPagina(1); }} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
-                <option value="">Todo sector</option>
-                {SECTORES_API.map((s) => <option key={s} value={s}>{etiquetaSector(s)}</option>)}
-              </select>
-              <select aria-label="Filtrar por tipo" value={fTipo} onChange={(e) => { setFTipo(e.target.value as "" | TipoDocumentoApi); setPagina(1); }} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
-                <option value="">Todo tipo</option>
-                {TIPOS_API.map((t) => <option key={t} value={t}>{etiquetaTipo(t)}</option>)}
-              </select>
-              <select aria-label="Filtrar por estado" value={fEstado} onChange={(e) => { setFEstado(e.target.value as "" | EstadoProgreso); setPagina(1); }} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
-                <option value="">Todo estado</option>
-                {ESTADOS.map((s) => <option key={s} value={s}>{etiquetaEstado(s)}</option>)}
-              </select>
-            </div>
+            <BarraDocumentos
+              busqueda={busqueda}
+              onBuscar={(v) => { setBusqueda(v); setPagina(1); }}
+              sector={fSector}
+              onSector={(v) => { setFSector(v); setPagina(1); }}
+              tipo={fTipo}
+              onTipo={(v) => { setFTipo(v); setPagina(1); }}
+              estado={fEstado}
+              onEstado={(v) => { setFEstado(v); setPagina(1); }}
+            />
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -282,13 +286,13 @@ export default function Ingesta() {
                 </tr>
               </thead>
               <tbody className="text-body-md">
-                {cargandoDocs && ["r1", "r2", "r3"].map((k) => (
+                {mostrandoCarga && ["r1", "r2", "r3"].map((k) => (
                   <tr key={k} className="border-b border-surface-variant"><td colSpan={7} className="py-md px-md"><div className="h-5 bg-surface-variant rounded animate-pulse" /></td></tr>
                 ))}
-                {!cargandoDocs && docs.length === 0 && (
-                  <tr><td colSpan={7} className="py-xl px-md text-center text-on-surface-variant">{fSector || fTipo || fEstado ? "No hay documentos con estos filtros." : "Aún no hay documentos ingestados."}</td></tr>
+                {!mostrandoCarga && docs.length === 0 && (
+                  <tr><td colSpan={7} className="py-xl px-md text-center text-on-surface-variant">{filtroLocal || fTipo || fEstado ? "No hay documentos que coincidan con la búsqueda y los filtros." : "Aún no hay documentos ingestados."}</td></tr>
                 )}
-                {!cargandoDocs && docs.map((d) => {
+                {!mostrandoCarga && docs.map((d) => {
                   const inactiva = empresasInactivas.has(d.empresa_id);
                   return (
                   <tr key={d.id} onClick={() => setDetalleId(d.id)} title={inactiva ? "La empresa está desactivada en el catálogo" : undefined} className={`border-b border-surface-variant hover:bg-surface/50 transition-colors cursor-pointer ${inactiva ? "opacity-60" : ""}`}>
@@ -317,13 +321,112 @@ export default function Ingesta() {
           </div>
           {totalPaginas > 1 && (
             <div className="p-md border-t border-outline-variant">
-              <Paginacion pagina={paginaActual} totalPaginas={totalPaginas} onCambiar={setPagina} deshabilitado={cargandoDocs} />
+              <Paginacion pagina={paginaActual} totalPaginas={totalPaginas} onCambiar={setPagina} deshabilitado={mostrandoCarga} />
             </div>
           )}
         </div>
       </div>
       <DetalleDocumentoModal id={detalleId} empresasInactivas={empresasInactivas} nombres={nombres} onClose={() => setDetalleId(null)} />
     </>
+  );
+}
+
+const CLS_FILTRO =
+  "w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none";
+
+/** Búsqueda por empresa y botón «Filtros», que despliega debajo los filtros de la lista. */
+function BarraDocumentos({
+  busqueda,
+  onBuscar,
+  sector,
+  onSector,
+  tipo,
+  onTipo,
+  estado,
+  onEstado,
+}: Readonly<{
+  busqueda: string;
+  onBuscar: (v: string) => void;
+  sector: "" | SectorApi;
+  onSector: (v: "" | SectorApi) => void;
+  tipo: "" | TipoDocumentoApi;
+  onTipo: (v: "" | TipoDocumentoApi) => void;
+  estado: "" | EstadoProgreso;
+  onEstado: (v: "" | EstadoProgreso) => void;
+}>) {
+  const [abierto, setAbierto] = useState(false);
+  const idPanel = useId();
+  const activos = [sector, tipo, estado].filter(Boolean).length;
+
+  function limpiarFiltros() {
+    onSector("");
+    onTipo("");
+    onEstado("");
+  }
+
+  return (
+    <div className="space-y-sm">
+      <div className="flex flex-wrap gap-sm">
+        <div className="relative flex-1 min-w-[220px]">
+          <span className="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-[20px] text-outline" aria-hidden="true">search</span>
+          <input
+            type="search"
+            value={busqueda}
+            onChange={(e) => onBuscar(e.target.value)}
+            aria-label="Buscar por empresa"
+            placeholder="Buscar por empresa…"
+            className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm pl-[40px] pr-[40px] text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none [&::-webkit-search-cancel-button]:appearance-none"
+          />
+          {busqueda && (
+            <button type="button" onClick={() => onBuscar("")} aria-label="Borrar búsqueda" title="Borrar búsqueda" className="absolute inset-y-0 right-0 w-10 flex items-center justify-center text-on-surface-variant hover:text-primary">
+              <span className="material-symbols-outlined text-[20px]" aria-hidden="true">close</span>
+            </button>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setAbierto((v) => !v)}
+          aria-expanded={abierto}
+          aria-controls={idPanel}
+          className={`shrink-0 flex items-center gap-xs px-md py-sm rounded-lg border text-label-md font-semibold transition-colors ${activos > 0 ? "border-primary text-primary" : "border-outline-variant text-on-surface-variant"} hover:bg-surface-container-low`}
+        >
+          <span className="material-symbols-outlined text-[20px]" aria-hidden="true">tune</span>
+          Filtros
+          {activos > 0 && (
+            <span className="min-w-[20px] h-5 px-xs rounded-full bg-primary text-on-primary text-label-sm flex items-center justify-center" aria-label={`${activos} activos`}>{activos}</span>
+          )}
+          <span className="material-symbols-outlined text-[20px]" aria-hidden="true">{abierto ? "expand_less" : "expand_more"}</span>
+        </button>
+      </div>
+
+      {abierto && (
+        <div id={idPanel} className="rounded-lg border border-outline-variant bg-surface-container-lowest p-md space-y-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-sm">
+            <Campo label="Sector">
+              <select aria-label="Filtrar por sector" value={sector} onChange={(e) => onSector(e.target.value as "" | SectorApi)} className={CLS_FILTRO}>
+                <option value="">Todos</option>
+                {SECTORES_API.map((s) => <option key={s} value={s}>{etiquetaSector(s)}</option>)}
+              </select>
+            </Campo>
+            <Campo label="Tipo">
+              <select aria-label="Filtrar por tipo" value={tipo} onChange={(e) => onTipo(e.target.value as "" | TipoDocumentoApi)} className={CLS_FILTRO}>
+                <option value="">Todos</option>
+                {TIPOS_API.map((t) => <option key={t} value={t}>{etiquetaTipo(t)}</option>)}
+              </select>
+            </Campo>
+            <Campo label="Estado">
+              <select aria-label="Filtrar por estado" value={estado} onChange={(e) => onEstado(e.target.value as "" | EstadoProgreso)} className={CLS_FILTRO}>
+                <option value="">Todos</option>
+                {ESTADOS.map((s) => <option key={s} value={s}>{etiquetaEstado(s)}</option>)}
+              </select>
+            </Campo>
+          </div>
+          {activos > 0 && (
+            <button type="button" onClick={limpiarFiltros} className="text-label-md text-primary hover:underline">Limpiar filtros</button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

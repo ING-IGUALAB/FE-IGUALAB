@@ -24,6 +24,7 @@ import {
   paginaValida,
   paginarLocal,
   rangoPaginas,
+  filtrarDocumentos,
   estadosPorAnio,
   etiquetaAnioReporte,
   textoSinAnios,
@@ -330,6 +331,29 @@ describe("estadosPorAnio y etiquetaAnioReporte", () => {
     expect(etiquetaAnioReporte(2024, { habilitaReporte: false, estadoFlujo: "PENDIENTE_ESTADOS" })).toBe("2024 · Sin validar");
     expect(etiquetaAnioReporte(2023)).toBe("2023");
     expect(etiquetaAnioReporte(2022, { habilitaReporte: true, estadoFlujo: "VALIDADO" }, true)).toBe("2022 · Reporte generado");
+  });
+});
+
+describe("filtrarDocumentos", () => {
+  const docs = [
+    { id: "1", sector: "ENERGIA", empresa_nombre: "Energía Andina S.A." },
+    { id: "2", sector: "MINERIA", empresa_nombre: "Minera Andina S.A.A." },
+    { id: "3", sector: "PETROLEO", empresa_nombre: "Petro Sur S.A." },
+  ];
+  const ids = (f: { sector?: string; busqueda?: string }) => filtrarDocumentos(docs, f).map((d) => d.id);
+  it("busca por una parte del nombre, sin distinguir mayúsculas ni tildes", () => {
+    expect(ids({ busqueda: "andina" })).toEqual(["1", "2"]);
+    expect(ids({ busqueda: "ENERGIA" })).toEqual(["1"]);
+    expect(ids({ busqueda: "  petro  " })).toEqual(["3"]);
+    expect(ids({ busqueda: "xyz" })).toEqual([]);
+  });
+  it("combina la búsqueda con el sector", () => {
+    expect(ids({ sector: "MINERIA", busqueda: "andina" })).toEqual(["2"]);
+    expect(ids({ sector: "MINERIA" })).toEqual(["2"]);
+  });
+  it("sin criterios devuelve todos", () => {
+    expect(ids({})).toEqual(["1", "2", "3"]);
+    expect(ids({ busqueda: "   " })).toEqual(["1", "2", "3"]);
   });
 });
 
