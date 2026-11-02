@@ -5,6 +5,7 @@ import { useAuth } from "../auth/AuthContext";
 import { useToast } from "../components/ToastProvider";
 import Modal from "../components/Modal";
 import Spinner from "../components/Spinner";
+import { BotonVerContrasena } from "../components/CampoContrasena";
 import { mensajeError } from "../api/client";
 import { recuperarContrasena } from "../api/auth";
 import { esCorreoValido } from "../lib/validacion";
@@ -100,16 +101,7 @@ export default function Login() {
                 placeholder="••••••••"
                 className="w-full h-[48px] pl-[44px] pr-[44px] rounded-xl border border-outline-variant bg-surface-container-lowest text-on-background text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
               />
-              <button
-                type="button"
-                onClick={() => setVerPass((v) => !v)}
-                disabled={!password}
-                aria-label={verPass ? "Ocultar contraseña" : "Mostrar contraseña"}
-                aria-pressed={verPass}
-                className="absolute right-[12px] text-outline-variant enabled:hover:text-on-surface-variant disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                <span className="material-symbols-outlined text-[20px]">{verPass ? "visibility_off" : "visibility"}</span>
-              </button>
+              <BotonVerContrasena visible={verPass} onAlternar={() => setVerPass((v) => !v)} deshabilitado={!password} />
             </div>
             <div className="flex justify-end mt-sm">
               <button type="button" onClick={() => setRecOpen(true)} className="text-label-md text-primary hover:text-surface-tint hover:underline">

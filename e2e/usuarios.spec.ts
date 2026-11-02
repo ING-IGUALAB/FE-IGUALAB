@@ -34,10 +34,37 @@ test.describe("Caso de uso: Gestionar usuarios", () => {
     const pass = dialogo.getByLabel("Contraseña", { exact: true });
     await expect(pass).toHaveAttribute("type", "password");
     await pass.fill("Maria123!");
-    await dialogo.getByRole("button", { name: "Mostrar contraseña" }).click();
+    await dialogo.getByRole("button", { name: "Mostrar contraseña" }).first().click();
     await expect(pass).toHaveAttribute("type", "text");
+    await expect(dialogo.getByLabel("Confirmar contraseña", { exact: true })).toHaveAttribute("type", "password");
     await dialogo.getByRole("button", { name: "Ocultar contraseña" }).click();
     await expect(pass).toHaveAttribute("type", "password");
+  });
+
+  test("el ojo queda centrado verticalmente en el campo de contraseña", async ({ page }) => {
+    await page.getByRole("button", { name: "Crear usuario" }).click();
+    const dialogo = page.getByRole("dialog");
+    const campo = await dialogo.getByLabel("Contraseña", { exact: true }).boundingBox();
+    const icono = await dialogo.getByRole("button", { name: "Mostrar contraseña" }).first().locator("span").boundingBox();
+    expect(Math.abs(campo!.y + campo!.height / 2 - (icono!.y + icono!.height / 2))).toBeLessThanOrEqual(1);
+  });
+
+  test("exige confirmar la contraseña y que ambas coincidan", async ({ page, api }) => {
+    await page.getByRole("button", { name: "Crear usuario" }).click();
+    const dialogo = page.getByRole("dialog");
+    await dialogo.getByLabel("Nombre completo").fill("María Torres");
+    await dialogo.getByLabel("Correo electrónico").fill("maria@igualab.com");
+    await dialogo.getByLabel("Contraseña", { exact: true }).fill("Maria123!");
+    await dialogo.getByLabel("Confirmar contraseña", { exact: true }).fill("Maria123?");
+    await dialogo.getByRole("button", { name: "Crear", exact: true }).click();
+
+    await expect(dialogo.getByText("Las contraseñas no coinciden.")).toBeVisible();
+    expect(api.llamadasA("POST", "/usuarios")).toHaveLength(0);
+
+    // Al cancelar no quedan contraseñas escritas para la próxima vez.
+    await dialogo.getByRole("button", { name: "Cancelar" }).click();
+    await page.getByRole("button", { name: "Crear usuario" }).click();
+    await expect(page.getByRole("dialog").getByLabel("Contraseña", { exact: true })).toHaveValue("");
   });
 
   test("crea una cuenta nueva como Administrador", async ({ page, api }) => {
@@ -46,6 +73,7 @@ test.describe("Caso de uso: Gestionar usuarios", () => {
     await dialogo.getByLabel("Nombre completo").fill("María Torres");
     await dialogo.getByLabel("Correo electrónico").fill("maria@igualab.com");
     await dialogo.getByLabel("Contraseña", { exact: true }).fill("Maria123!");
+    await dialogo.getByLabel("Confirmar contraseña", { exact: true }).fill("Maria123!");
     await dialogo.getByRole("button", { name: "Crear", exact: true }).click();
 
     await expect(page.getByText("Cuenta creada como Administrador.")).toBeVisible();
@@ -62,7 +90,7 @@ test.describe("Caso de uso: Gestionar usuarios", () => {
     const dialogo = page.getByRole("dialog");
     await dialogo.getByRole("button", { name: "Crear", exact: true }).click();
 
-    await expect(dialogo.getByText("Este campo es obligatorio.")).toHaveCount(2);
+    await expect(dialogo.getByText("Este campo es obligatorio.")).toHaveCount(3);
     await expect(dialogo.getByText("La contraseña debe cumplir todos los requisitos.")).toBeVisible();
 
     await dialogo.getByLabel("Correo electrónico").fill("correo-malo");
@@ -77,6 +105,7 @@ test.describe("Caso de uso: Gestionar usuarios", () => {
     await dialogo.getByLabel("Nombre completo").fill("Luis Duplicado");
     await dialogo.getByLabel("Correo electrónico").fill("luis@igualab.com");
     await dialogo.getByLabel("Contraseña", { exact: true }).fill("Luis1234!");
+    await dialogo.getByLabel("Confirmar contraseña", { exact: true }).fill("Luis1234!");
     await dialogo.getByRole("button", { name: "Crear", exact: true }).click();
 
     await expect(dialogo.getByText("Ya existe una cuenta con ese correo.")).toBeVisible();
