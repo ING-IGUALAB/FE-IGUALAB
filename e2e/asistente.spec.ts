@@ -80,3 +80,45 @@ test.describe("Caso de uso: Consultar al asistente de IA", () => {
     await expect(page.getByText("El asistente no está disponible en este momento.")).toBeVisible();
   });
 });
+
+test.describe("Barra de contexto del asistente", () => {
+  const NOMBRE_LARGO = "Cooperativa de Ahorro y Crédito Norandino Ltda. (COOPAC Norandino)";
+
+  for (const ancho of [1440, 1280, 1024, 768, 375]) {
+    test(`mantiene su altura en todos los estados, con un nombre largo, a ${ancho}px`, async ({ page, api }) => {
+      await page.setViewportSize({ width: ancho, height: 800 });
+      api.empresas.find((e) => e.id === "e-andina")!.nombre = NOMBRE_LARGO;
+      await entrarComo(page, api, "administrador", "/ia");
+      const barra = page.getByTestId("barra-contexto");
+      await expect(page.getByText("Elige sector y empresa")).toBeVisible();
+      const altoVacio = (await barra.boundingBox())!.height;
+
+      await campo(page, "Sector").selectOption({ label: "Minería" });
+      await campo(page, "Empresa").selectOption({ label: NOMBRE_LARGO });
+      await expect(page.getByText("Contexto listo")).toBeVisible();
+      expect((await barra.boundingBox())!.height).toBeCloseTo(altoVacio, 0);
+      await expect(campo(page, "Empresa")).toHaveAttribute("title", NOMBRE_LARGO);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+
+      await campo(page, "Sector").selectOption({ label: "Energía" });
+      await campo(page, "Empresa").selectOption({ label: "Utec ELEC S.A." });
+      await expect(page.getByText("Sin documentos analizados")).toBeVisible();
+      expect((await barra.boundingBox())!.height).toBeCloseTo(altoVacio, 0);
+    });
+  }
+
+  test("en escritorio el indicador queda en la misma línea que los campos", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    api.empresas.find((e) => e.id === "e-andina")!.nombre = NOMBRE_LARGO;
+    await entrarComo(page, api, "administrador", "/ia");
+    await campo(page, "Sector").selectOption({ label: "Minería" });
+    await campo(page, "Empresa").selectOption({ label: NOMBRE_LARGO });
+    const indicador = page.getByText("Contexto listo");
+    await expect(indicador).toBeVisible();
+
+    const a = (await campo(page, "Empresa").boundingBox())!;
+    const b = (await indicador.boundingBox())!;
+    expect(b.y).toBeLessThan(a.y + a.height);
+    expect(b.x).toBeGreaterThan(a.x + a.width);
+  });
+});
