@@ -23,9 +23,9 @@ interface Mensaje {
 }
 
 const SUGERENCIAS: { icono: string; texto: string }[] = [
-  { icono: "gavel", texto: "¿Qué sanciones identificas para esta empresa y año?" },
+  { icono: "gavel", texto: "¿Qué sanciones ambientales, sociales y de gobernanza (compliance) identificas para esta empresa y año?" },
   { icono: "co2", texto: "¿Qué indicadores GRI de emisiones reporta?" },
-  { icono: "eco", texto: "Resume el desempeño ambiental del año consultado" },
+  { icono: "eco", texto: "Resume el desempeño ambiental, social y de gobernanza (compliance) del año consultado" },
 ];
 const CLS_CONTROL =
   "rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none";

@@ -75,7 +75,7 @@ test.describe("Caso de uso: Consultar al asistente de IA", () => {
   test("si el asistente no está disponible, muestra el error en el chat", async ({ page, api }) => {
     api.fallarProxima("POST", "/asistente/consultas", 503, "AI_UNAVAILABLE", "El asistente no está disponible en este momento.");
     await elegirContexto(page, "Minería", "Minera Andina S.A.A.", 2024);
-    await page.getByRole("button", { name: "¿Qué sanciones identificas para esta empresa y año?" }).click();
+    await page.getByRole("button", { name: "¿Qué sanciones ambientales, sociales y de gobernanza (compliance) identificas para esta empresa y año?" }).click();
 
     await expect(page.getByText("El asistente no está disponible en este momento.")).toBeVisible();
   });
