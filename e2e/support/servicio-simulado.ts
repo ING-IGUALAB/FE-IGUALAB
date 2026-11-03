@@ -127,6 +127,14 @@ export class ServicioSimulado {
     this.demoras.push({ metodo, ruta, ms });
   }
 
+  /** Agrega `n` documentos más (para probar la paginación con muchas páginas). */
+  agregarDocumentos(n: number) {
+    const base = this.documentos[0];
+    for (let i = 0; i < n; i += 1) {
+      this.documentos.push({ ...base, id: `d-extra-${i + 1}`, nombre_archivo: `extra-${i + 1}.md` });
+    }
+  }
+
   /** Agrega `n` eventos de auditoría más antiguos (para probar la paginación con muchas páginas). */
   agregarEventos(n: number) {
     for (let i = 0; i < n; i += 1) {

@@ -158,3 +158,36 @@ test.describe("Caso de uso: Ingestar documentos", () => {
     await expect(page.getByRole("dialog")).toContainText("La empresa de este documento está desactivada en el catálogo.");
   });
 });
+
+test.describe("Paginación de los documentos ingestados", () => {
+  test("usa la misma paginación que Auditoría: primeras y últimas páginas, «Ir a» e indicador", async ({ page, api }) => {
+    api.agregarDocumentos(196); // 4 + 196 = 200 documentos → 20 páginas de 10
+    await entrarComo(page, api, "superadmin", "/ingesta");
+    const nav = page.getByRole("navigation", { name: "Paginación" });
+    await expect(nav.getByText("Página 1 de 20")).toBeVisible();
+    for (const n of [1, 2, 3, 18, 19, 20]) await expect(nav.getByRole("button", { name: `Página ${n}`, exact: true })).toBeVisible();
+    await expect(nav.getByRole("button", { name: "Página anterior" })).toBeDisabled();
+
+    await nav.getByRole("spinbutton", { name: "Ir a la página" }).fill("7");
+    await nav.getByRole("button", { name: "Ir a la página escrita" }).click();
+    await expect(nav.getByText("Página 7 de 20")).toBeVisible();
+    await expect(nav.getByRole("button", { name: "Página 7", exact: true })).toHaveAttribute("aria-current", "page");
+    expect(api.llamadasA("GET", "/documentos").at(-1)!.query.get("pagina")).toBe("7");
+
+    await nav.getByRole("button", { name: "Página siguiente" }).click();
+    await expect(nav.getByText("Página 8 de 20")).toBeVisible();
+    await expect(page.locator("tbody tr")).toHaveCount(10);
+  });
+
+  test("también pagina los resultados de la búsqueda", async ({ page, api }) => {
+    api.agregarDocumentos(26); // 27 documentos de Minera Andina, de un total de 30
+    await entrarComo(page, api, "superadmin", "/ingesta");
+    await page.getByRole("searchbox", { name: "Buscar por empresa" }).fill("minera");
+
+    const nav = page.getByRole("navigation", { name: "Paginación" });
+    await expect(nav.getByText("Página 1 de 3")).toBeVisible();
+    await nav.getByRole("button", { name: "Página 3", exact: true }).click();
+    await expect(nav.getByText("Página 3 de 3")).toBeVisible();
+    await expect(page.locator("tbody tr")).toHaveCount(7);
+  });
+});
