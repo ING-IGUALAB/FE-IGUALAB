@@ -13,6 +13,7 @@ test.describe("Caso de uso: Ingestar documentos", () => {
   });
 
   test("sube un .md y aparece en Documentos ingestados", async ({ page, api }) => {
+    await page.getByRole("button", { name: "Nueva carga" }).click();
     await campo(page, "Empresa").selectOption({ label: "Minera Andina S.A.A." });
     await campo(page, "Año").selectOption("2025");
     await campo(page, "Tipo").selectOption({ label: "Reporte de Sostenibilidad GRI" });
@@ -31,6 +32,7 @@ test.describe("Caso de uso: Ingestar documentos", () => {
   });
 
   test("rechaza archivos que no son Markdown o están vacíos", async ({ page, api }) => {
+    await page.getByRole("button", { name: "Nueva carga" }).click();
     await campo(page, "Empresa").selectOption({ label: "Minera Andina S.A.A." });
     const entrada = page.locator('input[type="file"]');
 
@@ -45,12 +47,40 @@ test.describe("Caso de uso: Ingestar documentos", () => {
   });
 
   test("al elegir sector solo ofrece las empresas activas de ese sector", async ({ page }) => {
+    await page.getByRole("button", { name: "Nueva carga" }).click();
     await campo(page, "Sector").selectOption({ label: "Petróleo y Gas" });
     // Petro Norte está desactivada: no debe ofrecerse para nuevas cargas.
     await expect(campo(page, "Empresa").locator("option")).toHaveText([
       "— Selecciona una empresa —",
       "Petro Sur S.A.",
     ]);
+  });
+
+  test("la lista ocupa todo el ancho y la carga se hace en un modal que no se cierra mientras procesa", async ({ page, api }) => {
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.locator('input[type="file"]')).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Nueva carga" }).click();
+    const dialogo = page.getByRole("dialog");
+    await campo(dialogo, "Empresa").selectOption({ label: "Minera Andina S.A.A." });
+    await page.locator('input[type="file"]').setInputFiles(archivoMd("lento.md"));
+    api.retrasar("POST", /\/ingesta$/, 1500);
+    await dialogo.getByRole("button", { name: "Realizar ingesta" }).click();
+
+    await expect(dialogo.getByText("Procesando…")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(dialogo).toBeVisible();
+    await expect(dialogo.getByRole("button", { name: "Cancelar" })).toBeDisabled();
+
+    await expect(dialogo.getByText("Ingesta completada")).toBeVisible();
+    await expect(page.locator("tbody")).toContainText("lento.md");
+    await dialogo.getByRole("button", { name: "Cerrar" }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+
+    // Al volver a abrir, el formulario está limpio.
+    await page.getByRole("button", { name: "Nueva carga" }).click();
+    await expect(campo(page.getByRole("dialog"), "Empresa")).toHaveValue("");
+    await expect(page.getByRole("dialog").getByText("Ingesta completada")).toHaveCount(0);
   });
 
   test("filtra la lista de documentos por sector", async ({ page }) => {

@@ -98,3 +98,84 @@ test.describe("Caso de uso: Cerrar sesión", () => {
     await expect(page.getByText("Tu sesión expiró por inactividad. Vuelve a autenticarte.")).toBeVisible();
   });
 });
+
+test.describe("Menú lateral", () => {
+  const boton = "Mostrar u ocultar el menú";
+
+  test("en escritorio se colapsa a solo íconos: gana ancho, se sigue navegando y recuerda la preferencia", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await entrarComo(page, api, "superadmin", "/ingesta");
+    const enlace = page.getByRole("link", { name: "Auditoría" });
+    const main = page.locator("main");
+    const barra = page.locator("#menu-lateral");
+    await expect(enlace).toBeVisible();
+    const anchoAntes = (await main.boundingBox())!.width;
+
+    await page.getByRole("button", { name: boton }).click();
+    await expect.poll(async () => (await barra.boundingBox())!.width).toBe(72);
+    await expect.poll(async () => (await main.boundingBox())!.width).toBeGreaterThan(anchoAntes + 180);
+
+    // El nombre aparece solo al pasar el mouse, sin que la barra lo recorte.
+    const rotulo = enlace.getByText("Auditoría");
+    await expect(rotulo).toHaveCSS("opacity", "0");
+    await enlace.hover();
+    await expect(rotulo).toHaveCSS("opacity", "1");
+    const caja = (await rotulo.boundingBox())!;
+    expect(caja.x + caja.width).toBeGreaterThan(72);
+    await expect(barra.locator("nav")).toHaveCSS("overflow-y", "visible");
+
+    // Se navega con un clic, sin expandir la barra.
+    await enlace.click();
+    await expect(page).toHaveURL(/\/auditoria$/);
+    await expect(barra).toHaveCount(1);
+    expect((await barra.boundingBox())!.width).toBe(72);
+
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Auditoría de eventos" })).toBeVisible();
+    await expect.poll(async () => (await barra.boundingBox())!.width).toBe(72);
+
+    await page.getByRole("button", { name: boton }).click();
+    await expect.poll(async () => (await barra.boundingBox())!.width).toBe(260);
+    await expect(enlace.getByText("Auditoría")).toHaveCSS("opacity", "1");
+  });
+
+  test("con la barra colapsada, las opciones de abajo siguen disponibles y centradas", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await entrarComo(page, api, "administrador", "/ia");
+    await page.getByRole("button", { name: boton }).click();
+    const barra = page.locator("#menu-lateral");
+    await expect.poll(async () => (await barra.boundingBox())!.width).toBe(72);
+
+    for (const opcion of [
+      page.getByRole("link", { name: "Reportes de prospección" }),
+      page.getByRole("link", { name: "Nueva consulta IA" }),
+      page.getByRole("link", { name: "Cambiar contraseña" }),
+      page.getByRole("button", { name: "Cerrar sesión" }),
+    ]) {
+      await expect(opcion).toBeVisible();
+      const icono = (await opcion.locator(".material-symbols-outlined").boundingBox())!;
+      expect(Math.abs(icono.x + icono.width / 2 - 36)).toBeLessThanOrEqual(2);
+    }
+  });
+
+  test("en móvil se abre sobre el contenido y se cierra al navegar o con Escape", async ({ page, api }) => {
+    await page.setViewportSize({ width: 375, height: 700 });
+    await entrarComo(page, api, "superadmin", "/usuarios");
+    const enlace = page.getByRole("link", { name: "Auditoría" });
+    await expect(enlace).toBeHidden();
+
+    await page.getByRole("button", { name: boton }).click();
+    await expect(enlace).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(enlace).toBeHidden();
+
+    await page.getByRole("button", { name: boton }).click();
+    await enlace.click();
+    await expect(page).toHaveURL(/\/auditoria$/);
+    await expect(enlace).toBeHidden();
+
+    await page.getByRole("button", { name: boton }).click();
+    await page.getByTestId("menu-fondo").click({ position: { x: 340, y: 300 } });
+    await expect(enlace).toBeHidden();
+  });
+});

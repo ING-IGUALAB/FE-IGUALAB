@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import SectionHeader from "../components/SectionHeader";
 import PaginacionSalto from "../components/PaginacionSalto";
@@ -41,17 +41,9 @@ const TAM_PAGINA = 10;
 
 export default function Ingesta() {
   const toast = useToast();
-  const navigate = useNavigate();
 
   const [empresas, setEmpresas] = useState<EmpresaApi[]>([]);
-  const [sector, setSector] = useState<SectorApi>(SECTORES_API[0]);
-  const [empresaId, setEmpresaId] = useState("");
-  const [anio, setAnio] = useState(ANIOS[0]);
-  const [tipo, setTipo] = useState<TipoDocumentoApi>(TIPOS_API[0]);
-  const [archivo, setArchivo] = useState<File | null>(null);
-  const [enviando, setEnviando] = useState(false);
-  const [resultado, setResultado] = useState<ResultadoIngesta | Operacion | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [cargaAbierta, setCargaAbierta] = useState(false);
 
   // Lista paginada por el backend, o todos los documentos cuando se filtra aquí (null: aún no se traen).
   const [paginaServidor, setPaginaServidor] = useState<{ items: DocumentoResumen[]; pagina: number; paginas: number }>({ items: [], pagina: 1, paginas: 1 });
@@ -73,7 +65,6 @@ export default function Ingesta() {
       .catch(() => setNombres(new Map()));
   }, []);
 
-  const empresasSector = empresas.filter((e) => e.activa && e.sector === sector);
   const empresasInactivas = new Set(empresas.filter((e) => !e.activa).map((e) => e.id));
 
   useEffect(() => {
@@ -117,154 +108,18 @@ export default function Ingesta() {
   const { items: docs, pagina: paginaActual, paginas: totalPaginas } = listaVisible;
   const mostrandoCarga = cargandoDocs || (filtroLocal && todosDocs === null);
 
-  function elegirArchivo(files: FileList | null) {
-    const f = files?.[0];
-    if (!f) return;
-    const v = validarArchivoIngesta(f);
-    if (!v.ok) {
-      toast(v.motivo ?? "Archivo no válido.", "error");
-      return;
-    }
-    setArchivo(f);
-  }
-
-  async function esperarTerminal(opId: string, inicial: Operacion): Promise<Operacion> {
-    let actual = inicial;
-    let intentos = 0;
-    while (!actual.terminal && intentos < 20) {
-      await new Promise((r) => setTimeout(r, 1500));
-      actual = await documentosApi.consultarOperacion(opId);
-      intentos += 1;
-    }
-    return actual;
-  }
-
-  async function realizarIngesta() {
-    if (!empresaId) {
-      toast("Selecciona una empresa.", "warn");
-      return;
-    }
-    if (!archivo) {
-      toast("Selecciona primero un archivo .md.", "warn");
-      return;
-    }
-    setEnviando(true);
-    setResultado(null);
-    try {
-      const op = await documentosApi.crearOperacion();
-      const res = await documentosApi.ingerirDocumento(op.operacion_id, {
-        archivo,
-        empresaId,
-        anio,
-        tipoDocumento: tipo,
-      });
-      const final = res.terminal ? res : await esperarTerminal(op.operacion_id, res);
-      setResultado({ ...res, ...final });
-      if (final.exitosa) {
-        toast("Documento ingestado e indexado.", "success");
-        setArchivo(null);
-        setPagina(1);
-        cargarDocs();
-      } else {
-        toast("La ingesta no se completó. Revisa el detalle.", "error");
-      }
-    } catch (err) {
-      toast(mensajeError(err, "No se pudo realizar la ingesta."), tipoAviso(err));
-    } finally {
-      setEnviando(false);
-    }
-  }
-
-  async function reintentar(opId: string) {
-    try {
-      const op = await documentosApi.reintentarPublicacion(opId);
-      setResultado((prev) => (prev ? { ...prev, ...op } : op));
-      toast(op.exitosa ? "Publicación completada." : "Aún no se pudo publicar.", op.exitosa ? "success" : "warn");
-      if (op.exitosa) cargarDocs();
-    } catch (err) {
-      toast(mensajeError(err, "No se pudo reintentar la publicación."), tipoAviso(err));
-    }
-  }
-
   return (
     <>
       <SectionHeader titulo="Ingesta de documentos" />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-lg">
-        <div className="lg:col-span-1 space-y-lg">
-          <div className="bg-surface-container-lowest rounded-xl border border-surface-variant ambient-shadow p-lg">
-            <div className="flex items-center justify-between mb-md">
-              <h3 className="text-title-lg text-on-background">Nueva carga</h3>
-              <button onClick={() => navigate("/empresas")} className="text-label-md text-primary hover:underline flex items-center gap-xs">
-                <span className="material-symbols-outlined text-[16px]">add_business</span> Empresas
-              </button>
-            </div>
-            <div className="space-y-md">
-              <Campo label="Sector">
-                <select value={sector} onChange={(e) => { setSector(e.target.value as SectorApi); setEmpresaId(""); }} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
-                  {SECTORES_API.map((s) => (
-                    <option key={s} value={s}>{etiquetaSector(s)}</option>
-                  ))}
-                </select>
-              </Campo>
-              <Campo label="Empresa">
-                <select value={empresaId} onChange={(e) => setEmpresaId(e.target.value)} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
-                  <option value="">— Selecciona una empresa —</option>
-                  {empresasSector.map((e) => (
-                    <option key={e.id} value={e.id}>{e.nombre}</option>
-                  ))}
-                </select>
-                {empresasSector.length === 0 && (
-                  <span className="text-label-sm text-on-surface-variant">No hay empresas activas en este sector. Regístralas en el Catálogo de empresas.</span>
-                )}
-              </Campo>
-              <div className="grid grid-cols-1 gap-md">
-                <Campo label="Año">
-                  <select value={anio} onChange={(e) => setAnio(Number(e.target.value))} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
-                  {ANIOS.map((a) => <option key={a} value={a}>{a}</option>)}
-                </select>
-                </Campo>
-                <Campo label="Tipo">
-                  <select value={tipo} onChange={(e) => setTipo(e.target.value as TipoDocumentoApi)} className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none">
-                    {TIPOS_API.map((t) => (
-                      <option key={t} value={t}>{etiquetaTipo(t)}</option>
-                    ))}
-                  </select>
-                </Campo>
-              </div>
-
-              <label
-                onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("dropzone-active"); }}
-                onDragLeave={(e) => e.currentTarget.classList.remove("dropzone-active")}
-                onDrop={(e) => { e.preventDefault(); e.currentTarget.classList.remove("dropzone-active"); elegirArchivo(e.dataTransfer.files); }}
-                className="flex flex-col items-center justify-center gap-sm border-2 border-dashed border-outline-variant rounded-xl p-lg text-center cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors"
-              >
-                <span className="material-symbols-outlined text-[36px] text-primary">cloud_upload</span>
-                <span className="text-body-md text-on-background font-medium">Arrastra el .md aquí o haz clic para seleccionar</span>
-                <span className="text-label-sm text-outline">Sólo Markdown (.md) · hasta 50 MB</span>
-                <input ref={inputRef} type="file" accept=".md,text/markdown" className="hidden" onChange={(e) => { elegirArchivo(e.target.files); e.target.value = ""; }} />
-              </label>
-
-              {archivo && (
-                <div className="rounded-lg border border-outline-variant bg-surface-container-low p-sm flex items-center gap-xs text-body-md text-on-surface">
-                  <span className="material-symbols-outlined text-[16px] text-primary">description</span> {archivo.name}
-                  <span className="text-outline">· {formatearTamano(archivo.size)}</span>
-                  <button onClick={() => setArchivo(null)} className="ml-auto text-outline hover:text-error"><span className="material-symbols-outlined text-[18px]">close</span></button>
-                </div>
-              )}
-
-              <button onClick={realizarIngesta} disabled={enviando || !archivo || !empresaId} className="w-full bg-primary text-on-primary py-md px-lg rounded-lg flex items-center justify-center gap-sm shadow-md hover:bg-surface-tint transition-all text-body-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
-                {enviando ? <><Spinner size={18} /> Procesando…</> : <><span className="material-symbols-outlined">cloud_sync</span> Realizar ingesta</>}
-              </button>
-            </div>
-          </div>
-
-          {resultado && <PanelResultado resultado={resultado} onReintentar={reintentar} />}
-        </div>
-
-        <div className="lg:col-span-2 bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
+        <div className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
           <div className="p-lg border-b border-outline-variant bg-surface-bright space-y-md">
-            <h3 className="text-title-lg text-on-surface">Documentos ingestados</h3>
+            <div className="flex flex-wrap items-center justify-between gap-sm">
+              <h3 className="text-title-lg text-on-surface">Documentos ingestados</h3>
+              <button onClick={() => setCargaAbierta(true)} className="flex items-center justify-center gap-sm px-md py-sm bg-primary text-on-primary rounded-lg text-label-md font-semibold hover:bg-surface-tint transition-colors shadow-sm">
+                <span className="material-symbols-outlined text-[18px]" aria-hidden="true">upload_file</span> Nueva carga
+              </button>
+            </div>
             <BarraDocumentos
               busqueda={busqueda}
               onBuscar={(v) => { setBusqueda(v); setPagina(1); }}
@@ -325,9 +180,186 @@ export default function Ingesta() {
             </div>
           )}
         </div>
-      </div>
+      <NuevaCargaModal abierto={cargaAbierta} empresas={empresas} onClose={() => setCargaAbierta(false)} onIngestado={() => { setPagina(1); cargarDocs(); }} />
       <DetalleDocumentoModal id={detalleId} empresasInactivas={empresasInactivas} nombres={nombres} onClose={() => setDetalleId(null)} />
     </>
+  );
+}
+
+/** Formulario de carga de un documento. No se puede cerrar mientras se procesa el archivo. */
+function NuevaCargaModal({
+  abierto,
+  empresas,
+  onClose,
+  onIngestado,
+}: Readonly<{ abierto: boolean; empresas: EmpresaApi[]; onClose: () => void; onIngestado: () => void }>) {
+  const toast = useToast();
+  const navigate = useNavigate();
+  const [sector, setSector] = useState<SectorApi>(SECTORES_API[0]);
+  const [empresaId, setEmpresaId] = useState("");
+  const [anio, setAnio] = useState(ANIOS[0]);
+  const [tipo, setTipo] = useState<TipoDocumentoApi>(TIPOS_API[0]);
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [enviando, setEnviando] = useState(false);
+  const [resultado, setResultado] = useState<ResultadoIngesta | Operacion | null>(null);
+
+  const empresasSector = empresas.filter((e) => e.activa && e.sector === sector);
+
+  function cerrar() {
+    if (enviando) return;
+    setEmpresaId("");
+    setArchivo(null);
+    setResultado(null);
+    onClose();
+  }
+
+  function elegirArchivo(files: FileList | null) {
+    const f = files?.[0];
+    if (!f) return;
+    const v = validarArchivoIngesta(f);
+    if (!v.ok) {
+      toast(v.motivo ?? "Archivo no válido.", "error");
+      return;
+    }
+    setArchivo(f);
+  }
+
+  async function esperarTerminal(opId: string, inicial: Operacion): Promise<Operacion> {
+    let actual = inicial;
+    let intentos = 0;
+    while (!actual.terminal && intentos < 20) {
+      await new Promise((r) => setTimeout(r, 1500));
+      actual = await documentosApi.consultarOperacion(opId);
+      intentos += 1;
+    }
+    return actual;
+  }
+
+  async function realizarIngesta() {
+    if (!empresaId) {
+      toast("Selecciona una empresa.", "warn");
+      return;
+    }
+    if (!archivo) {
+      toast("Selecciona primero un archivo .md.", "warn");
+      return;
+    }
+    setEnviando(true);
+    setResultado(null);
+    try {
+      const op = await documentosApi.crearOperacion();
+      const res = await documentosApi.ingerirDocumento(op.operacion_id, {
+        archivo,
+        empresaId,
+        anio,
+        tipoDocumento: tipo,
+      });
+      const final = res.terminal ? res : await esperarTerminal(op.operacion_id, res);
+      setResultado({ ...res, ...final });
+      if (final.exitosa) {
+        toast("Documento ingestado e indexado.", "success");
+        setArchivo(null);
+        onIngestado();
+      } else {
+        toast("La ingesta no se completó. Revisa el detalle.", "error");
+      }
+    } catch (err) {
+      toast(mensajeError(err, "No se pudo realizar la ingesta."), tipoAviso(err));
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  async function reintentar(opId: string) {
+    try {
+      const op = await documentosApi.reintentarPublicacion(opId);
+      setResultado((prev) => (prev ? { ...prev, ...op } : op));
+      toast(op.exitosa ? "Publicación completada." : "Aún no se pudo publicar.", op.exitosa ? "success" : "warn");
+      if (op.exitosa) onIngestado();
+    } catch (err) {
+      toast(mensajeError(err, "No se pudo reintentar la publicación."), tipoAviso(err));
+    }
+  }
+
+  return (
+    <Modal open={abierto} onClose={cerrar} width="max-w-2xl">
+      <div className="p-xl overflow-y-auto">
+        <h3 className="text-title-lg text-on-background mb-lg flex items-center gap-sm">
+          <span className="material-symbols-outlined text-primary" aria-hidden="true">upload_file</span> Nueva carga
+        </h3>
+        <div className="space-y-md">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-md">
+            <Campo label="Sector">
+              <select value={sector} onChange={(e) => { setSector(e.target.value as SectorApi); setEmpresaId(""); }} className={CLS_FILTRO}>
+                {SECTORES_API.map((s) => (
+                  <option key={s} value={s}>{etiquetaSector(s)}</option>
+                ))}
+              </select>
+            </Campo>
+            <Campo label="Empresa">
+              <select value={empresaId} onChange={(e) => setEmpresaId(e.target.value)} title={empresasSector.find((e) => e.id === empresaId)?.nombre} className={`${CLS_FILTRO} truncate`}>
+                <option value="">— Selecciona una empresa —</option>
+                {empresasSector.map((e) => (
+                  <option key={e.id} value={e.id}>{e.nombre}</option>
+                ))}
+              </select>
+            </Campo>
+            <Campo label="Año">
+              <select value={anio} onChange={(e) => setAnio(Number(e.target.value))} className={CLS_FILTRO}>
+                {ANIOS.map((a) => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </Campo>
+            <Campo label="Tipo">
+              <select value={tipo} onChange={(e) => setTipo(e.target.value as TipoDocumentoApi)} className={CLS_FILTRO}>
+                {TIPOS_API.map((t) => (
+                  <option key={t} value={t}>{etiquetaTipo(t)}</option>
+                ))}
+              </select>
+            </Campo>
+          </div>
+          {empresasSector.length === 0 && (
+            <p className="text-label-sm text-on-surface-variant">No hay empresas activas en este sector. Regístralas en el Catálogo de empresas.</p>
+          )}
+
+          <label
+            onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("dropzone-active"); }}
+            onDragLeave={(e) => e.currentTarget.classList.remove("dropzone-active")}
+            onDrop={(e) => { e.preventDefault(); e.currentTarget.classList.remove("dropzone-active"); elegirArchivo(e.dataTransfer.files); }}
+            className="flex flex-col items-center justify-center gap-sm border-2 border-dashed border-outline-variant rounded-xl p-lg text-center cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors"
+          >
+            <span className="material-symbols-outlined text-[36px] text-primary">cloud_upload</span>
+            <span className="text-body-md text-on-background font-medium">Arrastra el .md aquí o haz clic para seleccionar</span>
+            <span className="text-label-sm text-outline">Sólo Markdown (.md) · hasta 50 MB</span>
+            <input type="file" accept=".md,text/markdown" className="hidden" onChange={(e) => { elegirArchivo(e.target.files); e.target.value = ""; }} />
+          </label>
+
+          {archivo && (
+            <div className="rounded-lg border border-outline-variant bg-surface-container-low p-sm flex items-center gap-xs text-body-md text-on-surface">
+              <span className="material-symbols-outlined text-[16px] text-primary" aria-hidden="true">description</span>
+              <span className="truncate">{archivo.name}</span>
+              <span className="text-outline shrink-0">· {formatearTamano(archivo.size)}</span>
+              <button onClick={() => setArchivo(null)} aria-label="Quitar archivo" title="Quitar archivo" className="ml-auto text-outline hover:text-error"><span className="material-symbols-outlined text-[18px]" aria-hidden="true">close</span></button>
+            </div>
+          )}
+
+          {resultado && <PanelResultado resultado={resultado} onReintentar={reintentar} />}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-sm mt-lg">
+          <button onClick={() => navigate("/empresas")} disabled={enviando} className="text-label-md text-primary hover:underline flex items-center gap-xs disabled:opacity-50">
+            <span className="material-symbols-outlined text-[16px]" aria-hidden="true">add_business</span> Empresas
+          </button>
+          <div className="ml-auto flex items-center gap-sm">
+            <button onClick={cerrar} disabled={enviando} className="px-lg py-sm rounded-lg border border-outline-variant text-body-md text-on-surface-variant hover:bg-surface-container-low disabled:opacity-50">
+              {resultado ? "Cerrar" : "Cancelar"}
+            </button>
+            <button onClick={realizarIngesta} disabled={enviando || !archivo || !empresaId} className="px-lg py-sm rounded-lg bg-primary text-on-primary text-label-md font-semibold hover:bg-surface-tint disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-sm">
+              {enviando ? <><Spinner size={16} /> Procesando…</> : <><span className="material-symbols-outlined text-[18px]" aria-hidden="true">cloud_sync</span> Realizar ingesta</>}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
