@@ -383,14 +383,89 @@ export interface ConsultaAsistente {
 }
 
 // ---- Reportes de prospección ----
+/** Una emisión del reporte: cada empresa y año puede tener varias versiones, todas inmutables. */
 export interface ReporteResumen {
   id: string;
   empresa_id: string;
+  empresa_nombre: string;
   anio: number;
+  version: number;
+  /** Es la versión de mayor número; no implica que siga respaldando el análisis actual. */
+  es_ultima_version: boolean;
+  /** Null en reportes anteriores al versionado. */
+  validacion_id?: string | null;
+  validacion_numero?: number | null;
   generado_por: string;
+  generado_por_nombre: string;
   sha256: string;
   creado_en: string;
 }
+
+/** Resultado de emitir: `reutilizado` indica que esa validación ya tenía su versión. */
+export interface ReporteEmision extends ReporteResumen {
+  reutilizado: boolean;
+}
+
+export type MotivoNoGenerar =
+  | "REPORTE_ACTUALIZADO"
+  | "PENDIENTE_REVISION"
+  | "PENDIENTE_VALIDACION"
+  | "SIN_CODIGOS_GRI"
+  | "SIN_DOCUMENTACION_ELEGIBLE";
+
+/** Última emisión de una empresa y año, y su relación con la última validación. */
+export interface ReporteVigente extends ReporteResumen {
+  ultima_validacion_id?: string | null;
+  ultima_validacion_numero?: number | null;
+  origen_verificable: boolean;
+  validacion_anterior_no_vigente: boolean;
+  reporte_actualizado: boolean;
+  actualizacion_pendiente: boolean;
+  puede_generar: boolean;
+  motivo_no_generar?: MotivoNoGenerar | null;
+}
+
+export type EstadoAnioReporte =
+  | "PENDIENTE_REVISION"
+  | "PENDIENTE_VALIDACION"
+  | "VALIDACION_VIGENTE"
+  | "REPORTE_GENERADO"
+  | "ACTUALIZACION_PENDIENTE"
+  | "SIN_CODIGOS_GRI"
+  | "SIN_DOCUMENTACION_ELEGIBLE";
+
+/** Situación de un año de la empresa respecto del reporte. Es lo que decide qué se puede hacer. */
+export interface AnioDisponible {
+  anio: number;
+  estado: EstadoAnioReporte;
+  puede_generar: boolean;
+  motivo_no_generar?: MotivoNoGenerar | null;
+  documentos_elegibles?: number | null;
+  filas_gri?: number | null;
+  filas_sin_estado?: number | null;
+  validacion_anterior_no_vigente?: boolean;
+  reporte_id?: string | null;
+  reporte_version?: number | null;
+  reporte_creado_en?: string | null;
+  reporte_validacion_numero?: number | null;
+  versiones_emitidas?: number;
+  ultima_validacion_numero?: number | null;
+  /** True o false si hay reporte; null si no lo hay. */
+  origen_verificable?: boolean | null;
+  /** True o false si hay reporte; null si no lo hay. */
+  reporte_actualizado?: boolean | null;
+  actualizacion_pendiente?: boolean;
+}
+
+export interface DisponibilidadReportes {
+  empresa_id: string;
+  empresa_nombre: string;
+  empresa_activa: boolean;
+  /** Del año más reciente al más antiguo. */
+  anios: AnioDisponible[];
+}
+
+export type AccionSugeridaReporte = "REVISAR" | "VALIDAR" | "EMITIR" | "DESCARGAR_VERSION_HISTORICA";
 
 /** Archivo binario devuelto por la API (p. ej. el PDF del reporte). */
 export interface ArchivoApi {

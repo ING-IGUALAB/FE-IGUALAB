@@ -24,7 +24,7 @@ function filtrar(reportes: ReporteResumen[], empresas: EmpresaApi[], sector: "" 
 
 export default function Descargas() {
   const toast = useToast();
-  // Al llegar desde «Ver reporte generado» se destaca ese reporte.
+  // Al llegar desde «Ver historial» se destaca esa versión.
   const resaltar = (useLocation().state as { resaltar?: string } | null)?.resaltar;
   const [empresas, setEmpresas] = useState<EmpresaApi[]>([]);
   const [reportes, setReportes] = useState<ReporteResumen[]>([]);
@@ -34,12 +34,11 @@ export default function Descargas() {
   const [pagina, setPagina] = useState(1);
 
   const empresaDe = (id: string) => empresas.find((e) => e.id === id);
-  const nombreEmpresa = (id: string) => empresaDe(id)?.nombre ?? "Empresa";
   const sectorDe = (id: string) => {
     const e = empresaDe(id);
     return e ? etiquetaSector(e.sector) : "—";
   };
-  const { descargar, descargando } = useDescargarReporte(nombreEmpresa);
+  const { descargar, descargando } = useDescargarReporte();
 
   useEffect(() => {
     Promise.all([empresasApi.listarEmpresas({ soloActivas: true }), reportesApi.listarReportes()])
@@ -73,7 +72,7 @@ export default function Descargas() {
 
       <div className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
         <div className="p-lg border-b border-outline-variant bg-surface-bright flex flex-col sm:flex-row sm:justify-between sm:items-center gap-md">
-          <h3 className="text-title-lg text-on-surface">Reportes generados</h3>
+          <h3 className="text-title-lg text-on-surface">Versiones emitidas</h3>
           <div className="flex flex-wrap items-center gap-sm">
             <select aria-label="Filtrar por sector" value={fSector} onChange={(e) => { setFSector(e.target.value as "" | SectorApi); setPagina(1); }} className={CLS_FILTRO}>
               <option value="">Todo sector</option>
@@ -93,7 +92,6 @@ export default function Descargas() {
         ) : (
           <TablaReportes
             reportes={pag.items}
-            nombreEmpresa={nombreEmpresa}
             sectorDe={sectorDe}
             descargando={descargando}
             onDescargar={descargar}

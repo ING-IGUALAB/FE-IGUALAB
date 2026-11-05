@@ -25,6 +25,26 @@ test.describe("Caso de uso: Descargar reportes", () => {
     await page.getByRole("row", { name: /Minera Andina S.A.A./ }).getByRole("button", { name: /Descargar/ }).click();
 
     const archivo = await descarga;
-    expect(archivo.suggestedFilename()).toBe("reporte-r-andina-2023.pdf");
+    expect(archivo.suggestedFilename()).toBe("reporte-prospeccion-minera-andina-s-a-a-2023-v1.pdf");
+  });
+});
+
+test.describe("Caso de uso: Descargar versiones anteriores", () => {
+  test("conserva todas las versiones y baja la histórica intacta por su id", async ({ page, api }) => {
+    api.validarAnalisisPorFuera("e-andina", 2023);
+    api.emitirReportePorFuera("e-andina", 2023);
+    await entrarComo(page, api, "administrador", "/descargas");
+
+    const filas = page.getByRole("row", { name: /Minera Andina S.A.A./ });
+    await expect(filas).toHaveCount(2);
+    await expect(filas.nth(0)).toContainText("v2");
+    await expect(filas.nth(0)).toContainText("Última emisión");
+    await expect(filas.nth(1)).toContainText("v1");
+    await expect(filas.nth(1)).toContainText("Histórica");
+
+    const descarga = page.waitForEvent("download");
+    await filas.nth(1).getByRole("button", { name: "Descargar versión 1" }).click();
+    expect((await descarga).suggestedFilename()).toBe("reporte-prospeccion-minera-andina-s-a-a-2023-v1.pdf");
+    expect(api.llamadasA("GET", "/reportes/r-andina-2023/archivo")).toHaveLength(1);
   });
 });

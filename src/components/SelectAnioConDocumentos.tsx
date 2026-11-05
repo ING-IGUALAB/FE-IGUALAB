@@ -1,12 +1,12 @@
 import { textoSinAnios } from "../lib/dominio";
 import type { AniosConDocumentos } from "./useAniosConDocumentos";
 
-/** Lista de años de una empresa: solo los años en que tiene documentos subidos. */
+/** Lista de años de una empresa: solo los que tiene sentido consultar. */
 export default function SelectAnioConDocumentos({
   seleccion,
   className,
   etiqueta = String,
-}: Readonly<{ seleccion: AniosConDocumentos; className: string; etiqueta?: (anio: number) => string }>) {
+}: Readonly<{ seleccion: Pick<AniosConDocumentos, "anios" | "anio" | "setAnio" | "hayEmpresa" | "cargando">; className: string; etiqueta?: (anio: number) => string }>) {
   const { anios, anio, setAnio, hayEmpresa, cargando } = seleccion;
   return (
     <select value={anio ?? ""} onChange={(e) => setAnio(Number(e.target.value))} disabled={anios.length === 0} className={className}>

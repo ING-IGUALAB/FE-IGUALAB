@@ -1,4 +1,6 @@
 import type {
+  AnioDisponible,
+  EstadoAnioReporte,
   EstadoFlujo,
   EstadoGriApi,
   EstadoProgreso,
@@ -269,15 +271,75 @@ export function textoMonto(m: MontoVista): string {
 }
 
 // ---- Reportes ----
-/** Nombre de archivo legible y seguro: «reporte-prospeccion-minera-andina-saa-2024.pdf». */
-export function nombreArchivoReporte(empresa: string, anio: number): string {
+/** Nombre de archivo legible y seguro: «reporte-prospeccion-minera-andina-saa-2024-v2.pdf». */
+export function nombreArchivoReporte(empresa: string, anio: number, version?: number | null): string {
   const slug = empresa
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-)|(-$)/g, "");
-  return `reporte-prospeccion-${slug || "empresa"}-${anio}.pdf`;
+  const sufijo = version ? `-v${version}` : "";
+  return `reporte-prospeccion-${slug || "empresa"}-${anio}${sufijo}.pdf`;
+}
+
+export type TonoEstadoReporte = "ok" | "pendiente" | "neutro";
+
+/** Qué significa cada estado de un año. El estado lo decide el servidor; aquí solo se explica. */
+const INFO_ESTADO_REPORTE: Record<EstadoAnioReporte, { etiqueta: string; mensaje: string; tono: TonoEstadoReporte; irAAnalisis?: boolean }> = {
+  PENDIENTE_REVISION: { etiqueta: "Pendiente de revisión", mensaje: "Asigna los estados GRI pendientes antes de emitir el reporte.", tono: "pendiente", irAAnalisis: true },
+  PENDIENTE_VALIDACION: { etiqueta: "Sin validar", mensaje: "Valida el análisis GRI antes de emitir el reporte.", tono: "pendiente", irAAnalisis: true },
+  VALIDACION_VIGENTE: { etiqueta: "Validado", mensaje: "La validación está lista: ya puedes ver la vista previa y generar el reporte.", tono: "ok" },
+  ACTUALIZACION_PENDIENTE: { etiqueta: "Validación nueva sin reporte", mensaje: "Hay una validación nueva sin reporte: ya puedes generar una nueva versión.", tono: "pendiente" },
+  REPORTE_GENERADO: { etiqueta: "Reporte actualizado", mensaje: "El reporte está actualizado: no hay una versión nueva que emitir.", tono: "ok" },
+  SIN_CODIGOS_GRI: { etiqueta: "Sin códigos GRI", mensaje: "Los documentos de este año no tienen códigos GRI evaluables.", tono: "neutro" },
+  SIN_DOCUMENTACION_ELEGIBLE: { etiqueta: "Sin documentos", mensaje: "Este año no tiene documentación elegible para el reporte.", tono: "neutro" },
+};
+
+/** Texto de un año en la lista de Reportes. */
+export function etiquetaAnioReporte(a: AnioDisponible): string {
+  const info = INFO_ESTADO_REPORTE[a.estado];
+  return info ? `${a.anio} · ${info.etiqueta}` : String(a.anio);
+}
+
+/** Mensaje de la situación de un año y si conviene llevar a Análisis GRI para resolverla. */
+export function situacionAnioReporte(a: AnioDisponible): { mensaje: string; tono: TonoEstadoReporte; irAAnalisis: boolean } {
+  const info = INFO_ESTADO_REPORTE[a.estado];
+  if (!info) return { mensaje: "No se pudo determinar la situación de este año.", tono: "neutro", irAAnalisis: false };
+  const mensaje =
+    a.estado === "PENDIENTE_VALIDACION" && a.validacion_anterior_no_vigente
+      ? "El análisis cambió después de la última validación: revísalo y valídalo de nuevo."
+      : info.mensaje;
+  return { mensaje, tono: info.tono, irAAnalisis: !!info.irAAnalisis };
+}
+
+// En estos estados hay una validación vigente, requisito de la vista previa.
+const ESTADOS_CON_VALIDACION: readonly EstadoAnioReporte[] = ["VALIDACION_VIGENTE", "ACTUALIZACION_PENDIENTE", "REPORTE_GENERADO"];
+
+/** Qué ofrece la pantalla para un año. Sale siempre de lo que responde el servidor, sin deducirlo. */
+export function accionesReporte(a?: AnioDisponible) {
+  return {
+    vistaPrevia: !!a && ESTADOS_CON_VALIDACION.includes(a.estado),
+    generar: !!a?.puede_generar,
+    etiquetaGenerar: a?.reporte_id ? "Generar nueva versión" : "Generar reporte",
+    descargarActualizado: a?.reporte_actualizado === true,
+    descargarHistorica: !!a?.reporte_id && a.reporte_actualizado !== true,
+    verHistorial: !!a?.reporte_id,
+  };
+}
+
+/** Cómo presentar la última emisión: «última» y «actualizada» son cosas distintas. */
+export function situacionEmision(a: AnioDisponible): string {
+  if (a.reporte_actualizado === true) return "Actualizado";
+  return a.origen_verificable === false ? "Origen no verificable" : "No actualizado";
+}
+
+/** Aviso tras emitir: distingue una versión nueva de la que esa validación ya tenía. */
+export function mensajeEmision(e: { version: number; reutilizado: boolean; empresa_nombre: string; anio: number }): string {
+  const destino = `${e.empresa_nombre} (${e.anio})`;
+  return e.reutilizado
+    ? `Esta validación ya tenía un reporte: versión ${e.version} de ${destino}.`
+    : `Versión ${e.version} de ${destino} emitida correctamente.`;
 }
 
 /** Primeros caracteres de una huella SHA-256, para mostrarla sin ocupar toda la tabla. */
@@ -383,34 +445,6 @@ export function aniosConDocumentos(
   });
 }
 
-/** Estado del análisis GRI de un año: si ya permite la vista previa y generar el reporte. */
-export interface EstadoAnio {
-  habilitaReporte: boolean;
-  estadoFlujo: EstadoFlujo;
-}
-
-/** Estado del análisis de cada año con documentos, a partir de las consultas hechas por año. */
-export function estadosPorAnio(
-  candidatos: number[],
-  resultados: PromiseSettledResult<{ documentos: unknown[]; habilita_reporte: boolean; estado_flujo: EstadoFlujo }>[],
-): Record<number, EstadoAnio> {
-  const estados: Record<number, EstadoAnio> = {};
-  candidatos.forEach((anio, i) => {
-    const r = resultados[i];
-    if (r?.status === "fulfilled" && r.value.documentos.length > 0) {
-      estados[anio] = { habilitaReporte: r.value.habilita_reporte, estadoFlujo: r.value.estado_flujo };
-    }
-  });
-  return estados;
-}
-
-/** Texto de un año en la lista de Reportes: si ya tiene reporte o si su análisis está validado. */
-export function etiquetaAnioReporte(anio: number, estado?: EstadoAnio, generado = false): string {
-  if (generado) return `${anio} · Reporte generado`;
-  if (!estado) return String(anio);
-  return `${anio} · ${estado.habilitaReporte ? "Validado" : "Sin validar"}`;
-}
-
 // ---- Paginación ----
 export type ItemPaginacion = number | "…";
 
@@ -441,11 +475,6 @@ export function bloquesPaginacion(actual: number, total: number): { inicio: numb
   if (actual >= total - 2) return { inicio: [1, 2, 3], fin };
   const desde = Math.min(Math.max(1, actual - 1), total - 5);
   return { inicio: [desde, desde + 1, desde + 2], fin };
-}
-
-/** Reporte ya generado de una empresa y año (los reportes son únicos e inmutables), si existe. */
-export function reporteDe<T extends { empresa_id: string; anio: number }>(reportes: T[], empresaId: string, anio: number): T | undefined {
-  return reportes.find((r) => r.empresa_id === empresaId && r.anio === anio);
 }
 
 /** Página válida a partir de lo que escribió el usuario (null si no es un número). */
