@@ -337,6 +337,20 @@ describe("estadosPorAnio y etiquetaAnioReporte", () => {
 });
 
 describe("textoLegible", () => {
+  it("quita enlaces, imágenes y filas separadoras de tablas", () => {
+    expect(textoLegible("Ver [el informe](https://ejemplo.pe/informe.pdf) y ![gráfico](g.png)")).toBe("Ver el informe y gráfico");
+    expect(textoLegible("Antes |---|:---:| después")).toBe("Antes después");
+    expect(textoLegible("Antes | --- | --- | después")).toBe("Antes después");
+    expect(textoLegible("---|---| fin")).toBe("fin");
+  });
+
+  it("no se traba con texto que parece un enlace o una tabla sin cerrar", () => {
+    const largo = 50_000;
+    expect(textoLegible("[".repeat(largo))).toHaveLength(largo);
+    expect(textoLegible("[a](".repeat(largo / 4))).toHaveLength(largo);
+    expect(textoLegible("|   ".repeat(largo / 4))).toContain("|");
+  });
+
   it("quita las marcas de los fragmentos reales reportados", () => {
     expect(textoLegible("Reporte de sostenibilidad 2025 — Tejido Verde de Prueba > **Gestión** ambiental<br>2025 > Cumplimiento"))
       .toBe("Reporte de sostenibilidad 2025 — Tejido Verde de Prueba > Gestión ambiental 2025 > Cumplimiento");

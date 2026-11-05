@@ -340,6 +340,8 @@ function ConfirmarTransferencia({ usuario, onClose }: Readonly<{ usuario: Usuari
   const [cargando, setCargando] = useState(false);
   const restante = useCuentaRegresiva(ESPERA_TRANSFERENCIA_S);
   const esperando = restante > 0;
+  const etiquetaConfirmar = esperando ? `Confirmar transferencia (${restante} s)` : "Confirmar transferencia";
+  const textoBoton = cargando ? "Transfiriendo…" : etiquetaConfirmar;
 
   async function confirmar() {
     setCargando(true);
@@ -374,7 +376,7 @@ function ConfirmarTransferencia({ usuario, onClose }: Readonly<{ usuario: Usuari
             className={`px-lg py-sm rounded-lg text-label-md font-semibold flex items-center gap-sm tabular-nums ${esperando ? "bg-surface-variant text-on-surface-variant cursor-not-allowed" : "bg-tertiary text-on-tertiary disabled:opacity-60"}`}
           >
             {cargando && <Spinner size={16} />}
-            {cargando ? "Transfiriendo…" : `Confirmar transferencia${esperando ? ` (${restante} s)` : ""}`}
+            {textoBoton}
           </button>
         </div>
       </div>

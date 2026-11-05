@@ -260,9 +260,9 @@ const TONOS = {
 
 function Aviso({ tono, icono, children }: Readonly<{ tono: keyof typeof TONOS; icono: string; children: ReactNode }>) {
   return (
-    <div role="status" className={`mt-md rounded-lg px-md py-sm text-label-md flex gap-sm ${TONOS[tono]}`}>
+    <output className={`mt-md rounded-lg px-md py-sm text-label-md flex gap-sm ${TONOS[tono]}`}>
       <span className="material-symbols-outlined text-[18px] shrink-0" aria-hidden="true">{icono}</span>
-      <div className="flex flex-col items-start">{children}</div>
-    </div>
+      <span className="flex flex-col items-start">{children}</span>
+    </output>
   );
 }
