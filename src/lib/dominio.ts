@@ -182,7 +182,7 @@ export function textoLegible(texto: string | null | undefined): string {
   return decodificarEntidades(
     lineas
       .join("\n")
-      .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+      .replace(/!?\[([^[\]]*)\]\([^()]*\)/g, "$1")
       .replace(/(\*\*|__)(.+?)\1/g, "$2")
       .replace(/~~(.+?)~~/g, "$1")
       .replace(/`([^`]+)`/g, "$1")
@@ -190,7 +190,7 @@ export function textoLegible(texto: string | null | undefined): string {
       // Títulos que quedaron en medio del texto, filas separadoras de tablas («|---|---|») y
       // separadores como «---» o «--_--».
       .replace(/(^|\s)#{1,6}(?=\s)/g, "$1")
-      .replace(/\|?(?:\s*:?-{3,}:?\s*\|)+/g, " ")
+      .replace(/(?:\|\s*:?-{3,}:?\s*)+\|/g, " ")
       .replace(/(^|\s)[-_*~=]{3,}(?=\s|$)/g, "$1"),
   )
     .replace(/\s+/g, " ")

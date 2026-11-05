@@ -134,7 +134,15 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-background">
-      {menuMovil && <div data-testid="menu-fondo" className="md:hidden fixed inset-0 z-20 bg-black/40" onClick={() => setMenuMovil(false)} />}
+      {menuMovil && (
+        <button
+          type="button"
+          data-testid="menu-fondo"
+          aria-label="Cerrar menú"
+          onClick={() => setMenuMovil(false)}
+          className="md:hidden fixed inset-0 z-20 w-full h-full cursor-default bg-black/40"
+        />
+      )}
       <aside
         id="menu-lateral"
         className={`flex flex-col w-[260px] h-screen fixed left-0 top-0 bg-surface-container-lowest border-r border-outline-variant shadow-sm z-30 transition-[transform,visibility,width] duration-200 md:translate-x-0 md:visible ${
