@@ -14,6 +14,9 @@ RUN npm run build
 FROM nginx:alpine AS runtime
 
 # Parches de seguridad del sistema base (Trivy bloquea el despliegue si quedan HIGH/CRITICAL corregibles).
+# Jenkins pasa un valor distinto en cada build: sin esto Docker reutiliza la capa guardada y no instala
+# los parches publicados después de esa capa. La etapa de build no depende de él y conserva su caché.
+ARG BUILD_PARCHES=local
 RUN apk upgrade --no-cache
 
 # Config de Nginx con fallback SPA (react-router)

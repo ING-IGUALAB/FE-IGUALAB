@@ -1,6 +1,11 @@
 import { test, expect, entrarComo, campo } from "./support/fixtures";
 import type { Page } from "@playwright/test";
 
+const MARCAS = ["<br", "**", "###", "<mark", "</u>", "](#", "--_--", "&amp;"];
+async function sinMarcas(texto: string) {
+  for (const m of MARCAS) expect(texto, `quedó «${m}» sin limpiar`).not.toContain(m);
+}
+
 async function elegirContexto(page: Page, sector: string, empresa: string, anio: number) {
   await campo(page, "Sector").selectOption({ label: sector });
   await campo(page, "Empresa").selectOption({ label: empresa });
@@ -63,6 +68,65 @@ test.describe("Caso de uso: Consultar al asistente de IA", () => {
     });
   });
 
+  test("las fuentes citadas se leen limpias aunque el fragmento traiga Markdown o HTML", async ({ page }) => {
+    // Fragmento tal como lo devuelve el backend (texto original del .md).
+    await page.route("**/mock-api/asistente/consultas", (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          respuesta: "Multa del OEFA [1].",
+          afirmaciones: [{ texto: "La empresa recibió una **multa** del OEFA.", referencias: [1], cita_textual: "recibió una <mark>multa</mark> de S/ 5000" }],
+          citas: [{
+            referencia: 1, documento_id: "d-andina-2024", documento_nombre: "05_reporte_2025_marcas_html_y_pasajes.md",
+            empresa_id: "e-andina", empresa_nombre: "Minera Andina S.A.A.", anio: 2024,
+            seccion: "Reporte 2025 — Tejido Verde > **Gestión** ambiental<br>2025 > Cumplimiento",
+            extracto: "### Cumplimiento La empresa recibió una <u>multa</u> --_-- de S/ 5000 &amp; ver el [anexo metodológico](#anexo-2)",
+          }],
+          sin_evidencia: false, motivo: null, mensaje: null, afirmaciones_descartadas: 0,
+        }),
+      }),
+    );
+    await elegirContexto(page, "Minería", "Minera Andina S.A.A.", 2024);
+    await page.getByRole("textbox", { name: "Pregunta para el asistente" }).fill("¿Qué sanciones tiene?");
+    await page.getByRole("button", { name: "Consultar" }).click();
+
+    await expect(page.getByText("La empresa recibió una multa del OEFA.")).toBeVisible();
+    await expect(page.getByText("«recibió una multa de S/ 5000»")).toBeVisible();
+    await expect(page.getByText("Minera Andina S.A.A. · 2024 · Reporte 2025 — Tejido Verde > Gestión ambiental 2025 > Cumplimiento")).toBeVisible();
+    await expect(page.getByText("Cumplimiento La empresa recibió una multa de S/ 5000 & ver el anexo metodológico")).toBeVisible();
+    // El nombre del archivo no se toca (sus guiones bajos no son marcas).
+    await expect(page.getByText("05_reporte_2025_marcas_html_y_pasajes.md")).toBeVisible();
+    await sinMarcas(await page.locator("main").innerText());
+  });
+
+  test("una cita que es una tabla del documento se muestra como tabla", async ({ page }) => {
+    const tabla = "| Indicador | Código GRI | 2024 | Unidad | |-----------|-----------|------|--------| | Emisiones directas (Alcance 1) | GRI 305-1 | 11,980 | tCO2e | | Emisiones indirectas (Alcance 2) | GRI 305-2 | 7,650 | tCO2e |";
+    await page.route("**/mock-api/asistente/consultas", (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          respuesta: "Emisiones [1].",
+          afirmaciones: [{ texto: "En 2024, las emisiones directas (Alcance 1) fueron 11,980 tCO2e.", referencias: [1], cita_textual: tabla }],
+          citas: [{ referencia: 1, documento_id: "d-psur-2024", documento_nombre: "gri-petro-sur-2024.md", empresa_id: "e-andina", empresa_nombre: "Minera Andina S.A.A.", anio: 2024, seccion: "Indicadores", extracto: tabla }],
+          sin_evidencia: false, motivo: null, mensaje: null, afirmaciones_descartadas: 0,
+        }),
+      }),
+    );
+    await elegirContexto(page, "Minería", "Minera Andina S.A.A.", 2024);
+    await page.getByRole("textbox", { name: "Pregunta para el asistente" }).fill("¿Qué emisiones reporta?");
+    await page.getByRole("button", { name: "Consultar" }).click();
+
+    const tablas = page.getByRole("table");
+    await expect(tablas).toHaveCount(2); // la cita de la afirmación y el extracto de la fuente
+    const primera = tablas.first();
+    await expect(primera.getByRole("columnheader")).toHaveText(["Indicador", "Código GRI", "2024", "Unidad"]);
+    await expect(primera.getByRole("row", { name: /Emisiones directas/ }).getByRole("cell")).toHaveText(["Emisiones directas (Alcance 1)", "GRI 305-1", "11,980", "tCO2e"]);
+    await expect(primera.getByRole("row")).toHaveCount(3);
+    expect(await page.locator("main").innerText()).not.toContain("|---");
+  });
+
   test("fuera de su dominio, explica que no puede responder", async ({ page }) => {
     await elegirContexto(page, "Minería", "Minera Andina S.A.A.", 2024);
     await page.getByRole("textbox", { name: "Pregunta para el asistente" }).fill("¿Quién ganó el partido de fútbol?");
@@ -75,8 +139,50 @@ test.describe("Caso de uso: Consultar al asistente de IA", () => {
   test("si el asistente no está disponible, muestra el error en el chat", async ({ page, api }) => {
     api.fallarProxima("POST", "/asistente/consultas", 503, "AI_UNAVAILABLE", "El asistente no está disponible en este momento.");
     await elegirContexto(page, "Minería", "Minera Andina S.A.A.", 2024);
-    await page.getByRole("button", { name: "¿Qué sanciones identificas para esta empresa y año?" }).click();
+    await page.getByRole("button", { name: "¿Qué sanciones ambientales, sociales y de gobernanza (compliance) identificas para esta empresa y año?" }).click();
 
     await expect(page.getByText("El asistente no está disponible en este momento.")).toBeVisible();
+  });
+});
+
+test.describe("Barra de contexto del asistente", () => {
+  const NOMBRE_LARGO = "Cooperativa de Ahorro y Crédito Norandino Ltda. (COOPAC Norandino)";
+
+  for (const ancho of [1440, 1280, 1024, 768, 375]) {
+    test(`mantiene su altura en todos los estados, con un nombre largo, a ${ancho}px`, async ({ page, api }) => {
+      await page.setViewportSize({ width: ancho, height: 800 });
+      api.empresas.find((e) => e.id === "e-andina")!.nombre = NOMBRE_LARGO;
+      await entrarComo(page, api, "administrador", "/ia");
+      const barra = page.getByTestId("barra-contexto");
+      await expect(page.getByText("Elige sector y empresa")).toBeVisible();
+      const altoVacio = (await barra.boundingBox())!.height;
+
+      await campo(page, "Sector").selectOption({ label: "Minería" });
+      await campo(page, "Empresa").selectOption({ label: NOMBRE_LARGO });
+      await expect(page.getByText("Contexto listo")).toBeVisible();
+      expect((await barra.boundingBox())!.height).toBeCloseTo(altoVacio, 0);
+      await expect(campo(page, "Empresa")).toHaveAttribute("title", NOMBRE_LARGO);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+
+      await campo(page, "Sector").selectOption({ label: "Energía" });
+      await campo(page, "Empresa").selectOption({ label: "Utec ELEC S.A." });
+      await expect(page.getByText("Sin documentos analizados")).toBeVisible();
+      expect((await barra.boundingBox())!.height).toBeCloseTo(altoVacio, 0);
+    });
+  }
+
+  test("en escritorio el indicador queda en la misma línea que los campos", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    api.empresas.find((e) => e.id === "e-andina")!.nombre = NOMBRE_LARGO;
+    await entrarComo(page, api, "administrador", "/ia");
+    await campo(page, "Sector").selectOption({ label: "Minería" });
+    await campo(page, "Empresa").selectOption({ label: NOMBRE_LARGO });
+    const indicador = page.getByText("Contexto listo");
+    await expect(indicador).toBeVisible();
+
+    const a = (await campo(page, "Empresa").boundingBox())!;
+    const b = (await indicador.boundingBox())!;
+    expect(b.y).toBeLessThan(a.y + a.height);
+    expect(b.x).toBeGreaterThan(a.x + a.width);
   });
 });

@@ -24,8 +24,15 @@ import {
   paginaValida,
   paginarLocal,
   rangoPaginas,
+  tablaMarkdown,
+  textoLegible,
+  filtrarDocumentos,
+  accionesReporte,
+  etiquetaAnioReporte,
+  mensajeEmision,
+  situacionAnioReporte,
+  situacionEmision,
   textoSinAnios,
-  reporteDe,
   bloquesPaginacion,
   plural,
   puedeValidar,
@@ -39,6 +46,7 @@ import {
   formatearTamano,
   validarArchivoIngesta,
 } from "./dominio";
+import type { AnioDisponible, EstadoAnioReporte } from "../types";
 
 describe("etiquetas de dominio", () => {
   it("traduce sectores del backend", () => {
@@ -313,14 +321,172 @@ describe("aniosConDocumentos", () => {
   });
 });
 
-describe("reporteDe", () => {
-  const reportes = [{ id: "r1", empresa_id: "e1", anio: 2024 }, { id: "r2", empresa_id: "e1", anio: 2023 }];
-  it("encuentra el reporte de la empresa y el año", () => {
-    expect(reporteDe(reportes, "e1", 2023)?.id).toBe("r2");
+describe("reportes versionados", () => {
+  const anio = (extra: Partial<AnioDisponible>): AnioDisponible => ({ anio: 2024, estado: "VALIDACION_VIGENTE", puede_generar: true, ...extra });
+
+  it("etiqueta cada año según su estado", () => {
+    expect(etiquetaAnioReporte(anio({ estado: "PENDIENTE_REVISION" }))).toBe("2024 · Pendiente de revisión");
+    expect(etiquetaAnioReporte(anio({ estado: "PENDIENTE_VALIDACION" }))).toBe("2024 · Sin validar");
+    expect(etiquetaAnioReporte(anio({}))).toBe("2024 · Validado");
+    expect(etiquetaAnioReporte(anio({ estado: "ACTUALIZACION_PENDIENTE" }))).toBe("2024 · Validación nueva sin reporte");
+    expect(etiquetaAnioReporte(anio({ estado: "REPORTE_GENERADO" }))).toBe("2024 · Reporte actualizado");
+    expect(etiquetaAnioReporte(anio({ estado: "SIN_CODIGOS_GRI" }))).toBe("2024 · Sin códigos GRI");
+    expect(etiquetaAnioReporte(anio({ estado: "SIN_DOCUMENTACION_ELEGIBLE" }))).toBe("2024 · Sin documentos");
   });
-  it("si no hay reporte de esa empresa y año, no devuelve nada", () => {
-    expect(reporteDe(reportes, "e1", 2025)).toBeUndefined();
-    expect(reporteDe(reportes, "e2", 2024)).toBeUndefined();
+
+  it("un estado que aún no se conoce no rompe la pantalla", () => {
+    const desconocido = anio({ estado: "OTRO" as EstadoAnioReporte });
+    expect(etiquetaAnioReporte(desconocido)).toBe("2024");
+    expect(situacionAnioReporte(desconocido)).toEqual({ mensaje: "No se pudo determinar la situación de este año.", tono: "neutro", irAAnalisis: false });
+  });
+
+  it("lleva a Análisis GRI solo si falta revisar o validar, y explica si la validación venció", () => {
+    expect(situacionAnioReporte(anio({ estado: "PENDIENTE_REVISION" })).irAAnalisis).toBe(true);
+    expect(situacionAnioReporte(anio({ estado: "PENDIENTE_VALIDACION" })).mensaje).toBe("Valida el análisis GRI antes de emitir el reporte.");
+    expect(situacionAnioReporte(anio({ estado: "PENDIENTE_VALIDACION", validacion_anterior_no_vigente: true })).mensaje).toContain("cambió después de la última validación");
+    expect(situacionAnioReporte(anio({})).irAAnalisis).toBe(false);
+  });
+
+  it("sin reporte ofrece generar; con reporte, generar una nueva versión", () => {
+    expect(accionesReporte(anio({}))).toMatchObject({ generar: true, etiquetaGenerar: "Generar reporte", descargarActualizado: false, descargarHistorica: false, verHistorial: false });
+    expect(accionesReporte(anio({ estado: "ACTUALIZACION_PENDIENTE", reporte_id: "r1", reporte_actualizado: false }))).toMatchObject({
+      generar: true,
+      etiquetaGenerar: "Generar nueva versión",
+      descargarActualizado: false,
+      descargarHistorica: true,
+    });
+  });
+
+  it("solo presenta como actualizado lo que el servidor confirma", () => {
+    expect(accionesReporte(anio({ estado: "REPORTE_GENERADO", puede_generar: false, reporte_id: "r1", reporte_actualizado: true }))).toMatchObject({
+      generar: false,
+      descargarActualizado: true,
+      descargarHistorica: false,
+    });
+    // Que no haya una actualización pendiente no significa que esté actualizado.
+    expect(accionesReporte(anio({ estado: "PENDIENTE_VALIDACION", puede_generar: false, reporte_id: "r1", reporte_actualizado: null, actualizacion_pendiente: false }))).toMatchObject({
+      vistaPrevia: false,
+      descargarActualizado: false,
+      descargarHistorica: true,
+    });
+    expect(accionesReporte()).toMatchObject({ vistaPrevia: false, generar: false, descargarActualizado: false, descargarHistorica: false });
+  });
+
+  it("describe la última emisión sin confundir última con actualizada", () => {
+    expect(situacionEmision(anio({ reporte_actualizado: true, origen_verificable: true }))).toBe("Actualizado");
+    expect(situacionEmision(anio({ reporte_actualizado: false, origen_verificable: true }))).toBe("No actualizado");
+    expect(situacionEmision(anio({ reporte_actualizado: false, origen_verificable: false }))).toBe("Origen no verificable");
+  });
+
+  it("distingue una emisión nueva de una reutilizada", () => {
+    const base = { version: 2, empresa_nombre: "Minera", anio: 2024 };
+    expect(mensajeEmision({ ...base, reutilizado: false })).toBe("Versión 2 de Minera (2024) emitida correctamente.");
+    expect(mensajeEmision({ ...base, reutilizado: true })).toBe("Esta validación ya tenía un reporte: versión 2 de Minera (2024).");
+  });
+
+  it("el nombre del archivo lleva la versión", () => {
+    expect(nombreArchivoReporte("Minera Andina", 2024, 2)).toBe("reporte-prospeccion-minera-andina-2024-v2.pdf");
+  });
+});
+
+describe("textoLegible", () => {
+  it("quita enlaces, imágenes y filas separadoras de tablas", () => {
+    expect(textoLegible("Ver [el informe](https://ejemplo.pe/informe.pdf) y ![gráfico](g.png)")).toBe("Ver el informe y gráfico");
+    expect(textoLegible("Antes |---|:---:| después")).toBe("Antes después");
+    expect(textoLegible("Antes | --- | --- | después")).toBe("Antes después");
+    expect(textoLegible("---|---| fin")).toBe("fin");
+  });
+
+  it("no se traba con texto que parece un enlace o una tabla sin cerrar", () => {
+    const largo = 50_000;
+    expect(textoLegible("[".repeat(largo))).toHaveLength(largo);
+    expect(textoLegible("[a](".repeat(largo / 4))).toHaveLength(largo);
+    expect(textoLegible("|   ".repeat(largo / 4))).toContain("|");
+  });
+
+  it("quita las marcas de los fragmentos reales reportados", () => {
+    expect(textoLegible("Reporte de sostenibilidad 2025 — Tejido Verde de Prueba > **Gestión** ambiental<br>2025 > Cumplimiento"))
+      .toBe("Reporte de sostenibilidad 2025 — Tejido Verde de Prueba > Gestión ambiental 2025 > Cumplimiento");
+    expect(textoLegible("### Cumplimiento La empresa recibió una multa de S/ 5000 por parte del OEFA"))
+      .toBe("Cumplimiento La empresa recibió una multa de S/ 5000 por parte del OEFA");
+    expect(textoLegible("# Reporte de sostenibilidad 2025 — Tejido Verde de Prueba ## **Gestión** ambiental<br>2025 La compañía"))
+      .toBe("Reporte de sostenibilidad 2025 — Tejido Verde de Prueba Gestión ambiental 2025 La compañía");
+    expect(textoLegible("se generaron 86 toneladas de residuos.<br />De ellas, 61 toneladas. Consulte el [anexo metodológico](#anexo-2)"))
+      .toBe("se generaron 86 toneladas de residuos. De ellas, 61 toneladas. Consulte el anexo metodológico");
+  });
+  it("quita etiquetas HTML conservando su texto y decodifica entidades", () => {
+    expect(textoLegible("Multa <mark>confirmada</mark> por <u>OEFA</u><!-- nota -->")).toBe("Multa confirmada por OEFA");
+    expect(textoLegible("Agua &amp; efluentes &lt;GRI 303&gt; &#8212; &#x41;&nbsp;fin")).toBe("Agua & efluentes <GRI 303> — A fin");
+    expect(textoLegible("Unidades &desconocida; se conservan")).toBe("Unidades &desconocida; se conservan");
+  });
+  it("quita negritas, cursivas, tachados, código y separadores", () => {
+    expect(textoLegible("Texto *cursiva* y _otra_, ~~tachado~~ y `código` --_-- fin --- final"))
+      .toBe("Texto cursiva y otra, tachado y código fin final");
+    expect(textoLegible("- primer punto\n* segundo\n> cita")).toBe("primer punto segundo cita");
+  });
+  it("no toca lo que no es marca: comparaciones, guiones bajos de nombres ni números", () => {
+    expect(textoLegible("emisiones < 5000 t y x > 3")).toBe("emisiones < 5000 t y x > 3");
+    expect(textoLegible("Ver 05_reporte_2025_marcas.md · 4. Agua (GRI 303)")).toBe("Ver 05_reporte_2025_marcas.md · 4. Agua (GRI 303)");
+    expect(textoLegible("Impuesto 2*3*4 y a_b")).toBe("Impuesto 2*3*4 y a_b");
+  });
+  it("sin texto devuelve vacío", () => {
+    expect(textoLegible(undefined)).toBe("");
+    expect(textoLegible(null)).toBe("");
+    expect(textoLegible("  ")).toBe("");
+  });
+});
+
+describe("tablaMarkdown", () => {
+  const encabezados = ["Indicador", "Código GRI", "2024", "Unidad"];
+  it("reconoce la tabla aunque venga en una sola línea, como la reportada", () => {
+    const t = tablaMarkdown("| Indicador | Código GRI | 2024 | Unidad | |-----------|-----------|------|--------| | Emisiones directas (Alcance 1) | GRI 305-1 | 11,980 | tCO2e | | Emisiones indirectas (Alcance 2) | GRI 305-2 | 7,650 | tCO2e |");
+    expect(t).toEqual({
+      antes: "",
+      encabezados,
+      filas: [
+        ["Emisiones directas (Alcance 1)", "GRI 305-1", "11,980", "tCO2e"],
+        ["Emisiones indirectas (Alcance 2)", "GRI 305-2", "7,650", "tCO2e"],
+      ],
+    });
+  });
+  it("también con saltos de línea, texto previo, celdas vacías y marcas en las celdas", () => {
+    const t = tablaMarkdown("Tabla 3:\n| Indicador | Código GRI | 2024 | Unidad |\n|:---|:---:|---:|---|\n| **Agua** extraída | GRI 303-3 |  | m3 |");
+    expect(t).toEqual({ antes: "Tabla 3:", encabezados, filas: [["Agua extraída", "GRI 303-3", "", "m3"]] });
+  });
+  it("si no es una tabla bien formada, devuelve null (se muestra como texto)", () => {
+    expect(tablaMarkdown("Durante 2024 se registró una sanción ambiental de OEFA.")).toBeNull();
+    expect(tablaMarkdown("| a | b | |---|---| | 1 | 2 | 3 |")).toBeNull();
+    expect(tablaMarkdown("| a | b | c | |---|---| | 1 | 2 | 3 |")).toBeNull();
+    expect(tablaMarkdown("| a | b | |---|---| | 1 | 2 | y sigue texto")).toBeNull();
+    expect(tablaMarkdown("| a | b | |---|---|")).toBeNull();
+    expect(tablaMarkdown("sin tubería |---|---|")).toBeNull();
+    expect(tablaMarkdown(null)).toBeNull();
+  });
+  it("si no se puede leer como tabla, el texto queda sin las filas separadoras", () => {
+    expect(textoLegible("| a | b | |---|---| | 1 | 2 | 3 |")).toBe("| a | b | | 1 | 2 | 3 |");
+  });
+});
+
+describe("filtrarDocumentos", () => {
+  const docs = [
+    { id: "1", sector: "ENERGIA", empresa_nombre: "Energía Andina S.A." },
+    { id: "2", sector: "MINERIA", empresa_nombre: "Minera Andina S.A.A." },
+    { id: "3", sector: "PETROLEO", empresa_nombre: "Petro Sur S.A." },
+  ];
+  const ids = (f: { sector?: string; busqueda?: string }) => filtrarDocumentos(docs, f).map((d) => d.id);
+  it("busca por una parte del nombre, sin distinguir mayúsculas ni tildes", () => {
+    expect(ids({ busqueda: "andina" })).toEqual(["1", "2"]);
+    expect(ids({ busqueda: "ENERGIA" })).toEqual(["1"]);
+    expect(ids({ busqueda: "  petro  " })).toEqual(["3"]);
+    expect(ids({ busqueda: "xyz" })).toEqual([]);
+  });
+  it("combina la búsqueda con el sector", () => {
+    expect(ids({ sector: "MINERIA", busqueda: "andina" })).toEqual(["2"]);
+    expect(ids({ sector: "MINERIA" })).toEqual(["2"]);
+  });
+  it("sin criterios devuelve todos", () => {
+    expect(ids({})).toEqual(["1", "2", "3"]);
+    expect(ids({ busqueda: "   " })).toEqual(["1", "2", "3"]);
   });
 });
 

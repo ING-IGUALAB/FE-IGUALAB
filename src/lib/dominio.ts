@@ -1,4 +1,6 @@
 import type {
+  AnioDisponible,
+  EstadoAnioReporte,
   EstadoFlujo,
   EstadoGriApi,
   EstadoProgreso,
@@ -153,6 +155,107 @@ export function textoMotivosNoVigente(motivos: MotivoNoVigente[]): string {
 }
 
 /** Paginación en el cliente (para filtros que el backend no soporta, p. ej. sector). */
+// ---- Texto de los documentos ----
+const ENTIDADES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
+
+function decodificarEntidades(texto: string): string {
+  return texto.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (entidad, cuerpo: string) => {
+    const minus = cuerpo.toLowerCase();
+    if (minus.startsWith("#x")) return String.fromCodePoint(Number.parseInt(minus.slice(2), 16));
+    if (minus.startsWith("#")) return String.fromCodePoint(Number.parseInt(minus.slice(1), 10));
+    return ENTIDADES[minus] ?? entidad;
+  });
+}
+
+/**
+ * Texto legible de un fragmento de documento: los documentos son Markdown y pueden traer HTML, y el
+ * backend devuelve el fragmento tal cual (es la evidencia exacta). Aquí solo se quitan las marcas para
+ * mostrarlo; el resultado se muestra siempre como texto, nunca se interpreta como HTML.
+ */
+export function textoLegible(texto: string | null | undefined): string {
+  if (!texto) return "";
+  const lineas = texto
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<\/?[a-z][^>]*>/gi, "")
+    .split("\n")
+    // Marcas de inicio de línea: títulos, citas y viñetas.
+    .map((linea) => linea.replace(/^\s*(#{1,6}|>|[-*+])\s+/, ""));
+  return decodificarEntidades(
+    lineas
+      .join("\n")
+      .replace(/!?\[([^[\]]*)\]\([^()]*\)/g, "$1")
+      .replace(/(\*\*|__)(.+?)\1/g, "$2")
+      .replace(/~~(.+?)~~/g, "$1")
+      .replace(/`([^`]+)`/g, "$1")
+      .replace(/(^|[\s(])[*_]([^*_\n]+)[*_](?=$|[\s.,;:!?)])/g, "$1$2")
+      // Títulos que quedaron en medio del texto, filas separadoras de tablas («|---|---|») y
+      // separadores como «---» o «--_--».
+      .replace(/(^|\s)#{1,6}(?=\s)/g, "$1")
+      .replace(/(?:\|\s*:?-{3,}:?\s*)+\|/g, " ")
+      .replace(/(^|\s)[-_*~=]{3,}(?=\s|$)/g, "$1"),
+  )
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Tabla de Markdown encontrada en un fragmento: texto previo, encabezados y filas, ya legibles. */
+export interface TablaTexto {
+  antes: string;
+  encabezados: string[];
+  filas: string[][];
+}
+
+// Fila separadora de una tabla de Markdown: «|---|:---:|---|».
+const SEPARADOR_TABLA = /\|(?:\s*:?-{3,}:?\s*\|){2,}/;
+
+/**
+ * Si el fragmento es una tabla de Markdown, la devuelve como datos para mostrarla como tabla. Sirve
+ * aunque las filas vengan en una sola línea (separadas por «| |»). Si algo no encaja, devuelve null y
+ * el fragmento se muestra como texto.
+ */
+export function tablaMarkdown(texto: string | null | undefined): TablaTexto | null {
+  if (!texto) return null;
+  const separador = SEPARADOR_TABLA.exec(texto);
+  if (!separador) return null;
+  const cabecera = texto.slice(0, separador.index);
+  const inicio = cabecera.indexOf("|");
+  if (inicio < 0) return null;
+  const encabezados = cabecera.slice(inicio).trim().replace(/^\||\|$/g, "").split("|").map(textoLegible);
+  const columnas = encabezados.length;
+  if (columnas < 2 || separador[0].split("|").length - 2 !== columnas) return null;
+
+  // Celdas del cuerpo: cada fila tiene `columnas` celdas y entre filas queda un hueco vacío («| |»).
+  const cuerpo = texto.slice(separador.index + separador[0].length).trim();
+  if (!cuerpo.startsWith("|") || !cuerpo.endsWith("|")) return null;
+  const celdas = cuerpo.slice(1, -1).split("|");
+  const filas: string[][] = [];
+  for (let i = 0; i < celdas.length; i += columnas + 1) {
+    const fila = celdas.slice(i, i + columnas);
+    const hueco = celdas[i + columnas];
+    if (fila.length !== columnas || (hueco !== undefined && hueco.trim() !== "")) return null;
+    filas.push(fila.map(textoLegible));
+  }
+  if (filas.length === 0) return null;
+  return { antes: textoLegible(texto.slice(0, inicio)), encabezados, filas };
+}
+
+/** Texto para comparar sin distinguir mayúsculas ni tildes. */
+function normalizarTexto(texto: string): string {
+  return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
+/** Documentos del sector elegido cuya empresa contiene el texto buscado (basta una parte del nombre). */
+export function filtrarDocumentos<T extends { sector: string; empresa_nombre: string }>(
+  documentos: T[],
+  filtros: { sector?: string; busqueda?: string },
+): T[] {
+  const buscado = normalizarTexto(filtros.busqueda ?? "");
+  return documentos.filter(
+    (d) => (!filtros.sector || d.sector === filtros.sector) && normalizarTexto(d.empresa_nombre).includes(buscado),
+  );
+}
+
 export function paginarLocal<T>(items: T[], pagina: number, tamano: number): { items: T[]; pagina: number; paginas: number } {
   const paginas = Math.max(1, Math.ceil(items.length / tamano));
   const actual = Math.min(Math.max(1, pagina), paginas);
@@ -168,15 +271,75 @@ export function textoMonto(m: MontoVista): string {
 }
 
 // ---- Reportes ----
-/** Nombre de archivo legible y seguro: «reporte-prospeccion-minera-andina-saa-2024.pdf». */
-export function nombreArchivoReporte(empresa: string, anio: number): string {
+/** Nombre de archivo legible y seguro: «reporte-prospeccion-minera-andina-saa-2024-v2.pdf». */
+export function nombreArchivoReporte(empresa: string, anio: number, version?: number | null): string {
   const slug = empresa
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-)|(-$)/g, "");
-  return `reporte-prospeccion-${slug || "empresa"}-${anio}.pdf`;
+  const sufijo = version ? `-v${version}` : "";
+  return `reporte-prospeccion-${slug || "empresa"}-${anio}${sufijo}.pdf`;
+}
+
+export type TonoEstadoReporte = "ok" | "pendiente" | "neutro";
+
+/** Qué significa cada estado de un año. El estado lo decide el servidor; aquí solo se explica. */
+const INFO_ESTADO_REPORTE: Record<EstadoAnioReporte, { etiqueta: string; mensaje: string; tono: TonoEstadoReporte; irAAnalisis?: boolean }> = {
+  PENDIENTE_REVISION: { etiqueta: "Pendiente de revisión", mensaje: "Asigna los estados GRI pendientes antes de emitir el reporte.", tono: "pendiente", irAAnalisis: true },
+  PENDIENTE_VALIDACION: { etiqueta: "Sin validar", mensaje: "Valida el análisis GRI antes de emitir el reporte.", tono: "pendiente", irAAnalisis: true },
+  VALIDACION_VIGENTE: { etiqueta: "Validado", mensaje: "La validación está lista: ya puedes ver la vista previa y generar el reporte.", tono: "ok" },
+  ACTUALIZACION_PENDIENTE: { etiqueta: "Validación nueva sin reporte", mensaje: "Hay una validación nueva sin reporte: ya puedes generar una nueva versión.", tono: "pendiente" },
+  REPORTE_GENERADO: { etiqueta: "Reporte actualizado", mensaje: "El reporte está actualizado: no hay una versión nueva que emitir.", tono: "ok" },
+  SIN_CODIGOS_GRI: { etiqueta: "Sin códigos GRI", mensaje: "Los documentos de este año no tienen códigos GRI evaluables.", tono: "neutro" },
+  SIN_DOCUMENTACION_ELEGIBLE: { etiqueta: "Sin documentos", mensaje: "Este año no tiene documentación elegible para el reporte.", tono: "neutro" },
+};
+
+/** Texto de un año en la lista de Reportes. */
+export function etiquetaAnioReporte(a: AnioDisponible): string {
+  const info = INFO_ESTADO_REPORTE[a.estado];
+  return info ? `${a.anio} · ${info.etiqueta}` : String(a.anio);
+}
+
+/** Mensaje de la situación de un año y si conviene llevar a Análisis GRI para resolverla. */
+export function situacionAnioReporte(a: AnioDisponible): { mensaje: string; tono: TonoEstadoReporte; irAAnalisis: boolean } {
+  const info = INFO_ESTADO_REPORTE[a.estado];
+  if (!info) return { mensaje: "No se pudo determinar la situación de este año.", tono: "neutro", irAAnalisis: false };
+  const mensaje =
+    a.estado === "PENDIENTE_VALIDACION" && a.validacion_anterior_no_vigente
+      ? "El análisis cambió después de la última validación: revísalo y valídalo de nuevo."
+      : info.mensaje;
+  return { mensaje, tono: info.tono, irAAnalisis: !!info.irAAnalisis };
+}
+
+// En estos estados hay una validación vigente, requisito de la vista previa.
+const ESTADOS_CON_VALIDACION: ReadonlySet<EstadoAnioReporte> = new Set<EstadoAnioReporte>(["VALIDACION_VIGENTE", "ACTUALIZACION_PENDIENTE", "REPORTE_GENERADO"]);
+
+/** Qué ofrece la pantalla para un año. Sale siempre de lo que responde el servidor, sin deducirlo. */
+export function accionesReporte(a?: AnioDisponible) {
+  return {
+    vistaPrevia: !!a && ESTADOS_CON_VALIDACION.has(a.estado),
+    generar: !!a?.puede_generar,
+    etiquetaGenerar: a?.reporte_id ? "Generar nueva versión" : "Generar reporte",
+    descargarActualizado: a?.reporte_actualizado === true,
+    descargarHistorica: !!a?.reporte_id && a.reporte_actualizado !== true,
+    verHistorial: !!a?.reporte_id,
+  };
+}
+
+/** Cómo presentar la última emisión: «última» y «actualizada» son cosas distintas. */
+export function situacionEmision(a: AnioDisponible): string {
+  if (a.reporte_actualizado === true) return "Actualizado";
+  return a.origen_verificable === false ? "Origen no verificable" : "No actualizado";
+}
+
+/** Aviso tras emitir: distingue una versión nueva de la que esa validación ya tenía. */
+export function mensajeEmision(e: { version: number; reutilizado: boolean; empresa_nombre: string; anio: number }): string {
+  const destino = `${e.empresa_nombre} (${e.anio})`;
+  return e.reutilizado
+    ? `Esta validación ya tenía un reporte: versión ${e.version} de ${destino}.`
+    : `Versión ${e.version} de ${destino} emitida correctamente.`;
 }
 
 /** Primeros caracteres de una huella SHA-256, para mostrarla sin ocupar toda la tabla. */
@@ -312,11 +475,6 @@ export function bloquesPaginacion(actual: number, total: number): { inicio: numb
   if (actual >= total - 2) return { inicio: [1, 2, 3], fin };
   const desde = Math.min(Math.max(1, actual - 1), total - 5);
   return { inicio: [desde, desde + 1, desde + 2], fin };
-}
-
-/** Reporte ya generado de una empresa y año (los reportes son únicos e inmutables), si existe. */
-export function reporteDe<T extends { empresa_id: string; anio: number }>(reportes: T[], empresaId: string, anio: number): T | undefined {
-  return reportes.find((r) => r.empresa_id === empresaId && r.anio === anio);
 }
 
 /** Página válida a partir de lo que escribió el usuario (null si no es un número). */

@@ -104,7 +104,8 @@ pipeline {
                 script {
                     env.IMAGEN_FRONTEND = IMAGEN_POR_RAMA[env.BRANCH_NAME]
                 }
-                sh 'docker build -t "$IMAGEN_FRONTEND" .'
+                // --pull trae la imagen base vigente y BUILD_PARCHES obliga a reinstalar los parches del sistema.
+                sh 'docker build --pull --build-arg BUILD_PARCHES="$BUILD_TAG" -t "$IMAGEN_FRONTEND" .'
             }
         }
 

@@ -8,6 +8,11 @@ async function consultar(page: Page, sector: string, empresa: string, anio: numb
   await page.getByRole("button", { name: "Consultar análisis" }).click();
 }
 
+const MARCAS = ["<br", "**", "###", "<mark", "</u>", "](#", "--_--", "&amp;"];
+async function sinMarcas(texto: string) {
+  for (const m of MARCAS) expect(texto, `quedó «${m}» sin limpiar`).not.toContain(m);
+}
+
 const estadoDe = (page: Page, estandar: string) => page.getByRole("combobox", { name: `Estado de ${estandar}` });
 
 test.describe("Caso de uso: Analizar y validar códigos GRI", () => {
@@ -32,6 +37,18 @@ test.describe("Caso de uso: Analizar y validar códigos GRI", () => {
     await expect(campo(page, "Año").locator("option")).toHaveText(["Sin documentos"]);
     await expect(page.getByText("Esta empresa aún no tiene documentos subidos.")).toBeVisible();
     await expect(page.getByRole("button", { name: "Consultar análisis" })).toBeDisabled();
+  });
+
+  test("las evidencias y sanciones se leen limpias aunque el documento traiga Markdown o HTML", async ({ page, api }) => {
+    const estado = api.analisis.get("e-andina:2024")!;
+    estado.filas[0].evidencias[0] = { ...estado.filas[0].evidencias[0], cita: "### Residuos GRI 306-3: se generaron **86** toneladas.<br />De ellas, 61", seccion: "**Gestión** ambiental<br>2025" };
+    estado.sanciones[0] = { ...estado.sanciones[0], cita: "La empresa recibió una <mark>multa</mark> del OEFA --_-- [ver](#resolucion)", seccion: "## Cumplimiento" };
+    await consultar(page, "Minería", "Minera Andina S.A.A.", 2024);
+
+    await expect(page.getByText("Residuos GRI 306-3: se generaron 86 toneladas. De ellas, 61")).toBeVisible();
+    await expect(page.getByText("memoria-andina-2024.md · Gestión ambiental 2025")).toBeVisible();
+    await expect(page.getByText("La empresa recibió una multa del OEFA ver")).toBeVisible();
+    await sinMarcas(await page.locator("main").innerText());
   });
 
   test("muestra los códigos GRI con su evidencia y las sanciones", async ({ page }) => {

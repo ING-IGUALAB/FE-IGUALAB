@@ -13,6 +13,7 @@ import { fechaCorta } from "../lib/format";
 import { esCorreoValido } from "../lib/validacion";
 import type { Usuario } from "../types";
 import CampoContrasena from "../components/CampoContrasena";
+import { useCuentaRegresiva } from "../components/useCuentaRegresiva";
 
 const SKELETON_ROWS = ["r1", "r2", "r3", "r4"];
 const SKELETON_CELLS = [
@@ -151,7 +152,7 @@ export default function Usuarios() {
   );
 }
 
-type ErroresCampo = { nombre?: string; correo?: string; password?: string };
+type ErroresCampo = { nombre?: string; correo?: string; password?: string; confirmacion?: string };
 
 const claseInput = (invalido: boolean) =>
   `rounded-xl border py-sm px-md text-body-md focus:ring-1 focus:ring-primary outline-none ${
@@ -163,6 +164,7 @@ function CrearUsuarioModal({ open, onClose, onCreado }: Readonly<{ open: boolean
   const [nombre, setNombre] = useState("");
   const [correo, setCorreo] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmacion, setConfirmacion] = useState("");
   const [errs, setErrs] = useState<ErroresCampo>({});
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
@@ -170,7 +172,13 @@ function CrearUsuarioModal({ open, onClose, onCreado }: Readonly<{ open: boolean
   const reglas = useMemo(() => REGLAS_PASSWORD.map((r) => ({ msg: r.msg, ok: r.ok(password, correo) })), [password, correo]);
 
   function reset() {
-    setNombre(""); setCorreo(""); setPassword(""); setErrs({}); setError("");
+    setNombre(""); setCorreo(""); setPassword(""); setConfirmacion(""); setErrs({}); setError("");
+  }
+
+  // Al cerrar no quedan datos escritos (las contraseñas no deben reaparecer al volver a abrir).
+  function cerrar() {
+    reset();
+    onClose();
   }
 
   async function guardar() {
@@ -180,14 +188,15 @@ function CrearUsuarioModal({ open, onClose, onCreado }: Readonly<{ open: boolean
     if (!correo.trim()) e.correo = "Este campo es obligatorio.";
     else if (!esCorreoValido(correo)) e.correo = "El formato del correo es incorrecto.";
     if (!reglas.every((r) => r.ok)) e.password = "La contraseña debe cumplir todos los requisitos.";
+    if (!confirmacion) e.confirmacion = "Este campo es obligatorio.";
+    else if (confirmacion !== password) e.confirmacion = "Las contraseñas no coinciden.";
     setErrs(e);
     if (Object.keys(e).length > 0) return;
     setCargando(true);
     try {
       await usuariosApi.crearUsuario({ nombre: nombre.trim(), correo: correo.trim(), password });
       toast("Cuenta creada como Administrador.", "success");
-      reset();
-      onClose();
+      cerrar();
       onCreado();
     } catch (err) {
       setError(mensajeError(err, "No se pudo crear la cuenta."));
@@ -197,7 +206,7 @@ function CrearUsuarioModal({ open, onClose, onCreado }: Readonly<{ open: boolean
   }
 
   return (
-    <Modal open={open} onClose={onClose}>
+    <Modal open={open} onClose={cerrar}>
       <div className="p-xl">
         <h3 className="text-title-lg text-on-background mb-lg flex items-center gap-sm">
           <span className="material-symbols-outlined text-primary">person_add</span> Crear usuario
@@ -232,7 +241,7 @@ function CrearUsuarioModal({ open, onClose, onCreado }: Readonly<{ open: boolean
             <CampoContrasena
               etiqueta="Contraseña"
               valor={password}
-              onCambiar={(v) => { setPassword(v); setErrs((p) => ({ ...p, password: undefined })); }}
+              onCambiar={(v) => { setPassword(v); setErrs((p) => ({ ...p, password: undefined, confirmacion: undefined })); }}
               autoComplete="new-password"
               invalido={!!errs.password}
               idDescripcion={errs.password ? "cu-err-password" : undefined}
@@ -240,6 +249,19 @@ function CrearUsuarioModal({ open, onClose, onCreado }: Readonly<{ open: boolean
               placeholder="Mín. 8 · mayús., minús., dígito y símbolo"
             />
             {errs.password && <span id="cu-err-password" className="text-label-sm text-error">{errs.password}</span>}
+          </div>
+          <div className="flex flex-col gap-xs">
+            <CampoContrasena
+              etiqueta="Confirmar contraseña"
+              valor={confirmacion}
+              onCambiar={(v) => { setConfirmacion(v); setErrs((p) => ({ ...p, confirmacion: undefined })); }}
+              autoComplete="new-password"
+              invalido={!!errs.confirmacion}
+              idDescripcion={errs.confirmacion ? "cu-err-confirmacion" : undefined}
+              className={claseInput(!!errs.confirmacion)}
+              placeholder="Vuelve a escribir la contraseña"
+            />
+            {errs.confirmacion && <span id="cu-err-confirmacion" className="text-label-sm text-error">{errs.confirmacion}</span>}
             <ul className="grid grid-cols-2 gap-xs text-label-sm mt-xs">
               {reglas.map((r) => (
                 <li key={r.msg} className={`flex items-center gap-xs ${r.ok ? "text-primary" : "text-on-surface-variant"}`}>
@@ -256,7 +278,7 @@ function CrearUsuarioModal({ open, onClose, onCreado }: Readonly<{ open: boolean
           {error && <div className="rounded-lg bg-error-container text-on-error-container px-md py-sm text-body-md">{error}</div>}
         </div>
         <div className="flex justify-end gap-sm mt-lg">
-          <button onClick={onClose} className="px-lg py-sm rounded-lg border border-outline-variant text-body-md text-on-surface-variant hover:bg-surface-container-low">Cancelar</button>
+          <button onClick={cerrar} className="px-lg py-sm rounded-lg border border-outline-variant text-body-md text-on-surface-variant hover:bg-surface-container-low">Cancelar</button>
           <button onClick={guardar} disabled={cargando} className="px-lg py-sm rounded-lg bg-primary text-on-primary text-label-md font-semibold hover:bg-surface-tint disabled:opacity-60 flex items-center gap-sm">{cargando && <Spinner size={16} />}{cargando ? "Creando…" : "Crear"}</button>
         </div>
       </div>
@@ -303,19 +325,30 @@ function ToggleModal({ usuario, onClose, onHecho }: Readonly<{ usuario: Usuario 
   );
 }
 
+// Espera antes de poder confirmar una acción que no se puede deshacer por cuenta propia.
+const ESPERA_TRANSFERENCIA_S = 10;
+
 function TransferirModal({ usuario, onClose }: Readonly<{ usuario: Usuario | null; onClose: () => void }>) {
+  // Se monta de nuevo en cada apertura: la cuenta regresiva siempre empieza completa.
+  return usuario ? <ConfirmarTransferencia key={usuario.id} usuario={usuario} onClose={onClose} /> : null;
+}
+
+function ConfirmarTransferencia({ usuario, onClose }: Readonly<{ usuario: Usuario; onClose: () => void }>) {
   const toast = useToast();
   const navigate = useNavigate();
   const { actualizarRol } = useAuth();
   const [cargando, setCargando] = useState(false);
-  if (!usuario) return null;
+  const restante = useCuentaRegresiva(ESPERA_TRANSFERENCIA_S);
+  const esperando = restante > 0;
+  const etiquetaConfirmar = esperando ? `Confirmar transferencia (${restante} s)` : "Confirmar transferencia";
+  const textoBoton = cargando ? "Transfiriendo…" : etiquetaConfirmar;
 
   async function confirmar() {
     setCargando(true);
     try {
-      await usuariosApi.transferirSuperadmin(usuario!.id);
+      await usuariosApi.transferirSuperadmin(usuario.id);
       // Tras la transferencia, la cuenta actual pasa a Administrador (RF-050).
-      toast(`Rol SuperAdmin transferido a ${usuario!.nombre}. Ahora eres Administrador.`, "success");
+      toast(`Rol SuperAdmin transferido a ${usuario.nombre}. Ahora eres Administrador.`, "success");
       actualizarRol("administrador"); // actualiza sesión + localStorage
       onClose();
       // Ya no tiene permiso sobre /usuarios: no re-consultar; redirigir a /ia.
@@ -327,16 +360,24 @@ function TransferirModal({ usuario, onClose }: Readonly<{ usuario: Usuario | nul
   }
 
   return (
-    <Modal open={!!usuario} onClose={onClose}>
+    <Modal open onClose={onClose}>
       <div className="p-xl text-center">
         <span className="material-symbols-outlined text-[48px] text-tertiary">swap_horiz</span>
         <h3 className="text-title-lg text-on-background mt-md">Transferir rol SuperAdmin</h3>
         <p className="text-body-md text-on-surface-variant mt-sm">
-          Se transferirá el rol <strong>SuperAdmin</strong> a <strong>{usuario.nombre}</strong>. La operación es atómica: tu cuenta pasará a Administrador.
+          Se transferirá el rol <strong>SuperAdmin</strong> a <strong>{usuario.nombre}</strong> ({usuario.correo}). Tu cuenta pasará a Administrador y no podrás revertirlo por tu cuenta.
         </p>
+        <p className="text-label-md text-on-surface-variant mt-sm">Revisa que sea la cuenta correcta antes de confirmar.</p>
         <div className="flex justify-center gap-sm mt-lg">
           <button onClick={onClose} className="px-lg py-sm rounded-lg border border-outline-variant text-body-md text-on-surface-variant">Cancelar</button>
-          <button onClick={confirmar} disabled={cargando} className="px-lg py-sm rounded-lg bg-tertiary text-on-tertiary text-label-md font-semibold disabled:opacity-60 flex items-center gap-sm">{cargando && <Spinner size={16} />}{cargando ? "Transfiriendo…" : "Confirmar transferencia"}</button>
+          <button
+            onClick={confirmar}
+            disabled={esperando || cargando}
+            className={`px-lg py-sm rounded-lg text-label-md font-semibold flex items-center gap-sm tabular-nums ${esperando ? "bg-surface-variant text-on-surface-variant cursor-not-allowed" : "bg-tertiary text-on-tertiary disabled:opacity-60"}`}
+          >
+            {cargando && <Spinner size={16} />}
+            {textoBoton}
+          </button>
         </div>
       </div>
     </Modal>

@@ -1,5 +1,6 @@
 import type { Page, Request, Route } from "@playwright/test";
 import type {
+  AnioDisponible,
   AnalisisGri,
   DocumentoResumen,
   EmpresaApi,
@@ -9,6 +10,7 @@ import type {
   FilaGri,
   HistorialGriItem,
   PuntajeEsg,
+  ReporteEmision,
   ReporteResumen,
   Rol,
   SancionVista,
@@ -127,6 +129,14 @@ export class ServicioSimulado {
     this.demoras.push({ metodo, ruta, ms });
   }
 
+  /** Agrega `n` documentos más (para probar la paginación con muchas páginas). */
+  agregarDocumentos(n: number) {
+    const base = this.documentos[0];
+    for (let i = 0; i < n; i += 1) {
+      this.documentos.push({ ...base, id: `d-extra-${i + 1}`, nombre_archivo: `extra-${i + 1}.md` });
+    }
+  }
+
   /** Agrega `n` eventos de auditoría más antiguos (para probar la paginación con muchas páginas). */
   agregarEventos(n: number) {
     for (let i = 0; i < n; i += 1) {
@@ -146,7 +156,7 @@ export class ServicioSimulado {
     const s = this.estadoDe(empresaId, anio);
     s.filas.forEach((f) => Object.assign(f, { estado: f.estado ?? "OK" }));
     s.validacion = {
-      numero: 1,
+      numero: (s.validacion?.numero ?? 0) + 1,
       vigente: true,
       motivos_no_vigente: [],
       validado_por: { id: "u-admin", nombre: "Ana García" },
@@ -158,6 +168,17 @@ export class ServicioSimulado {
       puntaje_suma: 0,
       puntaje_filas: s.filas.length,
     };
+  }
+
+  /** Cambia el análisis sin volver a validarlo: la última validación deja de estar vigente. */
+  invalidarAnalisisPorFuera(empresaId: string, anio: number) {
+    const s = this.estadoDe(empresaId, anio);
+    if (s.validacion) s.validacion = { ...s.validacion, vigente: false };
+  }
+
+  /** Otra persona emite el reporte después de que se cargó la pantalla. */
+  emitirReportePorFuera(empresaId: string, anio: number) {
+    this.emitir(this.empresas.find((e) => e.id === empresaId)!, anio);
   }
 
   llamadasA(metodo: string, ruta: string | RegExp) {
@@ -267,6 +288,9 @@ export class ServicioSimulado {
       { metodo: "POST", patron: /^\/asistente\/consultas$/, fn: (_m, req) => this.consultarAsistente(req) },
       // Reportes de prospección
       { metodo: "GET", patron: /^\/reportes$/, fn: () => ok(this.reportes) },
+      { metodo: "GET", patron: /^\/reportes\/disponibilidad$/, fn: (_m, _r, q) => this.disponibilidad(q) },
+      { metodo: "GET", patron: /^\/reportes\/vigente$/, fn: (_m, _r, q) => this.vigente(q) },
+      { metodo: "GET", patron: /^\/reportes\/vigente\/archivo$/, fn: (_m, _r, q) => this.archivoVigente(q) },
       { metodo: "POST", patron: /^\/reportes$/, fn: (_m, req) => this.generarReporte(req) },
       { metodo: "POST", patron: /^\/reportes\/vista-previa$/, fn: (_m, req) => this.vistaPrevia(req) },
       { metodo: "GET", patron: /^\/reportes\/([^/]+)\/archivo$/, fn: (m) => this.archivoReporte(m[1]) },
@@ -693,30 +717,128 @@ export class ServicioSimulado {
   private generarReporte(req: Request): Respuesta {
     const v = this.validarReporte(req);
     if (v.error) return v.error;
-    // Inmutable: un solo reporte por empresa y año.
-    const previo = this.reportes.find((r) => r.empresa_id === v.empresa!.id && r.anio === v.anio);
-    if (previo) {
-      return error(409, "REPORT_ALREADY_EXISTS", "Ya existe un reporte para esta empresa y año.", { reporte_id: previo.id });
-    }
+    const emision = this.emitir(v.empresa!, v.anio);
+    return ok(emision, emision.reutilizado ? 200 : 201);
+  }
+
+  /** Una versión por validación: si esa validación ya tiene la suya, se reutiliza. */
+  private emitir(empresa: EmpresaApi, anio: number): ReporteEmision {
+    const validacion = this.estadoDe(empresa.id, anio).validacion!;
+    const previo = this.reportes.find((r) => r.empresa_id === empresa.id && r.anio === anio && r.validacion_numero === validacion.numero);
+    if (previo) return { ...previo, reutilizado: true };
+    const anteriores = this.reportes.filter((r) => r.empresa_id === empresa.id && r.anio === anio);
+    anteriores.forEach((r) => Object.assign(r, { es_ultima_version: false }));
+    const version = anteriores.reduce((max, r) => Math.max(max, r.version), 0) + 1;
     const reporte: ReporteResumen = {
       id: this.nuevoId("r"),
-      empresa_id: v.empresa!.id,
-      anio: v.anio,
+      empresa_id: empresa.id,
+      empresa_nombre: empresa.nombre,
+      anio,
+      version,
+      es_ultima_version: true,
+      validacion_id: `val-${validacion.numero}`,
+      validacion_numero: validacion.numero,
       generado_por: "u-admin",
+      generado_por_nombre: "Ana García",
       sha256: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
-      creado_en: "2026-10-16T15:00:00Z",
+      creado_en: new Date(Date.parse("2026-10-16T15:00:00Z") + this.seq * 60_000).toISOString(),
     };
     this.reportes.unshift(reporte);
-    return ok(reporte, 201);
+    return { ...reporte, reutilizado: false };
+  }
+
+  private ultimaEmision(empresaId: string, anio: number): ReporteResumen | undefined {
+    return this.reportes.find((r) => r.empresa_id === empresaId && r.anio === anio && r.es_ultima_version);
+  }
+
+  /** Situación de un año, con las mismas reglas que describe el contrato del backend. */
+  private anioDisponible(empresaId: string, anio: number): AnioDisponible {
+    const s = this.estadoDe(empresaId, anio);
+    const ultima = this.ultimaEmision(empresaId, anio);
+    const validacion = s.validacion;
+    const origen = ultima ? !!ultima.validacion_id : null;
+    const respaldaUltima = !!ultima && !!validacion && ultima.validacion_numero === validacion.numero;
+    const actualizacionPendiente = !!ultima && !!origen && !!validacion?.vigente && !respaldaUltima;
+
+    let estado: AnioDisponible["estado"] = "VALIDACION_VIGENTE";
+    if (s.filas.length === 0 && !validacion) estado = "SIN_DOCUMENTACION_ELEGIBLE";
+    else if (s.filas.some((f) => !f.estado)) estado = "PENDIENTE_REVISION";
+    else if (!validacion?.vigente) estado = "PENDIENTE_VALIDACION";
+    else if (respaldaUltima) estado = "REPORTE_GENERADO";
+    else if (actualizacionPendiente) estado = "ACTUALIZACION_PENDIENTE";
+
+    const puede_generar = estado === "VALIDACION_VIGENTE" || estado === "ACTUALIZACION_PENDIENTE";
+    return {
+      anio,
+      estado,
+      puede_generar,
+      motivo_no_generar: puede_generar ? null : "PENDIENTE_REVISION",
+      validacion_anterior_no_vigente: !!validacion && !validacion.vigente,
+      reporte_id: ultima?.id ?? null,
+      reporte_version: ultima?.version ?? null,
+      reporte_creado_en: ultima?.creado_en ?? null,
+      reporte_validacion_numero: ultima?.validacion_numero ?? null,
+      versiones_emitidas: this.reportes.filter((r) => r.empresa_id === empresaId && r.anio === anio).length,
+      ultima_validacion_numero: validacion?.numero ?? null,
+      origen_verificable: origen,
+      reporte_actualizado: ultima ? respaldaUltima && !!validacion?.vigente : null,
+      actualizacion_pendiente: actualizacionPendiente,
+    };
+  }
+
+  private disponibilidad(q: URLSearchParams): Respuesta {
+    const empresa = this.empresas.find((e) => e.id === q.get("empresa_id"));
+    if (!empresa) return error(404, "COMPANY_NOT_FOUND", "Empresa inexistente.");
+    const conDocumentos = this.documentos.filter((d) => d.empresa_id === empresa.id && this.estadoDe(empresa.id, d.anio).filas.length > 0).map((d) => d.anio);
+    const conReporte = this.reportes.filter((r) => r.empresa_id === empresa.id).map((r) => r.anio);
+    const anios = [...new Set([...conDocumentos, ...conReporte])].sort((a, b) => b - a);
+    return ok({
+      ambiente: "e2e",
+      empresa_id: empresa.id,
+      empresa_nombre: empresa.nombre,
+      empresa_activa: empresa.activa,
+      anios: anios.map((a) => this.anioDisponible(empresa.id, a)),
+      aviso: "Consulta informativa.",
+    });
+  }
+
+  private vigente(q: URLSearchParams): Respuesta {
+    const empresaId = q.get("empresa_id") ?? "";
+    const anio = Number(q.get("anio"));
+    const ultima = this.ultimaEmision(empresaId, anio);
+    if (!ultima) return error(404, "REPORT_NOT_FOUND", "No hay reportes para ese año.");
+    const a = this.anioDisponible(empresaId, anio);
+    return ok({
+      ...ultima,
+      ultima_validacion_numero: a.ultima_validacion_numero,
+      origen_verificable: a.origen_verificable,
+      validacion_anterior_no_vigente: a.validacion_anterior_no_vigente,
+      reporte_actualizado: a.reporte_actualizado,
+      actualizacion_pendiente: a.actualizacion_pendiente,
+      puede_generar: a.puede_generar,
+      motivo_no_generar: a.motivo_no_generar,
+    });
+  }
+
+  private archivoVigente(q: URLSearchParams): Respuesta {
+    const empresaId = q.get("empresa_id") ?? "";
+    const anio = Number(q.get("anio"));
+    const ultima = this.ultimaEmision(empresaId, anio);
+    if (!ultima) return error(404, "REPORT_NOT_FOUND", "No hay reportes para ese año.");
+    const a = this.anioDisponible(empresaId, anio);
+    if (a.reporte_actualizado) return this.archivoReporte(ultima.id);
+    const detalles = { reporte_id: ultima.id, version: ultima.version, estado: a.estado, puede_generar: a.puede_generar, motivo_no_generar: a.motivo_no_generar };
+    if (a.actualizacion_pendiente) return error(409, "REPORT_UPDATE_PENDING", "Hay una validación posterior sin emitir.", { ...detalles, accion_sugerida: "EMITIR" });
+    if (a.origen_verificable === false) return error(409, "REPORT_ORIGIN_UNVERIFIABLE", "El origen no puede verificarse.", { ...detalles, accion_sugerida: "DESCARGAR_VERSION_HISTORICA" });
+    return error(409, "REPORT_ANALYSIS_NOT_CURRENT", "El análisis actual no está respaldado.", { ...detalles, accion_sugerida: "VALIDAR" });
   }
 
   private archivoReporte(id: string): Respuesta {
     const r = this.reportes.find((x) => x.id === id);
     if (!r) return error(404, "REPORT_NOT_FOUND", "Reporte inexistente.");
-    const empresa = this.empresas.find((e) => e.id === r.empresa_id)?.nombre ?? "empresa";
     return {
       status: 200,
-      archivo: { contenido: pdfMinimo(`Reporte - ${empresa} ${r.anio}`), tipo: "application/pdf", nombre: `reporte-${r.id}.pdf` },
+      archivo: { contenido: pdfMinimo(`Reporte - ${r.empresa_nombre} ${r.anio} v${r.version}`), tipo: "application/pdf", nombre: `reporte-${r.id}.pdf` },
     };
   }
 
@@ -822,24 +944,26 @@ export class ServicioSimulado {
       advertencias: [],
       evidencias: [evidencia(`Mención de ${estandar} en el documento.`, identidad.length * 10)],
     });
+    const emitido = (id: string, empresa_id: string, empresa_nombre: string, anio: number, sha256: string, creado_en: string): ReporteResumen => ({
+      id,
+      empresa_id,
+      empresa_nombre,
+      anio,
+      version: 1,
+      es_ultima_version: true,
+      validacion_id: "val-1",
+      validacion_numero: 1,
+      generado_por: "u-admin",
+      generado_por_nombre: "Ana García",
+      sha256,
+      creado_en,
+    });
     this.reportes = [
-      {
-        id: "r-andina-2023",
-        empresa_id: "e-andina",
-        anio: 2023,
-        generado_por: "u-admin",
-        sha256: "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae",
-        creado_en: "2026-10-10T14:00:00Z",
-      },
-      {
-        id: "r-psur-2024",
-        empresa_id: "e-psur",
-        anio: 2024,
-        generado_por: "u-admin",
-        sha256: "fcde2b2edba56bf408601fb721fe9b5c338d10ee429ea04fae5511b68fbf8fb9",
-        creado_en: "2026-10-12T09:30:00Z",
-      },
+      emitido("r-andina-2023", "e-andina", "Minera Andina S.A.A.", 2023, "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae", "2026-10-10T14:00:00Z"),
+      emitido("r-psur-2024", "e-psur", "Petro Sur S.A.", 2024, "fcde2b2edba56bf408601fb721fe9b5c338d10ee429ea04fae5511b68fbf8fb9", "2026-10-12T09:30:00Z"),
     ];
+    // Esos reportes respaldan la validación 1 de su análisis.
+    this.reportes.forEach((r) => this.validarAnalisisPorFuera(r.empresa_id, r.anio));
 
     // 25 eventos de auditoría (2 páginas de 20), del más reciente al más antiguo.
     const tipos: TipoEventoAuditoria[] = ["Inicio de sesión", "Ingesta de datos", "Generación de reporte", "Descarga", "Cambio de rol"];

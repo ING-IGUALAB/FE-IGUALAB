@@ -1,40 +1,77 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import SelectAnioConDocumentos from "../components/SelectAnioConDocumentos";
+import { useDisponibilidadReportes } from "../components/useDisponibilidadReportes";
 import SectionHeader from "../components/SectionHeader";
 import Spinner from "../components/Spinner";
 import TablaReportes from "../components/TablaReportes";
+import VistaPreviaPdf from "../components/VistaPreviaPdf";
 import { useToast } from "../components/ToastProvider";
 import { useDescargarReporte } from "../components/useDescargarReporte";
 import * as empresasApi from "../api/empresas";
 import * as reportesApi from "../api/reportes";
-import { mensajeError, tipoAviso } from "../api/client";
-import { SECTORES_API, aniosDisponibles, anioIngestaValido, etiquetaSector, reporteDe } from "../lib/dominio";
-import type { EmpresaApi, ReporteResumen, SectorApi } from "../types";
+import { ApiError, mensajeError, tipoAviso } from "../api/client";
+import { descargarBlob } from "../lib/descargas";
+import {
+  SECTORES_API,
+  accionesReporte,
+  etiquetaAnioReporte,
+  etiquetaSector,
+  mensajeEmision,
+  nombreArchivoReporte,
+  situacionAnioReporte,
+  situacionEmision,
+  type TonoEstadoReporte,
+} from "../lib/dominio";
+import { fechaCorta } from "../lib/format";
+import type { AnioDisponible, EmpresaApi, ReporteResumen, ReporteVigente, SectorApi } from "../types";
 
-const ANIOS = aniosDisponibles();
 const RECIENTES = 5;
 const CLS_SELECT =
   "w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none";
+const CLS_BOTON_PRINCIPAL =
+  "w-full bg-primary text-on-primary py-md px-sm rounded-lg flex items-center justify-center gap-sm shadow-md hover:bg-surface-tint transition-all text-body-md font-semibold disabled:opacity-50 disabled:cursor-not-allowed";
+const CLS_BOTON_SECUNDARIO =
+  "w-full bg-surface border border-primary text-primary py-md px-sm rounded-lg flex items-center justify-center gap-sm hover:bg-primary/5 transition-all text-body-md font-semibold disabled:opacity-50 disabled:cursor-not-allowed";
+
+/** PDF en pantalla. `version` es la versión ya emitida que muestra; null si todavía no se ha emitido. */
+interface VistaPrevia {
+  archivo: Blob;
+  version: number | null;
+}
 
 export default function Reportes() {
   const toast = useToast();
+  const navigate = useNavigate();
   const [empresas, setEmpresas] = useState<EmpresaApi[]>([]);
   const [sector, setSector] = useState<SectorApi>(SECTORES_API[0]);
   const [empresaId, setEmpresaId] = useState("");
-  const [anio, setAnio] = useState(ANIOS[0]);
   const [reportes, setReportes] = useState<ReporteResumen[]>([]);
   const [cargandoReportes, setCargandoReportes] = useState(true);
-  const [vistaUrl, setVistaUrl] = useState<string | null>(null);
-  const [accion, setAccion] = useState<"vista" | "generar" | null>(null);
-  const navigate = useNavigate();
+  const [vista, setVista] = useState<VistaPrevia | null>(null);
+  const [accion, setAccion] = useState<"vista" | "generar" | "descargar" | null>(null);
 
-  const nombreEmpresa = (id: string) => empresas.find((e) => e.id === id)?.nombre ?? "Empresa";
-  const { descargar, descargando } = useDescargarReporte(nombreEmpresa);
+  const seleccion = useDisponibilidadReportes(empresaId);
+  const { anio, item, vigente, recargar } = seleccion;
+  const acciones = accionesReporte(item);
+  const { descargar, descargando } = useDescargarReporte();
   const empresasSector = empresas.filter((e) => e.activa && e.sector === sector);
-  const listo = !!empresaId && anioIngestaValido(anio);
-  // Los reportes son únicos por empresa y año: si ya existe, se va a descargarlo en vez de generarlo.
-  const existente = empresaId ? reporteDe(reportes, empresaId, anio) : undefined;
-  const irADescargas = (reporteId?: string) => navigate("/descargas", { state: { resaltar: reporteId } });
+  const empresaNombre = empresas.find((e) => e.id === empresaId)?.nombre ?? "Empresa";
+
+  // Selección vigente: una vista previa que llega tarde de otra empresa o año se descarta.
+  const claveSeleccion = `${empresaId}:${anio}`;
+  const seleccionActual = useRef(claveSeleccion);
+  seleccionActual.current = claveSeleccion;
+
+  const irADescargas = (reporteId?: string | null) => navigate("/descargas", { state: { resaltar: reporteId } });
+  const irAAnalisis = () => navigate("/analisis", { state: { sector, empresaId, anio } });
+
+  const cargarEmpresas = useCallback(() => {
+    empresasApi
+      .listarEmpresas({ soloActivas: true })
+      .then(setEmpresas)
+      .catch((err) => toast(mensajeError(err, "No se pudieron cargar las empresas."), tipoAviso(err)));
+  }, [toast]);
 
   const cargarReportes = useCallback(async () => {
     try {
@@ -48,53 +85,82 @@ export default function Reportes() {
   }, [toast]);
 
   useEffect(() => {
-    empresasApi
-      .listarEmpresas({ soloActivas: true })
-      .then(setEmpresas)
-      .catch((err) => toast(mensajeError(err, "No se pudieron cargar las empresas."), tipoAviso(err)));
+    cargarEmpresas();
     cargarReportes();
-  }, [toast, cargarReportes]);
+  }, [cargarEmpresas, cargarReportes]);
 
-  // Libera el PDF de la vista previa anterior al reemplazarlo o al salir de la pantalla.
+  // La vista previa corresponde a una selección y a una situación: si cambian, deja de mostrarse.
   useEffect(() => {
-    return () => {
-      if (vistaUrl) URL.revokeObjectURL(vistaUrl);
-    };
-  }, [vistaUrl]);
+    setVista(null);
+  }, [empresaId, anio, item?.estado, item?.reporte_id]);
+
+  // Tras un error la situación pudo cambiar: se vuelve a preguntar al servidor.
+  function refrescarTrasError(err: unknown) {
+    recargar();
+    if (err instanceof ApiError && err.code === "COMPANY_NOT_FOUND") {
+      setEmpresaId("");
+      cargarEmpresas();
+    }
+  }
 
   async function verVistaPrevia() {
+    if (anio === null) return;
+    const clave = claveSeleccion;
+    const version = item?.estado === "REPORTE_GENERADO" ? (item.reporte_version ?? null) : null;
     setAccion("vista");
     try {
       const { blob } = await reportesApi.vistaPreviaReporte(empresaId, anio);
-      setVistaUrl(URL.createObjectURL(blob));
+      if (seleccionActual.current === clave) setVista({ archivo: blob, version });
     } catch (err) {
-      toast(mensajeError(err, "No se pudo generar la vista previa."), tipoAviso(err));
+      toast(reportesApi.mensajeErrorReporte(err, "No se pudo generar la vista previa."), tipoAviso(err));
+      refrescarTrasError(err);
     } finally {
       setAccion(null);
     }
   }
 
   async function generar() {
-    if (existente) {
-      irADescargas(existente.id);
-      return;
-    }
+    if (anio === null) return;
     setAccion("generar");
     try {
-      await reportesApi.generarReporte(empresaId, anio);
-      toast(`Reporte de ${nombreEmpresa(empresaId)} (${anio}) generado.`, "success");
+      const emision = await reportesApi.generarReporte(empresaId, anio);
+      toast(mensajeEmision(emision), "success");
+      setVista(null);
+      recargar();
       await cargarReportes();
     } catch (err) {
-      // Otro usuario pudo generarlo recién: se lleva a descargarlo, sin alerta.
-      const previo = reportesApi.reporteYaExistente(err);
-      if (previo) {
-        irADescargas(previo.reporteId);
-        return;
+      if (reportesApi.emisionSinConfirmar(err)) {
+        // Sin respuesta no se sabe si se emitió: se consulta en vez de afirmar que falló.
+        toast("No recibimos la confirmación del servidor. Revisa la situación del reporte antes de volver a intentarlo.", "warn");
+        await cargarReportes();
+      } else {
+        toast(reportesApi.mensajeErrorReporte(err, "No se pudo generar el reporte."), tipoAviso(err));
       }
-      toast(mensajeError(err, "No se pudo generar el reporte."), tipoAviso(err));
+      refrescarTrasError(err);
     } finally {
       setAccion(null);
     }
+  }
+
+  async function descargarActualizado() {
+    if (anio === null) return;
+    setAccion("descargar");
+    try {
+      const { blob } = await reportesApi.descargarReporteActualizado(empresaId, anio);
+      descargarBlob(blob, nombreArchivoReporte(empresaNombre, anio, item?.reporte_version));
+      toast("Descarga iniciada.", "success");
+    } catch (err) {
+      // Nunca se cambia por otra versión sin avisar: se explica y la pantalla muestra la nueva situación.
+      toast(reportesApi.mensajeErrorReporte(err, "No se pudo descargar el reporte."), tipoAviso(err));
+      refrescarTrasError(err);
+    } finally {
+      setAccion(null);
+    }
+  }
+
+  function descargarHistorica() {
+    if (!item?.reporte_id || !item.reporte_version || anio === null) return;
+    descargar({ id: item.reporte_id, empresa_nombre: empresaNombre, anio, version: item.reporte_version });
   }
 
   return (
@@ -120,45 +186,64 @@ export default function Reportes() {
                 </select>
               </Campo>
               <Campo label="Año">
-                <select value={anio} onChange={(e) => setAnio(Number(e.target.value))} className={CLS_SELECT}>
-                  {ANIOS.map((a) => <option key={a} value={a}>{a}</option>)}
-                </select>
+                <SelectAnioConDocumentos
+                  seleccion={seleccion}
+                  className={`${CLS_SELECT} disabled:opacity-60`}
+                  etiqueta={(a) => {
+                    const datosAnio = seleccion.items.find((x) => x.anio === a);
+                    return datosAnio ? etiquetaAnioReporte(datosAnio) : String(a);
+                  }}
+                />
               </Campo>
             </div>
             <div className="grid gap-sm mt-lg">
-              <button onClick={verVistaPrevia} disabled={!listo || accion !== null} className="w-full bg-surface border border-primary text-primary py-md px-lg rounded-lg flex items-center justify-center gap-sm hover:bg-primary/5 transition-all text-body-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
+              <button onClick={verVistaPrevia} disabled={!acciones.vistaPrevia || accion !== null} className={CLS_BOTON_SECUNDARIO}>
                 {accion === "vista" ? <Spinner size={18} /> : <span className="material-symbols-outlined">visibility</span>} Vista previa
               </button>
-              <button onClick={generar} disabled={!listo || accion !== null} className="w-full bg-primary text-on-primary py-md px-lg rounded-lg flex items-center justify-center gap-sm shadow-md hover:bg-surface-tint transition-all text-body-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed">
-                {accion === "generar" && <Spinner size={18} />}
-                {accion !== "generar" && <span className="material-symbols-outlined">{existente ? "download" : "picture_as_pdf"}</span>}
-                {existente ? "Ver reporte generado" : "Generar reporte"}
-              </button>
+              {acciones.descargarActualizado ? (
+                <button onClick={descargarActualizado} disabled={accion !== null} className={CLS_BOTON_PRINCIPAL}>
+                  {accion === "descargar" ? <Spinner size={18} /> : <span className="material-symbols-outlined">download</span>} Descargar reporte actualizado
+                </button>
+              ) : (
+                <button onClick={generar} disabled={!acciones.generar || accion !== null} className={CLS_BOTON_PRINCIPAL}>
+                  {accion === "generar" ? <Spinner size={18} /> : <span className="material-symbols-outlined">picture_as_pdf</span>} {acciones.etiquetaGenerar}
+                </button>
+              )}
+              {acciones.descargarHistorica && (
+                <button onClick={descargarHistorica} disabled={descargando === item?.reporte_id} className={CLS_BOTON_SECUNDARIO}>
+                  {descargando === item?.reporte_id ? <Spinner size={18} /> : <span className="material-symbols-outlined">history</span>} Descargar versión {item?.reporte_version} — histórica
+                </button>
+              )}
             </div>
-            {existente && (
-              <p className="text-label-sm text-on-surface-variant mt-sm">
-                Ya existe el reporte de esta empresa y año; los reportes no se vuelven a generar.
-              </p>
-            )}
-            <p className="text-label-sm text-outline mt-md">
-              El reporte se arma con el análisis GRI de la empresa y año. Si aún no está validado, valídalo en{" "}
-              <Link to="/analisis" className="text-primary hover:underline">Análisis GRI</Link>.
-            </p>
+            <SituacionReporte
+              hayEmpresa={seleccion.hayEmpresa}
+              buscando={seleccion.cargando}
+              fallo={seleccion.fallo}
+              sinAnios={seleccion.sinAnios}
+              item={item}
+              onReintentar={recargar}
+              onIrAAnalisis={irAAnalisis}
+            />
+            {item?.reporte_id && <UltimaEmision item={item} vigente={vigente} onVerHistorial={() => irADescargas(item.reporte_id)} />}
           </div>
         </div>
 
         <div className="lg:col-span-8 space-y-lg">
           <div className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
-            <div className="p-lg border-b border-outline-variant bg-surface-bright flex justify-between items-center">
+            <div className="p-lg border-b border-outline-variant bg-surface-bright flex justify-between items-center gap-md">
               <h3 className="text-title-lg text-on-surface">Vista previa</h3>
-              {vistaUrl && <span className="text-label-sm text-on-surface-variant">No se guarda en el historial</span>}
+              {vista && (
+                <span className="text-label-sm text-on-surface-variant text-right">
+                  {vista.version ? `Reporte emitido: versión ${vista.version}` : "Vista previa sin emitir; la versión y fecha definitivas se confirman al generar"}
+                </span>
+              )}
             </div>
-            {vistaUrl ? (
-              <iframe title="Vista previa del reporte" src={vistaUrl} className="w-full h-[70vh] bg-surface-container-low" />
+            {vista ? (
+              <VistaPreviaPdf archivo={vista.archivo} titulo="Vista previa del reporte" />
             ) : (
               <div className="p-xl text-center">
                 <span className="material-symbols-outlined text-[40px] text-outline">picture_as_pdf</span>
-                <p className="text-body-md text-on-surface-variant mt-sm">Elige empresa y año y pulsa «Vista previa» para revisar el PDF antes de generarlo.</p>
+                <p className="text-body-md text-on-surface-variant mt-sm">Elige empresa y año y pulsa «Vista previa» para revisar el PDF.</p>
               </div>
             )}
           </div>
@@ -175,10 +260,10 @@ export default function Reportes() {
             ) : (
               <TablaReportes
                 reportes={reportes.slice(0, RECIENTES)}
-                nombreEmpresa={nombreEmpresa}
                 descargando={descargando}
                 onDescargar={descargar}
                 vacio="Aún no se han generado reportes."
+                conHuella={false}
               />
             )}
           </div>
@@ -194,5 +279,91 @@ function Campo({ label, children }: Readonly<{ label: string; children: ReactNod
       <span className="text-label-md text-on-surface-variant">{label}</span>
       {children}
     </label>
+  );
+}
+
+const ICONOS: Record<TonoEstadoReporte, string> = { ok: "check_circle", pendiente: "pending_actions", neutro: "info" };
+
+/** Qué se puede hacer con la empresa y el año elegidos, y qué falta si todavía no se puede. */
+function SituacionReporte({
+  hayEmpresa,
+  buscando,
+  fallo,
+  sinAnios,
+  item,
+  onReintentar,
+  onIrAAnalisis,
+}: Readonly<{
+  hayEmpresa: boolean;
+  buscando: boolean;
+  fallo: boolean;
+  sinAnios: boolean;
+  item?: AnioDisponible;
+  onReintentar: () => void;
+  onIrAAnalisis: () => void;
+}>) {
+  if (!hayEmpresa) {
+    return <p className="text-label-sm text-outline mt-md">El reporte se arma con el análisis GRI validado de la empresa y el año.</p>;
+  }
+  if (buscando) {
+    return <p className="text-label-sm text-on-surface-variant mt-md flex items-center gap-xs"><Spinner size={14} /> Revisando los años de la empresa…</p>;
+  }
+  if (fallo) {
+    return (
+      <Aviso tono="pendiente" icono="error">
+        <span>No se pudo consultar la situación de esta empresa.</span>
+        <button type="button" onClick={onReintentar} className="mt-xs font-semibold underline">Volver a intentarlo</button>
+      </Aviso>
+    );
+  }
+  if (sinAnios || !item) {
+    return <Aviso tono="neutro" icono="info">Esta empresa aún no tiene documentos subidos, así que no hay reporte que generar.</Aviso>;
+  }
+  const { mensaje, tono, irAAnalisis } = situacionAnioReporte(item);
+  return (
+    <Aviso tono={tono} icono={ICONOS[tono]}>
+      <span>{mensaje}</span>
+      {irAAnalisis && (
+        <button type="button" onClick={onIrAAnalisis} className="mt-xs inline-flex items-center gap-xs font-semibold underline">
+          Ir a Análisis GRI <span className="material-symbols-outlined text-[16px]" aria-hidden="true">arrow_forward</span>
+        </button>
+      )}
+    </Aviso>
+  );
+}
+
+/** Última versión emitida. Que sea la última no significa que siga actualizada: se muestran por separado. */
+function UltimaEmision({ item, vigente, onVerHistorial }: Readonly<{ item: AnioDisponible; vigente: ReporteVigente | null; onVerHistorial: () => void }>) {
+  const situacion = situacionEmision(item);
+  const fecha = vigente?.creado_en ?? item.reporte_creado_en ?? undefined;
+  const validacionDistinta =
+    item.ultima_validacion_numero && item.reporte_validacion_numero && item.ultima_validacion_numero !== item.reporte_validacion_numero;
+  return (
+    <div className="mt-md rounded-lg border border-outline-variant px-md py-sm text-label-md text-on-surface-variant space-y-xs">
+      <div className="flex items-center justify-between gap-sm">
+        <span className="font-semibold text-on-surface">Última emisión: versión {item.reporte_version}</span>
+        <span className={`shrink-0 rounded-full px-sm py-[2px] text-label-sm ${item.reporte_actualizado ? "bg-primary/10 text-primary" : "bg-tertiary-fixed/60 text-on-tertiary-fixed"}`}>{situacion}</span>
+      </div>
+      {fecha && <p>Generada el {fechaCorta(fecha)}{vigente ? ` por ${vigente.generado_por_nombre}` : ""}</p>}
+      {validacionDistinta && <p>Validación actual: {item.ultima_validacion_numero} · Validación del reporte: {item.reporte_validacion_numero}</p>}
+      <button type="button" onClick={onVerHistorial} className="font-semibold text-primary underline">
+        Ver historial{item.versiones_emitidas ? ` (${item.versiones_emitidas})` : ""}
+      </button>
+    </div>
+  );
+}
+
+const TONOS: Record<TonoEstadoReporte, string> = {
+  ok: "bg-primary/10 text-primary",
+  pendiente: "bg-tertiary-fixed/60 text-on-tertiary-fixed",
+  neutro: "bg-surface-container-low text-on-surface-variant",
+};
+
+function Aviso({ tono, icono, children }: Readonly<{ tono: TonoEstadoReporte; icono: string; children: ReactNode }>) {
+  return (
+    <output className={`mt-md rounded-lg px-md py-sm text-label-md flex gap-sm ${TONOS[tono]}`}>
+      <span className="material-symbols-outlined text-[18px] shrink-0" aria-hidden="true">{icono}</span>
+      <span className="flex flex-col items-start">{children}</span>
+    </output>
   );
 }
