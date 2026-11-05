@@ -100,6 +100,33 @@ test.describe("Caso de uso: Consultar al asistente de IA", () => {
     await sinMarcas(await page.locator("main").innerText());
   });
 
+  test("una cita que es una tabla del documento se muestra como tabla", async ({ page }) => {
+    const tabla = "| Indicador | Código GRI | 2024 | Unidad | |-----------|-----------|------|--------| | Emisiones directas (Alcance 1) | GRI 305-1 | 11,980 | tCO2e | | Emisiones indirectas (Alcance 2) | GRI 305-2 | 7,650 | tCO2e |";
+    await page.route("**/mock-api/asistente/consultas", (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          respuesta: "Emisiones [1].",
+          afirmaciones: [{ texto: "En 2024, las emisiones directas (Alcance 1) fueron 11,980 tCO2e.", referencias: [1], cita_textual: tabla }],
+          citas: [{ referencia: 1, documento_id: "d-psur-2024", documento_nombre: "gri-petro-sur-2024.md", empresa_id: "e-andina", empresa_nombre: "Minera Andina S.A.A.", anio: 2024, seccion: "Indicadores", extracto: tabla }],
+          sin_evidencia: false, motivo: null, mensaje: null, afirmaciones_descartadas: 0,
+        }),
+      }),
+    );
+    await elegirContexto(page, "Minería", "Minera Andina S.A.A.", 2024);
+    await page.getByRole("textbox", { name: "Pregunta para el asistente" }).fill("¿Qué emisiones reporta?");
+    await page.getByRole("button", { name: "Consultar" }).click();
+
+    const tablas = page.getByRole("table");
+    await expect(tablas).toHaveCount(2); // la cita de la afirmación y el extracto de la fuente
+    const primera = tablas.first();
+    await expect(primera.getByRole("columnheader")).toHaveText(["Indicador", "Código GRI", "2024", "Unidad"]);
+    await expect(primera.getByRole("row", { name: /Emisiones directas/ }).getByRole("cell")).toHaveText(["Emisiones directas (Alcance 1)", "GRI 305-1", "11,980", "tCO2e"]);
+    await expect(primera.getByRole("row")).toHaveCount(3);
+    expect(await page.locator("main").innerText()).not.toContain("|---");
+  });
+
   test("fuera de su dominio, explica que no puede responder", async ({ page }) => {
     await elegirContexto(page, "Minería", "Minera Andina S.A.A.", 2024);
     await page.getByRole("textbox", { name: "Pregunta para el asistente" }).fill("¿Quién ganó el partido de fútbol?");

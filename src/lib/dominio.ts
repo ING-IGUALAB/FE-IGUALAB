@@ -187,12 +187,55 @@ export function textoLegible(texto: string | null | undefined): string {
       .replace(/~~(.+?)~~/g, "$1")
       .replace(/`([^`]+)`/g, "$1")
       .replace(/(^|[\s(])[*_]([^*_\n]+)[*_](?=$|[\s.,;:!?)])/g, "$1$2")
-      // Títulos que quedaron en medio del texto y separadores como «---» o «--_--».
+      // Títulos que quedaron en medio del texto, filas separadoras de tablas («|---|---|») y
+      // separadores como «---» o «--_--».
       .replace(/(^|\s)#{1,6}(?=\s)/g, "$1")
+      .replace(/\|?(?:\s*:?-{3,}:?\s*\|)+/g, " ")
       .replace(/(^|\s)[-_*~=]{3,}(?=\s|$)/g, "$1"),
   )
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/** Tabla de Markdown encontrada en un fragmento: texto previo, encabezados y filas, ya legibles. */
+export interface TablaTexto {
+  antes: string;
+  encabezados: string[];
+  filas: string[][];
+}
+
+// Fila separadora de una tabla de Markdown: «|---|:---:|---|».
+const SEPARADOR_TABLA = /\|(?:\s*:?-{3,}:?\s*\|){2,}/;
+
+/**
+ * Si el fragmento es una tabla de Markdown, la devuelve como datos para mostrarla como tabla. Sirve
+ * aunque las filas vengan en una sola línea (separadas por «| |»). Si algo no encaja, devuelve null y
+ * el fragmento se muestra como texto.
+ */
+export function tablaMarkdown(texto: string | null | undefined): TablaTexto | null {
+  if (!texto) return null;
+  const separador = SEPARADOR_TABLA.exec(texto);
+  if (!separador) return null;
+  const cabecera = texto.slice(0, separador.index);
+  const inicio = cabecera.indexOf("|");
+  if (inicio < 0) return null;
+  const encabezados = cabecera.slice(inicio).trim().replace(/^\||\|$/g, "").split("|").map(textoLegible);
+  const columnas = encabezados.length;
+  if (columnas < 2 || separador[0].split("|").length - 2 !== columnas) return null;
+
+  // Celdas del cuerpo: cada fila tiene `columnas` celdas y entre filas queda un hueco vacío («| |»).
+  const cuerpo = texto.slice(separador.index + separador[0].length).trim();
+  if (!cuerpo.startsWith("|") || !cuerpo.endsWith("|")) return null;
+  const celdas = cuerpo.slice(1, -1).split("|");
+  const filas: string[][] = [];
+  for (let i = 0; i < celdas.length; i += columnas + 1) {
+    const fila = celdas.slice(i, i + columnas);
+    const hueco = celdas[i + columnas];
+    if (fila.length !== columnas || (hueco !== undefined && hueco.trim() !== "")) return null;
+    filas.push(fila.map(textoLegible));
+  }
+  if (filas.length === 0) return null;
+  return { antes: textoLegible(texto.slice(0, inicio)), encabezados, filas };
 }
 
 /** Texto para comparar sin distinguir mayúsculas ni tildes. */

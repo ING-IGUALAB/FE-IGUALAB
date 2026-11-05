@@ -24,6 +24,7 @@ import {
   paginaValida,
   paginarLocal,
   rangoPaginas,
+  tablaMarkdown,
   textoLegible,
   filtrarDocumentos,
   estadosPorAnio,
@@ -365,6 +366,37 @@ describe("textoLegible", () => {
     expect(textoLegible(undefined)).toBe("");
     expect(textoLegible(null)).toBe("");
     expect(textoLegible("  ")).toBe("");
+  });
+});
+
+describe("tablaMarkdown", () => {
+  const encabezados = ["Indicador", "Código GRI", "2024", "Unidad"];
+  it("reconoce la tabla aunque venga en una sola línea, como la reportada", () => {
+    const t = tablaMarkdown("| Indicador | Código GRI | 2024 | Unidad | |-----------|-----------|------|--------| | Emisiones directas (Alcance 1) | GRI 305-1 | 11,980 | tCO2e | | Emisiones indirectas (Alcance 2) | GRI 305-2 | 7,650 | tCO2e |");
+    expect(t).toEqual({
+      antes: "",
+      encabezados,
+      filas: [
+        ["Emisiones directas (Alcance 1)", "GRI 305-1", "11,980", "tCO2e"],
+        ["Emisiones indirectas (Alcance 2)", "GRI 305-2", "7,650", "tCO2e"],
+      ],
+    });
+  });
+  it("también con saltos de línea, texto previo, celdas vacías y marcas en las celdas", () => {
+    const t = tablaMarkdown("Tabla 3:\n| Indicador | Código GRI | 2024 | Unidad |\n|:---|:---:|---:|---|\n| **Agua** extraída | GRI 303-3 |  | m3 |");
+    expect(t).toEqual({ antes: "Tabla 3:", encabezados, filas: [["Agua extraída", "GRI 303-3", "", "m3"]] });
+  });
+  it("si no es una tabla bien formada, devuelve null (se muestra como texto)", () => {
+    expect(tablaMarkdown("Durante 2024 se registró una sanción ambiental de OEFA.")).toBeNull();
+    expect(tablaMarkdown("| a | b | |---|---| | 1 | 2 | 3 |")).toBeNull();
+    expect(tablaMarkdown("| a | b | c | |---|---| | 1 | 2 | 3 |")).toBeNull();
+    expect(tablaMarkdown("| a | b | |---|---| | 1 | 2 | y sigue texto")).toBeNull();
+    expect(tablaMarkdown("| a | b | |---|---|")).toBeNull();
+    expect(tablaMarkdown("sin tubería |---|---|")).toBeNull();
+    expect(tablaMarkdown(null)).toBeNull();
+  });
+  it("si no se puede leer como tabla, el texto queda sin las filas separadoras", () => {
+    expect(textoLegible("| a | b | |---|---| | 1 | 2 | 3 |")).toBe("| a | b | | 1 | 2 | 3 |");
   });
 });
 

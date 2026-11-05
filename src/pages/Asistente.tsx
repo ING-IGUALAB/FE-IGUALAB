@@ -6,6 +6,7 @@ import { mensajeError, tipoAviso } from "../api/client";
 import { SECTORES_API, etiquetaSector, textoDescartadas, textoLegible, textoSinEvidencia } from "../lib/dominio";
 import { useAniosConDocumentos } from "../components/useAniosConDocumentos";
 import SelectAnioConDocumentos from "../components/SelectAnioConDocumentos";
+import TextoDocumento from "../components/TextoDocumento";
 import type { AfirmacionAsistente, CitaAsistente, EmpresaApi, MotivoSinEvidencia, SectorApi } from "../types";
 
 interface Mensaje {
@@ -368,7 +369,11 @@ function AfirmacionItem({ afirmacion }: Readonly<{ afirmacion: AfirmacionAsisten
             <sup key={n} className="ml-[2px] inline-flex items-center justify-center rounded bg-primary/10 px-1 text-[10px] font-bold text-primary">[{n}]</sup>
           ))}
         </p>
-        <p className="mt-xs rounded-lg bg-surface-container-low px-md py-xs text-label-md text-on-surface-variant italic break-words">«{textoLegible(afirmacion.cita_textual)}»</p>
+        <TextoDocumento
+          texto={afirmacion.cita_textual}
+          comillas
+          className="mt-xs rounded-lg bg-surface-container-low px-md py-xs text-label-md text-on-surface-variant italic break-words"
+        />
       </div>
     </li>
   );
@@ -381,7 +386,7 @@ function Fuente({ cita }: Readonly<{ cita: CitaAsistente }>) {
       <div className="min-w-0">
         <p className="text-label-md font-semibold text-on-surface break-all">{cita.documento_nombre}</p>
         <p className="text-label-sm text-on-surface-variant">{cita.empresa_nombre} · {cita.anio} · {textoLegible(cita.seccion)}</p>
-        <p className="text-label-sm text-outline italic mt-xs line-clamp-2 break-words">{textoLegible(cita.extracto)}</p>
+        <TextoDocumento texto={cita.extracto} maxFilas={3} className="text-label-sm text-outline italic mt-xs line-clamp-2 break-words" />
       </div>
     </div>
   );
