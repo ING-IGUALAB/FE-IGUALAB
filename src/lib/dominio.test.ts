@@ -24,6 +24,7 @@ import {
   paginaValida,
   paginarLocal,
   rangoPaginas,
+  textoLegible,
   filtrarDocumentos,
   estadosPorAnio,
   etiquetaAnioReporte,
@@ -331,6 +332,39 @@ describe("estadosPorAnio y etiquetaAnioReporte", () => {
     expect(etiquetaAnioReporte(2024, { habilitaReporte: false, estadoFlujo: "PENDIENTE_ESTADOS" })).toBe("2024 · Sin validar");
     expect(etiquetaAnioReporte(2023)).toBe("2023");
     expect(etiquetaAnioReporte(2022, { habilitaReporte: true, estadoFlujo: "VALIDADO" }, true)).toBe("2022 · Reporte generado");
+  });
+});
+
+describe("textoLegible", () => {
+  it("quita las marcas de los fragmentos reales reportados", () => {
+    expect(textoLegible("Reporte de sostenibilidad 2025 — Tejido Verde de Prueba > **Gestión** ambiental<br>2025 > Cumplimiento"))
+      .toBe("Reporte de sostenibilidad 2025 — Tejido Verde de Prueba > Gestión ambiental 2025 > Cumplimiento");
+    expect(textoLegible("### Cumplimiento La empresa recibió una multa de S/ 5000 por parte del OEFA"))
+      .toBe("Cumplimiento La empresa recibió una multa de S/ 5000 por parte del OEFA");
+    expect(textoLegible("# Reporte de sostenibilidad 2025 — Tejido Verde de Prueba ## **Gestión** ambiental<br>2025 La compañía"))
+      .toBe("Reporte de sostenibilidad 2025 — Tejido Verde de Prueba Gestión ambiental 2025 La compañía");
+    expect(textoLegible("se generaron 86 toneladas de residuos.<br />De ellas, 61 toneladas. Consulte el [anexo metodológico](#anexo-2)"))
+      .toBe("se generaron 86 toneladas de residuos. De ellas, 61 toneladas. Consulte el anexo metodológico");
+  });
+  it("quita etiquetas HTML conservando su texto y decodifica entidades", () => {
+    expect(textoLegible("Multa <mark>confirmada</mark> por <u>OEFA</u><!-- nota -->")).toBe("Multa confirmada por OEFA");
+    expect(textoLegible("Agua &amp; efluentes &lt;GRI 303&gt; &#8212; &#x41;&nbsp;fin")).toBe("Agua & efluentes <GRI 303> — A fin");
+    expect(textoLegible("Unidades &desconocida; se conservan")).toBe("Unidades &desconocida; se conservan");
+  });
+  it("quita negritas, cursivas, tachados, código y separadores", () => {
+    expect(textoLegible("Texto *cursiva* y _otra_, ~~tachado~~ y `código` --_-- fin --- final"))
+      .toBe("Texto cursiva y otra, tachado y código fin final");
+    expect(textoLegible("- primer punto\n* segundo\n> cita")).toBe("primer punto segundo cita");
+  });
+  it("no toca lo que no es marca: comparaciones, guiones bajos de nombres ni números", () => {
+    expect(textoLegible("emisiones < 5000 t y x > 3")).toBe("emisiones < 5000 t y x > 3");
+    expect(textoLegible("Ver 05_reporte_2025_marcas.md · 4. Agua (GRI 303)")).toBe("Ver 05_reporte_2025_marcas.md · 4. Agua (GRI 303)");
+    expect(textoLegible("Impuesto 2*3*4 y a_b")).toBe("Impuesto 2*3*4 y a_b");
+  });
+  it("sin texto devuelve vacío", () => {
+    expect(textoLegible(undefined)).toBe("");
+    expect(textoLegible(null)).toBe("");
+    expect(textoLegible("  ")).toBe("");
   });
 });
 

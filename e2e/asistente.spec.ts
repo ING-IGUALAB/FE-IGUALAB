@@ -1,6 +1,11 @@
 import { test, expect, entrarComo, campo } from "./support/fixtures";
 import type { Page } from "@playwright/test";
 
+const MARCAS = ["<br", "**", "###", "<mark", "</u>", "](#", "--_--", "&amp;"];
+async function sinMarcas(texto: string) {
+  for (const m of MARCAS) expect(texto, `quedó «${m}» sin limpiar`).not.toContain(m);
+}
+
 async function elegirContexto(page: Page, sector: string, empresa: string, anio: number) {
   await campo(page, "Sector").selectOption({ label: sector });
   await campo(page, "Empresa").selectOption({ label: empresa });
@@ -61,6 +66,38 @@ test.describe("Caso de uso: Consultar al asistente de IA", () => {
       empresa_id: "e-andina",
       anio: 2024,
     });
+  });
+
+  test("las fuentes citadas se leen limpias aunque el fragmento traiga Markdown o HTML", async ({ page }) => {
+    // Fragmento tal como lo devuelve el backend (texto original del .md).
+    await page.route("**/mock-api/asistente/consultas", (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          respuesta: "Multa del OEFA [1].",
+          afirmaciones: [{ texto: "La empresa recibió una **multa** del OEFA.", referencias: [1], cita_textual: "recibió una <mark>multa</mark> de S/ 5000" }],
+          citas: [{
+            referencia: 1, documento_id: "d-andina-2024", documento_nombre: "05_reporte_2025_marcas_html_y_pasajes.md",
+            empresa_id: "e-andina", empresa_nombre: "Minera Andina S.A.A.", anio: 2024,
+            seccion: "Reporte 2025 — Tejido Verde > **Gestión** ambiental<br>2025 > Cumplimiento",
+            extracto: "### Cumplimiento La empresa recibió una <u>multa</u> --_-- de S/ 5000 &amp; ver el [anexo metodológico](#anexo-2)",
+          }],
+          sin_evidencia: false, motivo: null, mensaje: null, afirmaciones_descartadas: 0,
+        }),
+      }),
+    );
+    await elegirContexto(page, "Minería", "Minera Andina S.A.A.", 2024);
+    await page.getByRole("textbox", { name: "Pregunta para el asistente" }).fill("¿Qué sanciones tiene?");
+    await page.getByRole("button", { name: "Consultar" }).click();
+
+    await expect(page.getByText("La empresa recibió una multa del OEFA.")).toBeVisible();
+    await expect(page.getByText("«recibió una multa de S/ 5000»")).toBeVisible();
+    await expect(page.getByText("Minera Andina S.A.A. · 2024 · Reporte 2025 — Tejido Verde > Gestión ambiental 2025 > Cumplimiento")).toBeVisible();
+    await expect(page.getByText("Cumplimiento La empresa recibió una multa de S/ 5000 & ver el anexo metodológico")).toBeVisible();
+    // El nombre del archivo no se toca (sus guiones bajos no son marcas).
+    await expect(page.getByText("05_reporte_2025_marcas_html_y_pasajes.md")).toBeVisible();
+    await sinMarcas(await page.locator("main").innerText());
   });
 
   test("fuera de su dominio, explica que no puede responder", async ({ page }) => {

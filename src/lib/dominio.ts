@@ -153,6 +153,48 @@ export function textoMotivosNoVigente(motivos: MotivoNoVigente[]): string {
 }
 
 /** Paginación en el cliente (para filtros que el backend no soporta, p. ej. sector). */
+// ---- Texto de los documentos ----
+const ENTIDADES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
+
+function decodificarEntidades(texto: string): string {
+  return texto.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (entidad, cuerpo: string) => {
+    const minus = cuerpo.toLowerCase();
+    if (minus.startsWith("#x")) return String.fromCodePoint(Number.parseInt(minus.slice(2), 16));
+    if (minus.startsWith("#")) return String.fromCodePoint(Number.parseInt(minus.slice(1), 10));
+    return ENTIDADES[minus] ?? entidad;
+  });
+}
+
+/**
+ * Texto legible de un fragmento de documento: los documentos son Markdown y pueden traer HTML, y el
+ * backend devuelve el fragmento tal cual (es la evidencia exacta). Aquí solo se quitan las marcas para
+ * mostrarlo; el resultado se muestra siempre como texto, nunca se interpreta como HTML.
+ */
+export function textoLegible(texto: string | null | undefined): string {
+  if (!texto) return "";
+  const lineas = texto
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<\/?[a-z][^>]*>/gi, "")
+    .split("\n")
+    // Marcas de inicio de línea: títulos, citas y viñetas.
+    .map((linea) => linea.replace(/^\s*(#{1,6}|>|[-*+])\s+/, ""));
+  return decodificarEntidades(
+    lineas
+      .join("\n")
+      .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+      .replace(/(\*\*|__)(.+?)\1/g, "$2")
+      .replace(/~~(.+?)~~/g, "$1")
+      .replace(/`([^`]+)`/g, "$1")
+      .replace(/(^|[\s(])[*_]([^*_\n]+)[*_](?=$|[\s.,;:!?)])/g, "$1$2")
+      // Títulos que quedaron en medio del texto y separadores como «---» o «--_--».
+      .replace(/(^|\s)#{1,6}(?=\s)/g, "$1")
+      .replace(/(^|\s)[-_*~=]{3,}(?=\s|$)/g, "$1"),
+  )
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /** Texto para comparar sin distinguir mayúsculas ni tildes. */
 function normalizarTexto(texto: string): string {
   return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();

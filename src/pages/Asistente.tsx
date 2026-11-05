@@ -3,7 +3,7 @@ import { useToast } from "../components/ToastProvider";
 import * as empresasApi from "../api/empresas";
 import { consultarAsistente } from "../api/asistente";
 import { mensajeError, tipoAviso } from "../api/client";
-import { SECTORES_API, etiquetaSector, textoDescartadas, textoSinEvidencia } from "../lib/dominio";
+import { SECTORES_API, etiquetaSector, textoDescartadas, textoLegible, textoSinEvidencia } from "../lib/dominio";
 import { useAniosConDocumentos } from "../components/useAniosConDocumentos";
 import SelectAnioConDocumentos from "../components/SelectAnioConDocumentos";
 import type { AfirmacionAsistente, CitaAsistente, EmpresaApi, MotivoSinEvidencia, SectorApi } from "../types";
@@ -363,12 +363,12 @@ function AfirmacionItem({ afirmacion }: Readonly<{ afirmacion: AfirmacionAsisten
       <span className="material-symbols-outlined text-[18px] text-primary mt-[2px]" aria-hidden="true">check_circle</span>
       <div className="min-w-0">
         <p className="text-body-md text-on-surface">
-          {afirmacion.texto}{" "}
+          {textoLegible(afirmacion.texto)}{" "}
           {afirmacion.referencias.map((n) => (
             <sup key={n} className="ml-[2px] inline-flex items-center justify-center rounded bg-primary/10 px-1 text-[10px] font-bold text-primary">[{n}]</sup>
           ))}
         </p>
-        <p className="mt-xs rounded-lg bg-surface-container-low px-md py-xs text-label-md text-on-surface-variant italic break-words">«{afirmacion.cita_textual}»</p>
+        <p className="mt-xs rounded-lg bg-surface-container-low px-md py-xs text-label-md text-on-surface-variant italic break-words">«{textoLegible(afirmacion.cita_textual)}»</p>
       </div>
     </li>
   );
@@ -380,8 +380,8 @@ function Fuente({ cita }: Readonly<{ cita: CitaAsistente }>) {
       <span className="w-6 h-6 rounded-full bg-primary text-on-primary text-label-sm font-bold flex items-center justify-center shrink-0">{cita.referencia}</span>
       <div className="min-w-0">
         <p className="text-label-md font-semibold text-on-surface break-all">{cita.documento_nombre}</p>
-        <p className="text-label-sm text-on-surface-variant">{cita.empresa_nombre} · {cita.anio} · {cita.seccion}</p>
-        <p className="text-label-sm text-outline italic mt-xs line-clamp-2 break-words">{cita.extracto}</p>
+        <p className="text-label-sm text-on-surface-variant">{cita.empresa_nombre} · {cita.anio} · {textoLegible(cita.seccion)}</p>
+        <p className="text-label-sm text-outline italic mt-xs line-clamp-2 break-words">{textoLegible(cita.extracto)}</p>
       </div>
     </div>
   );
