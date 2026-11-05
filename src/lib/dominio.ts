@@ -314,12 +314,12 @@ export function situacionAnioReporte(a: AnioDisponible): { mensaje: string; tono
 }
 
 // En estos estados hay una validación vigente, requisito de la vista previa.
-const ESTADOS_CON_VALIDACION: readonly EstadoAnioReporte[] = ["VALIDACION_VIGENTE", "ACTUALIZACION_PENDIENTE", "REPORTE_GENERADO"];
+const ESTADOS_CON_VALIDACION: ReadonlySet<EstadoAnioReporte> = new Set<EstadoAnioReporte>(["VALIDACION_VIGENTE", "ACTUALIZACION_PENDIENTE", "REPORTE_GENERADO"]);
 
 /** Qué ofrece la pantalla para un año. Sale siempre de lo que responde el servidor, sin deducirlo. */
 export function accionesReporte(a?: AnioDisponible) {
   return {
-    vistaPrevia: !!a && ESTADOS_CON_VALIDACION.includes(a.estado),
+    vistaPrevia: !!a && ESTADOS_CON_VALIDACION.has(a.estado),
     generar: !!a?.puede_generar,
     etiquetaGenerar: a?.reporte_id ? "Generar nueva versión" : "Generar reporte",
     descargarActualizado: a?.reporte_actualizado === true,
