@@ -27,6 +27,32 @@ const MENUS: Record<Rol, Item[]> = {
   ],
 };
 
+// Preferencia de esta persona en este navegador: si no se puede leer o guardar, el menú queda visible.
+const CLAVE_MENU = "igualab.menu-colapsado";
+
+// En escritorio, con la barra colapsada, el texto de cada opción pasa a ser un rótulo que aparece al
+// pasar el mouse o enfocarla. Sigue en el documento, así la opción conserva su nombre accesible.
+const ROTULO_COLAPSADO =
+  "md:absolute md:left-full md:ml-sm md:z-40 md:px-sm md:py-xs md:rounded-md md:bg-inverse-surface md:text-inverse-on-surface md:text-label-sm md:font-normal md:whitespace-nowrap md:opacity-0 md:pointer-events-none md:transition-opacity md:group-hover:opacity-100 md:group-focus-visible:opacity-100";
+
+function leerMenuColapsado(): boolean {
+  try {
+    return localStorage.getItem(CLAVE_MENU) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function guardarMenuColapsado(colapsado: boolean) {
+  try {
+    localStorage.setItem(CLAVE_MENU, colapsado ? "1" : "0");
+  } catch {
+    // Sin almacenamiento disponible, la preferencia dura solo esta visita.
+  }
+}
+
+const esEscritorio = () => globalThis.matchMedia("(min-width: 768px)").matches;
+
 const INACTIVIDAD_MIN = 120; // 2 horas de inactividad para cerrar sesión
 const INACTIVIDAD_MS = INACTIVIDAD_MIN * 60 * 1000;
 
@@ -42,8 +68,30 @@ export default function Layout() {
   // Se mide contra la hora de la última actividad (no contando "tics"): el navegador frena
   // los temporizadores en pestañas en segundo plano y el conteo por tics se atrasaría.
   const ultimaActividad = useRef(Date.now());
+  const [menuColapsado, setMenuColapsado] = useState(leerMenuColapsado); // escritorio: solo íconos
+  const [menuMovil, setMenuMovil] = useState(false); // móvil: menú sobre el contenido
 
   const items = rol ? MENUS[rol] : [];
+
+  function alternarMenu() {
+    if (esEscritorio()) {
+      setMenuColapsado((colapsado) => {
+        guardarMenuColapsado(!colapsado);
+        return !colapsado;
+      });
+    } else {
+      setMenuMovil((abierto) => !abierto);
+    }
+  }
+
+  // En móvil, el menú se cierra al navegar y con Escape.
+  useEffect(() => setMenuMovil(false), [location.pathname]);
+  useEffect(() => {
+    if (!menuMovil) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMenuMovil(false);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [menuMovil]);
 
   // Expiración por inactividad.
   useEffect(() => {
@@ -81,50 +129,72 @@ export default function Layout() {
 
   if (!sesion) return null;
 
+  const rotulo = menuColapsado ? ROTULO_COLAPSADO : "";
+  const centrado = menuColapsado ? "md:justify-center md:gap-0" : "";
+
   return (
     <div className="min-h-screen bg-background">
-      <aside className="hidden md:flex flex-col w-[260px] h-screen fixed left-0 top-0 bg-surface-container-lowest border-r border-outline-variant shadow-sm z-20">
-        <div className="px-lg py-lg border-b border-surface-variant flex items-center gap-md">
+      {menuMovil && <div data-testid="menu-fondo" className="md:hidden fixed inset-0 z-20 bg-black/40" onClick={() => setMenuMovil(false)} />}
+      <aside
+        id="menu-lateral"
+        className={`flex flex-col w-[260px] h-screen fixed left-0 top-0 bg-surface-container-lowest border-r border-outline-variant shadow-sm z-30 transition-[transform,visibility,width] duration-200 md:translate-x-0 md:visible ${
+          menuMovil ? "translate-x-0 visible" : "-translate-x-full invisible"
+        } ${menuColapsado ? "md:w-[72px]" : "md:w-[260px]"}`}
+      >
+        <div className={`px-lg py-lg border-b border-surface-variant flex items-center gap-md ${menuColapsado ? "md:hidden" : ""}`}>
           <img src="/logo.webp" alt="Igualab" className="h-9 object-contain" />
         </div>
-        <nav className="flex-1 overflow-y-auto py-lg px-sm">
+        <nav className={`flex-1 overflow-y-auto py-lg px-sm ${menuColapsado ? "md:overflow-visible" : ""}`}>
           {items.map((m) => (
-            <NavLink key={m.to} to={m.to} className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}>
+            <NavLink key={m.to} to={m.to} className={({ isActive }) => `nav-item group relative ${isActive ? "active" : ""} ${menuColapsado ? "md:!justify-center md:!gap-0 md:!px-0" : ""}`}>
               {({ isActive }) => (
                 <>
                   <span className={`material-symbols-outlined ${isActive ? "filled" : ""}`}>{m.icon}</span>
-                  <span className="text-body-md">{m.label}</span>
+                  <span className={`text-body-md ${rotulo}`}>{m.label}</span>
                 </>
               )}
             </NavLink>
           ))}
           {rol === "administrador" && (
-            <div className="mt-xl px-sm">
+            <div className={`mt-xl px-sm ${menuColapsado ? "md:px-0" : ""}`}>
               <NavLink
                 to="/ia"
-                className="w-full flex items-center justify-center gap-sm bg-primary text-on-primary px-lg py-sm rounded-lg text-label-md font-bold hover:bg-primary-container transition-colors shadow-sm"
+                className={`group relative w-full flex items-center justify-center gap-sm bg-primary text-on-primary px-lg py-sm rounded-lg text-label-md font-bold hover:bg-primary-container transition-colors shadow-sm ${menuColapsado ? "md:px-0 md:gap-0" : ""}`}
               >
-                <span className="material-symbols-outlined filled text-lg">auto_awesome</span> Nueva consulta IA
+                <span className="material-symbols-outlined filled text-lg" aria-hidden="true">auto_awesome</span>
+                <span className={rotulo}>Nueva consulta IA</span>
               </NavLink>
             </div>
           )}
         </nav>
-        <div className="border-t border-surface-variant p-lg space-y-sm">
-          <NavLink to="/mi-cuenta" className="flex items-center gap-md text-on-surface-variant hover:text-primary transition-colors">
+        <div className={`border-t border-surface-variant p-lg space-y-sm ${menuColapsado ? "md:px-0" : ""}`}>
+          <NavLink to="/mi-cuenta" className={`group relative flex items-center gap-md text-on-surface-variant hover:text-primary transition-colors ${centrado}`}>
             <span className="material-symbols-outlined">key</span>
-            <span className="text-body-md">Cambiar contraseña</span>
+            <span className={`text-body-md ${rotulo}`}>Cambiar contraseña</span>
           </NavLink>
-          <button onClick={onLogout} className="flex items-center gap-md text-on-surface-variant hover:text-error transition-colors w-full">
+          <button onClick={onLogout} className={`group relative flex items-center gap-md text-on-surface-variant hover:text-error transition-colors w-full ${centrado}`}>
             <span className="material-symbols-outlined">logout</span>
-            <span className="text-body-md">Cerrar sesión</span>
+            <span className={`text-body-md ${rotulo}`}>Cerrar sesión</span>
           </button>
         </div>
       </aside>
 
-      <div className="ml-0 md:ml-[260px] min-h-screen flex flex-col">
+      <div className={`ml-0 min-h-screen flex flex-col transition-[margin] duration-200 ${menuColapsado ? "md:ml-[72px]" : "md:ml-[260px]"}`}>
         <header className="flex justify-between items-center w-full px-xl py-sm bg-surface-bright h-16 sticky top-0 z-10 border-b border-surface-variant">
-          <img src="/logo.webp" alt="Igualab" className="h-7 md:hidden object-contain" />
-          <div className="hidden md:block" />
+          <div className="flex items-center gap-sm -ml-sm md:-ml-md">
+            <button
+              type="button"
+              onClick={alternarMenu}
+              aria-label="Mostrar u ocultar el menú"
+              title="Mostrar u ocultar el menú"
+              aria-controls="menu-lateral"
+              className="w-10 h-10 shrink-0 flex items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-primary transition-colors"
+            >
+              <span className="material-symbols-outlined" aria-hidden="true">menu</span>
+            </button>
+            {/* Con la barra colapsada (o en móvil) el logo de la barra no se ve: se muestra aquí. */}
+            <img src="/logo.webp" alt="Igualab" className={`h-7 object-contain ${menuColapsado ? "" : "md:hidden"}`} />
+          </div>
           <div className="flex items-center gap-md">
             <span className="hidden lg:inline text-label-sm text-outline">Sesión activa · {reloj}</span>
             <div className="h-8 w-px bg-outline-variant mx-sm" />

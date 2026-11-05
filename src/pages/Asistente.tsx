@@ -3,9 +3,10 @@ import { useToast } from "../components/ToastProvider";
 import * as empresasApi from "../api/empresas";
 import { consultarAsistente } from "../api/asistente";
 import { mensajeError, tipoAviso } from "../api/client";
-import { SECTORES_API, etiquetaSector, textoDescartadas, textoSinEvidencia } from "../lib/dominio";
+import { SECTORES_API, etiquetaSector, textoDescartadas, textoLegible, textoSinEvidencia } from "../lib/dominio";
 import { useAniosConDocumentos } from "../components/useAniosConDocumentos";
 import SelectAnioConDocumentos from "../components/SelectAnioConDocumentos";
+import TextoDocumento from "../components/TextoDocumento";
 import type { AfirmacionAsistente, CitaAsistente, EmpresaApi, MotivoSinEvidencia, SectorApi } from "../types";
 
 interface Mensaje {
@@ -23,9 +24,9 @@ interface Mensaje {
 }
 
 const SUGERENCIAS: { icono: string; texto: string }[] = [
-  { icono: "gavel", texto: "¿Qué sanciones identificas para esta empresa y año?" },
+  { icono: "gavel", texto: "¿Qué sanciones ambientales, sociales y de gobernanza (compliance) identificas para esta empresa y año?" },
   { icono: "co2", texto: "¿Qué indicadores GRI de emisiones reporta?" },
-  { icono: "eco", texto: "Resume el desempeño ambiental del año consultado" },
+  { icono: "eco", texto: "Resume el desempeño ambiental, social y de gobernanza (compliance) del año consultado" },
 ];
 const CLS_CONTROL =
   "rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none";
@@ -115,8 +116,8 @@ export default function Asistente() {
     <div className="flex flex-col h-[calc(100dvh-4rem)] -m-lg md:-m-xl">
       {/* Contexto de la consulta */}
       <div className="bg-surface-container-lowest border-b border-outline-variant px-md sm:px-lg py-md">
-        <div className="max-w-5xl mx-auto flex flex-wrap gap-md items-end">
-          <div className="hidden md:flex items-center gap-sm mr-sm self-center">
+        <div data-testid="barra-contexto" className="max-w-5xl mx-auto flex flex-wrap lg:flex-nowrap gap-md items-end">
+          <div className="hidden xl:flex shrink-0 items-center gap-sm mr-sm self-center">
             <span className="w-9 h-9 rounded-full bg-secondary-fixed/50 text-secondary flex items-center justify-center">
               <span className="material-symbols-outlined text-[20px]">filter_alt</span>
             </span>
@@ -124,22 +125,23 @@ export default function Asistente() {
               Contexto de<br />consulta
             </span>
           </div>
-          <Campo label="Sector" className="flex-1 min-w-[150px] sm:flex-none">
-            <select value={sector} onChange={(e) => { setSector(e.target.value as "" | SectorApi); setEmpresaId(""); }} className={`${CLS_CONTROL} w-full sm:min-w-[160px]`}>
+          <Campo label="Sector" className="flex-1 min-w-[150px] lg:flex-none lg:w-40">
+            <select value={sector} onChange={(e) => { setSector(e.target.value as "" | SectorApi); setEmpresaId(""); }} className={`${CLS_CONTROL} w-full`}>
               <option value="">— Elegir —</option>
               {SECTORES_API.map((s) => <option key={s} value={s}>{etiquetaSector(s)}</option>)}
             </select>
           </Campo>
-          <Campo label="Empresa" className="flex-1 min-w-[180px] sm:flex-none">
-            <select value={empresa?.id ?? ""} onChange={(e) => setEmpresaId(e.target.value)} className={`${CLS_CONTROL} w-full sm:min-w-[220px]`}>
+          {/* El ancho no depende del nombre: si es largo se recorta y se lee completo en la lista o en el «title». */}
+          <Campo label="Empresa" className="flex-1 min-w-[180px] lg:min-w-0">
+            <select value={empresa?.id ?? ""} title={empresa?.nombre} onChange={(e) => setEmpresaId(e.target.value)} className={`${CLS_CONTROL} w-full truncate`}>
               <option value="">— Elegir —</option>
               {empresasSector.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
             </select>
           </Campo>
-          <Campo label="Año" className="w-32">
+          <Campo label="Año" className="w-32 shrink-0">
             <SelectAnioConDocumentos seleccion={aniosEmpresa} className={`${CLS_CONTROL} w-full`} />
           </Campo>
-          <div className="w-full sm:w-auto sm:ml-auto self-center">
+          <div className="w-full lg:w-auto lg:shrink-0 self-center whitespace-nowrap">
             <EstadoContexto ctxOk={ctxOk} sinDocumentos={sinDocumentos} />
           </div>
         </div>
@@ -362,12 +364,16 @@ function AfirmacionItem({ afirmacion }: Readonly<{ afirmacion: AfirmacionAsisten
       <span className="material-symbols-outlined text-[18px] text-primary mt-[2px]" aria-hidden="true">check_circle</span>
       <div className="min-w-0">
         <p className="text-body-md text-on-surface">
-          {afirmacion.texto}{" "}
+          {textoLegible(afirmacion.texto)}{" "}
           {afirmacion.referencias.map((n) => (
             <sup key={n} className="ml-[2px] inline-flex items-center justify-center rounded bg-primary/10 px-1 text-[10px] font-bold text-primary">[{n}]</sup>
           ))}
         </p>
-        <p className="mt-xs rounded-lg bg-surface-container-low px-md py-xs text-label-md text-on-surface-variant italic break-words">«{afirmacion.cita_textual}»</p>
+        <TextoDocumento
+          texto={afirmacion.cita_textual}
+          comillas
+          className="mt-xs rounded-lg bg-surface-container-low px-md py-xs text-label-md text-on-surface-variant italic break-words"
+        />
       </div>
     </li>
   );
@@ -379,8 +385,8 @@ function Fuente({ cita }: Readonly<{ cita: CitaAsistente }>) {
       <span className="w-6 h-6 rounded-full bg-primary text-on-primary text-label-sm font-bold flex items-center justify-center shrink-0">{cita.referencia}</span>
       <div className="min-w-0">
         <p className="text-label-md font-semibold text-on-surface break-all">{cita.documento_nombre}</p>
-        <p className="text-label-sm text-on-surface-variant">{cita.empresa_nombre} · {cita.anio} · {cita.seccion}</p>
-        <p className="text-label-sm text-outline italic mt-xs line-clamp-2 break-words">{cita.extracto}</p>
+        <p className="text-label-sm text-on-surface-variant">{cita.empresa_nombre} · {cita.anio} · {textoLegible(cita.seccion)}</p>
+        <TextoDocumento texto={cita.extracto} maxFilas={3} className="text-label-sm text-outline italic mt-xs line-clamp-2 break-words" />
       </div>
     </div>
   );

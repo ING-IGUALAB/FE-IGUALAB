@@ -24,6 +24,11 @@ import {
   paginaValida,
   paginarLocal,
   rangoPaginas,
+  tablaMarkdown,
+  textoLegible,
+  filtrarDocumentos,
+  estadosPorAnio,
+  etiquetaAnioReporte,
   textoSinAnios,
   reporteDe,
   bloquesPaginacion,
@@ -310,6 +315,111 @@ describe("aniosConDocumentos", () => {
   });
   it("sin documentos en ningún año devuelve lista vacía", () => {
     expect(aniosConDocumentos([2025, 2024], [conDocs(0), conDocs(0)])).toEqual([]);
+  });
+});
+
+describe("estadosPorAnio y etiquetaAnioReporte", () => {
+  const analisis = (docs: number, habilita: boolean, flujo: "VALIDADO" | "PENDIENTE_ESTADOS") =>
+    ({ status: "fulfilled", value: { documentos: Array(docs).fill({}), habilita_reporte: habilita, estado_flujo: flujo } }) as const;
+  it("guarda el estado solo de los años con documentos", () => {
+    const estados = estadosPorAnio(
+      [2025, 2024, 2023],
+      [analisis(1, true, "VALIDADO"), analisis(0, false, "PENDIENTE_ESTADOS"), { status: "rejected", reason: "x" }],
+    );
+    expect(estados).toEqual({ 2025: { habilitaReporte: true, estadoFlujo: "VALIDADO" } });
+  });
+  it("muestra si el año está validado", () => {
+    expect(etiquetaAnioReporte(2025, { habilitaReporte: true, estadoFlujo: "VALIDADO" })).toBe("2025 · Validado");
+    expect(etiquetaAnioReporte(2024, { habilitaReporte: false, estadoFlujo: "PENDIENTE_ESTADOS" })).toBe("2024 · Sin validar");
+    expect(etiquetaAnioReporte(2023)).toBe("2023");
+    expect(etiquetaAnioReporte(2022, { habilitaReporte: true, estadoFlujo: "VALIDADO" }, true)).toBe("2022 · Reporte generado");
+  });
+});
+
+describe("textoLegible", () => {
+  it("quita las marcas de los fragmentos reales reportados", () => {
+    expect(textoLegible("Reporte de sostenibilidad 2025 — Tejido Verde de Prueba > **Gestión** ambiental<br>2025 > Cumplimiento"))
+      .toBe("Reporte de sostenibilidad 2025 — Tejido Verde de Prueba > Gestión ambiental 2025 > Cumplimiento");
+    expect(textoLegible("### Cumplimiento La empresa recibió una multa de S/ 5000 por parte del OEFA"))
+      .toBe("Cumplimiento La empresa recibió una multa de S/ 5000 por parte del OEFA");
+    expect(textoLegible("# Reporte de sostenibilidad 2025 — Tejido Verde de Prueba ## **Gestión** ambiental<br>2025 La compañía"))
+      .toBe("Reporte de sostenibilidad 2025 — Tejido Verde de Prueba Gestión ambiental 2025 La compañía");
+    expect(textoLegible("se generaron 86 toneladas de residuos.<br />De ellas, 61 toneladas. Consulte el [anexo metodológico](#anexo-2)"))
+      .toBe("se generaron 86 toneladas de residuos. De ellas, 61 toneladas. Consulte el anexo metodológico");
+  });
+  it("quita etiquetas HTML conservando su texto y decodifica entidades", () => {
+    expect(textoLegible("Multa <mark>confirmada</mark> por <u>OEFA</u><!-- nota -->")).toBe("Multa confirmada por OEFA");
+    expect(textoLegible("Agua &amp; efluentes &lt;GRI 303&gt; &#8212; &#x41;&nbsp;fin")).toBe("Agua & efluentes <GRI 303> — A fin");
+    expect(textoLegible("Unidades &desconocida; se conservan")).toBe("Unidades &desconocida; se conservan");
+  });
+  it("quita negritas, cursivas, tachados, código y separadores", () => {
+    expect(textoLegible("Texto *cursiva* y _otra_, ~~tachado~~ y `código` --_-- fin --- final"))
+      .toBe("Texto cursiva y otra, tachado y código fin final");
+    expect(textoLegible("- primer punto\n* segundo\n> cita")).toBe("primer punto segundo cita");
+  });
+  it("no toca lo que no es marca: comparaciones, guiones bajos de nombres ni números", () => {
+    expect(textoLegible("emisiones < 5000 t y x > 3")).toBe("emisiones < 5000 t y x > 3");
+    expect(textoLegible("Ver 05_reporte_2025_marcas.md · 4. Agua (GRI 303)")).toBe("Ver 05_reporte_2025_marcas.md · 4. Agua (GRI 303)");
+    expect(textoLegible("Impuesto 2*3*4 y a_b")).toBe("Impuesto 2*3*4 y a_b");
+  });
+  it("sin texto devuelve vacío", () => {
+    expect(textoLegible(undefined)).toBe("");
+    expect(textoLegible(null)).toBe("");
+    expect(textoLegible("  ")).toBe("");
+  });
+});
+
+describe("tablaMarkdown", () => {
+  const encabezados = ["Indicador", "Código GRI", "2024", "Unidad"];
+  it("reconoce la tabla aunque venga en una sola línea, como la reportada", () => {
+    const t = tablaMarkdown("| Indicador | Código GRI | 2024 | Unidad | |-----------|-----------|------|--------| | Emisiones directas (Alcance 1) | GRI 305-1 | 11,980 | tCO2e | | Emisiones indirectas (Alcance 2) | GRI 305-2 | 7,650 | tCO2e |");
+    expect(t).toEqual({
+      antes: "",
+      encabezados,
+      filas: [
+        ["Emisiones directas (Alcance 1)", "GRI 305-1", "11,980", "tCO2e"],
+        ["Emisiones indirectas (Alcance 2)", "GRI 305-2", "7,650", "tCO2e"],
+      ],
+    });
+  });
+  it("también con saltos de línea, texto previo, celdas vacías y marcas en las celdas", () => {
+    const t = tablaMarkdown("Tabla 3:\n| Indicador | Código GRI | 2024 | Unidad |\n|:---|:---:|---:|---|\n| **Agua** extraída | GRI 303-3 |  | m3 |");
+    expect(t).toEqual({ antes: "Tabla 3:", encabezados, filas: [["Agua extraída", "GRI 303-3", "", "m3"]] });
+  });
+  it("si no es una tabla bien formada, devuelve null (se muestra como texto)", () => {
+    expect(tablaMarkdown("Durante 2024 se registró una sanción ambiental de OEFA.")).toBeNull();
+    expect(tablaMarkdown("| a | b | |---|---| | 1 | 2 | 3 |")).toBeNull();
+    expect(tablaMarkdown("| a | b | c | |---|---| | 1 | 2 | 3 |")).toBeNull();
+    expect(tablaMarkdown("| a | b | |---|---| | 1 | 2 | y sigue texto")).toBeNull();
+    expect(tablaMarkdown("| a | b | |---|---|")).toBeNull();
+    expect(tablaMarkdown("sin tubería |---|---|")).toBeNull();
+    expect(tablaMarkdown(null)).toBeNull();
+  });
+  it("si no se puede leer como tabla, el texto queda sin las filas separadoras", () => {
+    expect(textoLegible("| a | b | |---|---| | 1 | 2 | 3 |")).toBe("| a | b | | 1 | 2 | 3 |");
+  });
+});
+
+describe("filtrarDocumentos", () => {
+  const docs = [
+    { id: "1", sector: "ENERGIA", empresa_nombre: "Energía Andina S.A." },
+    { id: "2", sector: "MINERIA", empresa_nombre: "Minera Andina S.A.A." },
+    { id: "3", sector: "PETROLEO", empresa_nombre: "Petro Sur S.A." },
+  ];
+  const ids = (f: { sector?: string; busqueda?: string }) => filtrarDocumentos(docs, f).map((d) => d.id);
+  it("busca por una parte del nombre, sin distinguir mayúsculas ni tildes", () => {
+    expect(ids({ busqueda: "andina" })).toEqual(["1", "2"]);
+    expect(ids({ busqueda: "ENERGIA" })).toEqual(["1"]);
+    expect(ids({ busqueda: "  petro  " })).toEqual(["3"]);
+    expect(ids({ busqueda: "xyz" })).toEqual([]);
+  });
+  it("combina la búsqueda con el sector", () => {
+    expect(ids({ sector: "MINERIA", busqueda: "andina" })).toEqual(["2"]);
+    expect(ids({ sector: "MINERIA" })).toEqual(["2"]);
+  });
+  it("sin criterios devuelve todos", () => {
+    expect(ids({})).toEqual(["1", "2", "3"]);
+    expect(ids({ busqueda: "   " })).toEqual(["1", "2", "3"]);
   });
 });
 

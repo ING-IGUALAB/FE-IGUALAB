@@ -153,6 +153,107 @@ export function textoMotivosNoVigente(motivos: MotivoNoVigente[]): string {
 }
 
 /** Paginación en el cliente (para filtros que el backend no soporta, p. ej. sector). */
+// ---- Texto de los documentos ----
+const ENTIDADES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
+
+function decodificarEntidades(texto: string): string {
+  return texto.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (entidad, cuerpo: string) => {
+    const minus = cuerpo.toLowerCase();
+    if (minus.startsWith("#x")) return String.fromCodePoint(Number.parseInt(minus.slice(2), 16));
+    if (minus.startsWith("#")) return String.fromCodePoint(Number.parseInt(minus.slice(1), 10));
+    return ENTIDADES[minus] ?? entidad;
+  });
+}
+
+/**
+ * Texto legible de un fragmento de documento: los documentos son Markdown y pueden traer HTML, y el
+ * backend devuelve el fragmento tal cual (es la evidencia exacta). Aquí solo se quitan las marcas para
+ * mostrarlo; el resultado se muestra siempre como texto, nunca se interpreta como HTML.
+ */
+export function textoLegible(texto: string | null | undefined): string {
+  if (!texto) return "";
+  const lineas = texto
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<\/?[a-z][^>]*>/gi, "")
+    .split("\n")
+    // Marcas de inicio de línea: títulos, citas y viñetas.
+    .map((linea) => linea.replace(/^\s*(#{1,6}|>|[-*+])\s+/, ""));
+  return decodificarEntidades(
+    lineas
+      .join("\n")
+      .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+      .replace(/(\*\*|__)(.+?)\1/g, "$2")
+      .replace(/~~(.+?)~~/g, "$1")
+      .replace(/`([^`]+)`/g, "$1")
+      .replace(/(^|[\s(])[*_]([^*_\n]+)[*_](?=$|[\s.,;:!?)])/g, "$1$2")
+      // Títulos que quedaron en medio del texto, filas separadoras de tablas («|---|---|») y
+      // separadores como «---» o «--_--».
+      .replace(/(^|\s)#{1,6}(?=\s)/g, "$1")
+      .replace(/\|?(?:\s*:?-{3,}:?\s*\|)+/g, " ")
+      .replace(/(^|\s)[-_*~=]{3,}(?=\s|$)/g, "$1"),
+  )
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Tabla de Markdown encontrada en un fragmento: texto previo, encabezados y filas, ya legibles. */
+export interface TablaTexto {
+  antes: string;
+  encabezados: string[];
+  filas: string[][];
+}
+
+// Fila separadora de una tabla de Markdown: «|---|:---:|---|».
+const SEPARADOR_TABLA = /\|(?:\s*:?-{3,}:?\s*\|){2,}/;
+
+/**
+ * Si el fragmento es una tabla de Markdown, la devuelve como datos para mostrarla como tabla. Sirve
+ * aunque las filas vengan en una sola línea (separadas por «| |»). Si algo no encaja, devuelve null y
+ * el fragmento se muestra como texto.
+ */
+export function tablaMarkdown(texto: string | null | undefined): TablaTexto | null {
+  if (!texto) return null;
+  const separador = SEPARADOR_TABLA.exec(texto);
+  if (!separador) return null;
+  const cabecera = texto.slice(0, separador.index);
+  const inicio = cabecera.indexOf("|");
+  if (inicio < 0) return null;
+  const encabezados = cabecera.slice(inicio).trim().replace(/^\||\|$/g, "").split("|").map(textoLegible);
+  const columnas = encabezados.length;
+  if (columnas < 2 || separador[0].split("|").length - 2 !== columnas) return null;
+
+  // Celdas del cuerpo: cada fila tiene `columnas` celdas y entre filas queda un hueco vacío («| |»).
+  const cuerpo = texto.slice(separador.index + separador[0].length).trim();
+  if (!cuerpo.startsWith("|") || !cuerpo.endsWith("|")) return null;
+  const celdas = cuerpo.slice(1, -1).split("|");
+  const filas: string[][] = [];
+  for (let i = 0; i < celdas.length; i += columnas + 1) {
+    const fila = celdas.slice(i, i + columnas);
+    const hueco = celdas[i + columnas];
+    if (fila.length !== columnas || (hueco !== undefined && hueco.trim() !== "")) return null;
+    filas.push(fila.map(textoLegible));
+  }
+  if (filas.length === 0) return null;
+  return { antes: textoLegible(texto.slice(0, inicio)), encabezados, filas };
+}
+
+/** Texto para comparar sin distinguir mayúsculas ni tildes. */
+function normalizarTexto(texto: string): string {
+  return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
+/** Documentos del sector elegido cuya empresa contiene el texto buscado (basta una parte del nombre). */
+export function filtrarDocumentos<T extends { sector: string; empresa_nombre: string }>(
+  documentos: T[],
+  filtros: { sector?: string; busqueda?: string },
+): T[] {
+  const buscado = normalizarTexto(filtros.busqueda ?? "");
+  return documentos.filter(
+    (d) => (!filtros.sector || d.sector === filtros.sector) && normalizarTexto(d.empresa_nombre).includes(buscado),
+  );
+}
+
 export function paginarLocal<T>(items: T[], pagina: number, tamano: number): { items: T[]; pagina: number; paginas: number } {
   const paginas = Math.max(1, Math.ceil(items.length / tamano));
   const actual = Math.min(Math.max(1, pagina), paginas);
@@ -280,6 +381,34 @@ export function aniosConDocumentos(
     const r = resultados[i];
     return r?.status === "fulfilled" && r.value.documentos.length > 0;
   });
+}
+
+/** Estado del análisis GRI de un año: si ya permite la vista previa y generar el reporte. */
+export interface EstadoAnio {
+  habilitaReporte: boolean;
+  estadoFlujo: EstadoFlujo;
+}
+
+/** Estado del análisis de cada año con documentos, a partir de las consultas hechas por año. */
+export function estadosPorAnio(
+  candidatos: number[],
+  resultados: PromiseSettledResult<{ documentos: unknown[]; habilita_reporte: boolean; estado_flujo: EstadoFlujo }>[],
+): Record<number, EstadoAnio> {
+  const estados: Record<number, EstadoAnio> = {};
+  candidatos.forEach((anio, i) => {
+    const r = resultados[i];
+    if (r?.status === "fulfilled" && r.value.documentos.length > 0) {
+      estados[anio] = { habilitaReporte: r.value.habilita_reporte, estadoFlujo: r.value.estado_flujo };
+    }
+  });
+  return estados;
+}
+
+/** Texto de un año en la lista de Reportes: si ya tiene reporte o si su análisis está validado. */
+export function etiquetaAnioReporte(anio: number, estado?: EstadoAnio, generado = false): string {
+  if (generado) return `${anio} · Reporte generado`;
+  if (!estado) return String(anio);
+  return `${anio} · ${estado.habilitaReporte ? "Validado" : "Sin validar"}`;
 }
 
 // ---- Paginación ----
