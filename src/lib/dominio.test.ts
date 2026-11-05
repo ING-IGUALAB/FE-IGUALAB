@@ -27,10 +27,12 @@ import {
   tablaMarkdown,
   textoLegible,
   filtrarDocumentos,
-  estadosPorAnio,
+  accionesReporte,
   etiquetaAnioReporte,
+  mensajeEmision,
+  situacionAnioReporte,
+  situacionEmision,
   textoSinAnios,
-  reporteDe,
   bloquesPaginacion,
   plural,
   puedeValidar,
@@ -44,6 +46,7 @@ import {
   formatearTamano,
   validarArchivoIngesta,
 } from "./dominio";
+import type { AnioDisponible, EstadoAnioReporte } from "../types";
 
 describe("etiquetas de dominio", () => {
   it("traduce sectores del backend", () => {
@@ -318,21 +321,71 @@ describe("aniosConDocumentos", () => {
   });
 });
 
-describe("estadosPorAnio y etiquetaAnioReporte", () => {
-  const analisis = (docs: number, habilita: boolean, flujo: "VALIDADO" | "PENDIENTE_ESTADOS") =>
-    ({ status: "fulfilled", value: { documentos: Array(docs).fill({}), habilita_reporte: habilita, estado_flujo: flujo } }) as const;
-  it("guarda el estado solo de los años con documentos", () => {
-    const estados = estadosPorAnio(
-      [2025, 2024, 2023],
-      [analisis(1, true, "VALIDADO"), analisis(0, false, "PENDIENTE_ESTADOS"), { status: "rejected", reason: "x" }],
-    );
-    expect(estados).toEqual({ 2025: { habilitaReporte: true, estadoFlujo: "VALIDADO" } });
+describe("reportes versionados", () => {
+  const anio = (extra: Partial<AnioDisponible>): AnioDisponible => ({ anio: 2024, estado: "VALIDACION_VIGENTE", puede_generar: true, ...extra });
+
+  it("etiqueta cada año según su estado", () => {
+    expect(etiquetaAnioReporte(anio({ estado: "PENDIENTE_REVISION" }))).toBe("2024 · Pendiente de revisión");
+    expect(etiquetaAnioReporte(anio({ estado: "PENDIENTE_VALIDACION" }))).toBe("2024 · Sin validar");
+    expect(etiquetaAnioReporte(anio({}))).toBe("2024 · Validado");
+    expect(etiquetaAnioReporte(anio({ estado: "ACTUALIZACION_PENDIENTE" }))).toBe("2024 · Validación nueva sin reporte");
+    expect(etiquetaAnioReporte(anio({ estado: "REPORTE_GENERADO" }))).toBe("2024 · Reporte actualizado");
+    expect(etiquetaAnioReporte(anio({ estado: "SIN_CODIGOS_GRI" }))).toBe("2024 · Sin códigos GRI");
+    expect(etiquetaAnioReporte(anio({ estado: "SIN_DOCUMENTACION_ELEGIBLE" }))).toBe("2024 · Sin documentos");
   });
-  it("muestra si el año está validado", () => {
-    expect(etiquetaAnioReporte(2025, { habilitaReporte: true, estadoFlujo: "VALIDADO" })).toBe("2025 · Validado");
-    expect(etiquetaAnioReporte(2024, { habilitaReporte: false, estadoFlujo: "PENDIENTE_ESTADOS" })).toBe("2024 · Sin validar");
-    expect(etiquetaAnioReporte(2023)).toBe("2023");
-    expect(etiquetaAnioReporte(2022, { habilitaReporte: true, estadoFlujo: "VALIDADO" }, true)).toBe("2022 · Reporte generado");
+
+  it("un estado que aún no se conoce no rompe la pantalla", () => {
+    const desconocido = anio({ estado: "OTRO" as EstadoAnioReporte });
+    expect(etiquetaAnioReporte(desconocido)).toBe("2024");
+    expect(situacionAnioReporte(desconocido)).toEqual({ mensaje: "No se pudo determinar la situación de este año.", tono: "neutro", irAAnalisis: false });
+  });
+
+  it("lleva a Análisis GRI solo si falta revisar o validar, y explica si la validación venció", () => {
+    expect(situacionAnioReporte(anio({ estado: "PENDIENTE_REVISION" })).irAAnalisis).toBe(true);
+    expect(situacionAnioReporte(anio({ estado: "PENDIENTE_VALIDACION" })).mensaje).toBe("Valida el análisis GRI antes de emitir el reporte.");
+    expect(situacionAnioReporte(anio({ estado: "PENDIENTE_VALIDACION", validacion_anterior_no_vigente: true })).mensaje).toContain("cambió después de la última validación");
+    expect(situacionAnioReporte(anio({})).irAAnalisis).toBe(false);
+  });
+
+  it("sin reporte ofrece generar; con reporte, generar una nueva versión", () => {
+    expect(accionesReporte(anio({}))).toMatchObject({ generar: true, etiquetaGenerar: "Generar reporte", descargarActualizado: false, descargarHistorica: false, verHistorial: false });
+    expect(accionesReporte(anio({ estado: "ACTUALIZACION_PENDIENTE", reporte_id: "r1", reporte_actualizado: false }))).toMatchObject({
+      generar: true,
+      etiquetaGenerar: "Generar nueva versión",
+      descargarActualizado: false,
+      descargarHistorica: true,
+    });
+  });
+
+  it("solo presenta como actualizado lo que el servidor confirma", () => {
+    expect(accionesReporte(anio({ estado: "REPORTE_GENERADO", puede_generar: false, reporte_id: "r1", reporte_actualizado: true }))).toMatchObject({
+      generar: false,
+      descargarActualizado: true,
+      descargarHistorica: false,
+    });
+    // Que no haya una actualización pendiente no significa que esté actualizado.
+    expect(accionesReporte(anio({ estado: "PENDIENTE_VALIDACION", puede_generar: false, reporte_id: "r1", reporte_actualizado: null, actualizacion_pendiente: false }))).toMatchObject({
+      vistaPrevia: false,
+      descargarActualizado: false,
+      descargarHistorica: true,
+    });
+    expect(accionesReporte()).toMatchObject({ vistaPrevia: false, generar: false, descargarActualizado: false, descargarHistorica: false });
+  });
+
+  it("describe la última emisión sin confundir última con actualizada", () => {
+    expect(situacionEmision(anio({ reporte_actualizado: true, origen_verificable: true }))).toBe("Actualizado");
+    expect(situacionEmision(anio({ reporte_actualizado: false, origen_verificable: true }))).toBe("No actualizado");
+    expect(situacionEmision(anio({ reporte_actualizado: false, origen_verificable: false }))).toBe("Origen no verificable");
+  });
+
+  it("distingue una emisión nueva de una reutilizada", () => {
+    const base = { version: 2, empresa_nombre: "Minera", anio: 2024 };
+    expect(mensajeEmision({ ...base, reutilizado: false })).toBe("Versión 2 de Minera (2024) emitida correctamente.");
+    expect(mensajeEmision({ ...base, reutilizado: true })).toBe("Esta validación ya tenía un reporte: versión 2 de Minera (2024).");
+  });
+
+  it("el nombre del archivo lleva la versión", () => {
+    expect(nombreArchivoReporte("Minera Andina", 2024, 2)).toBe("reporte-prospeccion-minera-andina-2024-v2.pdf");
   });
 });
 
@@ -434,17 +487,6 @@ describe("filtrarDocumentos", () => {
   it("sin criterios devuelve todos", () => {
     expect(ids({})).toEqual(["1", "2", "3"]);
     expect(ids({ busqueda: "   " })).toEqual(["1", "2", "3"]);
-  });
-});
-
-describe("reporteDe", () => {
-  const reportes = [{ id: "r1", empresa_id: "e1", anio: 2024 }, { id: "r2", empresa_id: "e1", anio: 2023 }];
-  it("encuentra el reporte de la empresa y el año", () => {
-    expect(reporteDe(reportes, "e1", 2023)?.id).toBe("r2");
-  });
-  it("si no hay reporte de esa empresa y año, no devuelve nada", () => {
-    expect(reporteDe(reportes, "e1", 2025)).toBeUndefined();
-    expect(reporteDe(reportes, "e2", 2024)).toBeUndefined();
   });
 });
 
