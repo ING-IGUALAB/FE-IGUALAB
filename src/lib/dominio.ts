@@ -313,6 +313,34 @@ export function situacionAnioReporte(a: AnioDisponible): { mensaje: string; tono
   return { mensaje, tono: info.tono, irAAnalisis: !!info.irAAnalisis };
 }
 
+/** Etapas del recorrido de un reporte, en orden. */
+export const ETAPAS_REPORTE = ["Revisión", "Validación", "Emisión", "Al día"] as const;
+
+// Cuántas etapas quedan cumplidas en cada estado. Los estados sin recorrido (sin códigos GRI o sin
+// documentación) no tienen tira: lo explica el aviso de la pantalla.
+const ETAPAS_CUMPLIDAS: Partial<Record<EstadoAnioReporte, number>> = {
+  PENDIENTE_REVISION: 0,
+  PENDIENTE_VALIDACION: 1,
+  VALIDACION_VIGENTE: 2,
+  ACTUALIZACION_PENDIENTE: 2,
+  REPORTE_GENERADO: 4,
+};
+
+/**
+ * Dónde está un año en el recorrido del reporte, según el estado que entrega el servidor.
+ * `actual` es la etapa en curso (null si ya está todo al día); `nuevaVersion` indica que la emisión
+ * pendiente es una versión nueva de un reporte que ya existe.
+ */
+export function etapaReporte(a?: AnioDisponible): { cumplidas: number; actual: number | null; nuevaVersion: boolean } | null {
+  const cumplidas = a ? ETAPAS_CUMPLIDAS[a.estado] : undefined;
+  if (cumplidas === undefined || !a) return null;
+  return {
+    cumplidas,
+    actual: cumplidas < ETAPAS_REPORTE.length ? cumplidas : null,
+    nuevaVersion: a.estado === "ACTUALIZACION_PENDIENTE",
+  };
+}
+
 // En estos estados hay una validación vigente, requisito de la vista previa.
 const ESTADOS_CON_VALIDACION: ReadonlySet<EstadoAnioReporte> = new Set<EstadoAnioReporte>(["VALIDACION_VIGENTE", "ACTUALIZACION_PENDIENTE", "REPORTE_GENERADO"]);
 

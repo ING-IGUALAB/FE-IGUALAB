@@ -12,7 +12,7 @@ import type { EventoAuditoriaApi, TipoEventoAuditoria, Usuario } from "../types"
 
 const TAM_PAGINA = 20;
 const CLS_CONTROL =
-  "rounded-lg border border-outline-variant bg-surface-container-lowest py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none";
+  "rounded-lg border border-outline-variant bg-surface-container-lowest py-sm px-md text-body-md focus:border-primary-ink focus:ring-1 focus:ring-primary-ink outline-none";
 
 function fechaHora(iso: string): string {
   const d = new Date(iso);
@@ -122,7 +122,7 @@ export default function Auditoria() {
           <Filtro label="Hasta">
             <input type="date" value={hasta} onChange={(e) => { setHasta(e.target.value); setPagina(1); }} className={CLS_CONTROL} />
           </Filtro>
-          <button onClick={limpiar} className="py-sm px-md rounded-lg text-label-md text-primary hover:bg-primary/5 transition-colors">Limpiar filtros</button>
+          <button onClick={limpiar} className="py-sm px-md rounded-lg text-label-md text-primary-ink hover:bg-primary/5 transition-colors">Limpiar filtros</button>
         </div>
         {rangoInvalido && (
           <div className="px-lg py-sm bg-error-container text-on-error-container text-body-md">La fecha «Desde» no puede ser posterior a «Hasta».</div>

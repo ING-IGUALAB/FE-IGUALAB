@@ -179,3 +179,22 @@ test.describe("Menú lateral", () => {
     await expect(enlace).toBeHidden();
   });
 });
+
+test.describe("Modo día y noche", () => {
+  test("cambia a modo oscuro desde el acceso, lo recuerda al recargar y vuelve a claro desde la app", async ({ page, api }) => {
+    await page.emulateMedia({ colorScheme: "light" });
+    await page.goto("/login");
+    const html = page.locator("html");
+    await expect(html).toHaveAttribute("data-theme", "light");
+
+    await page.getByRole("button", { name: "Activar modo oscuro" }).click();
+    await expect(html).toHaveAttribute("data-theme", "dark");
+    await page.reload();
+    await expect(html).toHaveAttribute("data-theme", "dark");
+
+    await entrarComo(page, api, "superadmin", "/usuarios");
+    await expect(html).toHaveAttribute("data-theme", "dark");
+    await page.getByRole("button", { name: "Activar modo claro" }).click();
+    await expect(html).toHaveAttribute("data-theme", "light");
+  });
+});

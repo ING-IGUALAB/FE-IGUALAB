@@ -5,6 +5,7 @@ import Paginacion from "../components/Paginacion";
 import Badge from "../components/Badge";
 import Modal from "../components/Modal";
 import Spinner from "../components/Spinner";
+import GuiaVacia from "../components/GuiaVacia";
 import { useToast } from "../components/ToastProvider";
 import { useAniosConDocumentos } from "../components/useAniosConDocumentos";
 import SelectAnioConDocumentos from "../components/SelectAnioConDocumentos";
@@ -42,7 +43,7 @@ import type {
 } from "../types";
 
 const CLS_SELECT =
-  "w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none";
+  "w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary-ink focus:ring-1 focus:ring-primary-ink outline-none";
 const CLS_CARD = "bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden";
 
 // Garantiza listas aunque el backend omita alguna, para que la vista nunca se caiga.
@@ -196,7 +197,7 @@ export default function AnalisisGri() {
                 <p className="text-label-sm text-on-surface-variant -mt-sm">Esta empresa aún no tiene documentos subidos.</p>
               )}
             </div>
-            <button onClick={consultar} disabled={cargando || anio === null} className="w-full mt-lg bg-primary text-on-primary py-md px-lg rounded-lg flex items-center justify-center gap-sm shadow-md hover:bg-surface-tint transition-all text-body-lg font-semibold disabled:opacity-60">
+            <button onClick={consultar} disabled={cargando || anio === null} aria-busy={cargando} className="w-full mt-lg min-h-12 bg-primary text-on-primary py-sm px-lg flex items-center justify-center gap-sm hover:bg-surface-tint text-body-lg font-semibold disabled:cursor-not-allowed">
               {cargando ? <Spinner size={18} /> : <span className="material-symbols-outlined">search</span>} Consultar análisis
             </button>
           </div>
@@ -208,9 +209,16 @@ export default function AnalisisGri() {
 
         <div className="lg:col-span-8 space-y-lg">
           {!analisis && (
-            <div className={`${CLS_CARD} p-xl text-center`}>
-              <span className="material-symbols-outlined text-[40px] text-outline">fact_check</span>
-              <p className="text-body-md text-on-surface-variant mt-sm">Elige sector, empresa y año, y pulsa «Consultar análisis».</p>
+            <div className={CLS_CARD}>
+              <GuiaVacia
+                icono="fact_check"
+                mensaje="Elige sector, empresa y año, y pulsa «Consultar análisis»."
+                pasos={[
+                  { texto: "Elige la empresa", hecho: !!empresaId },
+                  { texto: "Elige el año", hecho: anio !== null },
+                  { texto: "Consulta el análisis", hecho: false },
+                ]}
+              />
             </div>
           )}
           {analisis && <TablaFilas filas={analisis.filas} guardando={guardando} onCambiar={cambiarEstado} />}
@@ -385,7 +393,7 @@ function FilaItem({
             value={fila.estado ?? ""}
             disabled={guardando}
             onChange={(e) => onCambiar(fila, e.target.value as EstadoGriApi)}
-            className="rounded-lg border border-outline-variant bg-surface-container-low py-xs px-sm text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none disabled:opacity-60"
+            className="rounded-lg border border-outline-variant bg-surface-container-low py-xs px-sm text-body-md focus:border-primary-ink focus:ring-1 focus:ring-primary-ink outline-none disabled:opacity-60"
           >
             {!fila.estado && <option value="" disabled>— Asignar estado —</option>}
             {ESTADOS_GRI_API.map((s) => (
@@ -415,7 +423,7 @@ function Evidencias({ evidencias }: Readonly<{ evidencias: EvidenciaGri[] }>) {
       <Cita evidencia={primera} />
       {resto.length > 0 && (
         <details className="text-label-sm">
-          <summary className="cursor-pointer text-primary">Ver {plural(resto.length, "evidencia más", "evidencias más")}</summary>
+          <summary className="cursor-pointer text-primary-ink">Ver {plural(resto.length, "evidencia más", "evidencias más")}</summary>
           <div className="space-y-sm mt-sm">
             {resto.map((ev) => (
               <Cita key={`${ev.documento_id}:${ev.inicio}`} evidencia={ev} />
@@ -537,7 +545,7 @@ function HistorialModal({
     <Modal open={abierto} onClose={onClose} width="max-w-3xl">
       <div className="p-xl overflow-y-auto">
         <h3 className="text-title-lg text-on-background mb-lg flex items-center gap-sm">
-          <span className="material-symbols-outlined text-primary">history</span> Historial de cambios de estado
+          <span className="material-symbols-outlined text-primary-ink">history</span> Historial de cambios de estado
         </h3>
         {cargando && (
           <div className="flex items-center gap-sm text-on-surface-variant"><Spinner size={18} /> Cargando…</div>

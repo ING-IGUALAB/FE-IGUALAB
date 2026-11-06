@@ -67,7 +67,7 @@ export default function Empresas() {
             <select
               value={sector}
               onChange={(e) => setSector(e.target.value as "" | SectorApi)}
-              className="rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+              className="rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary-ink focus:ring-1 focus:ring-primary-ink outline-none"
             >
               <option value="">Todos</option>
               {SECTORES_API.map((s) => (
@@ -112,17 +112,17 @@ export default function Empresas() {
                   <td className="py-md px-md font-medium text-on-background">{e.nombre}</td>
                   <td className="py-md px-md text-on-surface-variant">{etiquetaSector(e.sector)}</td>
                   <td className="py-md px-md">
-                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-label-sm ${e.activa ? "bg-primary-container text-on-primary-container" : "bg-surface-variant text-on-surface-variant"}`}>
+                    <span className={`inline-flex items-center px-2 py-0.5 text-label-sm uppercase tracking-[0.06em] ${e.activa ? "bg-success-container text-on-success-container" : "bg-surface-variant text-on-surface-variant"}`}>
                       {e.activa ? "Activa" : "Inactiva"}
                     </span>
                   </td>
                   <td className="py-md px-md text-on-surface-variant whitespace-nowrap">{fechaCorta(e.creada_en)}</td>
                   <td className="py-md px-md">
                     <div className="flex items-center gap-sm">
-                      <button onClick={() => setEditando(e)} className="text-primary hover:underline text-label-md flex items-center gap-xs">
+                      <button onClick={() => setEditando(e)} className="text-primary-ink hover:underline text-label-md flex items-center gap-xs">
                         <span className="material-symbols-outlined text-[16px]">edit</span> Editar
                       </button>
-                      <button onClick={() => cambiarEstado(e)} className={`text-label-md flex items-center gap-xs hover:underline ${e.activa ? "text-error" : "text-primary"}`}>
+                      <button onClick={() => cambiarEstado(e)} className={`text-label-md flex items-center gap-xs hover:underline ${e.activa ? "text-error" : "text-primary-ink"}`}>
                         <span className="material-symbols-outlined text-[16px]">{e.activa ? "block" : "check_circle"}</span>
                         {e.activa ? "Desactivar" : "Activar"}
                       </button>
@@ -223,7 +223,7 @@ function EmpresaModal({
     <Modal open={abierto} onClose={onClose}>
       <div className="p-xl">
         <h3 className="text-title-lg text-on-background mb-lg flex items-center gap-sm">
-          <span className="material-symbols-outlined text-primary">{modo === "crear" ? "add_business" : "edit"}</span> {titulo}
+          <span className="material-symbols-outlined text-primary-ink">{modo === "crear" ? "add_business" : "edit"}</span> {titulo}
         </h3>
         <div className="space-y-md">
           <label className="flex flex-col gap-xs">
@@ -231,7 +231,7 @@ function EmpresaModal({
             <input
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
-              className="w-full rounded-xl border border-outline-variant py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+              className="w-full rounded-xl border border-outline-variant py-sm px-md text-body-md focus:border-primary-ink focus:ring-1 focus:ring-primary-ink outline-none"
               placeholder="Ej. Compañía Minera del Norte S.A.A."
             />
           </label>
@@ -240,7 +240,7 @@ function EmpresaModal({
             <select
               value={sector}
               onChange={(e) => setSector(e.target.value as SectorApi)}
-              className="w-full rounded-xl border border-outline-variant py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+              className="w-full rounded-xl border border-outline-variant py-sm px-md text-body-md focus:border-primary-ink focus:ring-1 focus:ring-primary-ink outline-none"
             >
               {SECTORES_API.map((s) => (
                 <option key={s} value={s}>{etiquetaSector(s)}</option>

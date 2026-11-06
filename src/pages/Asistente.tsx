@@ -29,7 +29,7 @@ const SUGERENCIAS: { icono: string; texto: string }[] = [
   { icono: "eco", texto: "Resume el desempeño ambiental, social y de gobernanza (compliance) del año consultado" },
 ];
 const CLS_CONTROL =
-  "rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none";
+  "rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary-ink focus:ring-1 focus:ring-primary-ink outline-none";
 
 let msgSeq = 0;
 function nuevoId(): string {
@@ -163,7 +163,7 @@ export default function Asistente() {
         <div className="max-w-3xl mx-auto">
           <div
             className={`rounded-2xl border bg-surface-container-lowest shadow-sm transition-all ${
-              ctxOk ? "border-outline-variant focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20" : "border-outline-variant opacity-70"
+              ctxOk ? "border-outline-variant focus-within:border-primary-ink focus-within:ring-2 focus-within:ring-primary/20" : "border-outline-variant opacity-70"
             }`}
           >
             <textarea
@@ -179,7 +179,7 @@ export default function Asistente() {
             <div className="flex items-center justify-between gap-md px-md pb-sm">
               {empresa && ctxOk ? (
                 <span className="inline-flex items-center gap-xs rounded-full bg-surface-container-low px-3 py-1 text-label-sm text-on-surface-variant min-w-0">
-                  <span className="material-symbols-outlined text-[16px] text-primary">apartment</span>
+                  <span className="material-symbols-outlined text-[16px] text-primary-ink">apartment</span>
                   <span className="truncate">{empresa.nombre} · {anio}</span>
                 </span>
               ) : (
@@ -259,9 +259,9 @@ function Bienvenida({ ctxOk, consultando, onSugerir }: Readonly<{ ctxOk: boolean
             key={s.texto}
             disabled={consultando}
             onClick={() => onSugerir(s.texto)}
-            className="flex items-center gap-md text-left rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-body-md text-on-surface hover:border-primary hover:bg-primary/5 transition-colors disabled:opacity-50"
+            className="flex items-center gap-md text-left rounded-xl border border-outline-variant bg-surface-container-lowest px-md py-sm text-body-md text-on-surface hover:border-primary-ink hover:bg-primary/5 transition-colors disabled:opacity-50"
           >
-            <span className="material-symbols-outlined text-primary" aria-hidden="true">{s.icono}</span>
+            <span className="material-symbols-outlined text-primary-ink" aria-hidden="true">{s.icono}</span>
             <span>{s.texto}</span>
           </button>
         ))}
@@ -361,12 +361,12 @@ function CuerpoRespuesta({ m }: Readonly<{ m: Mensaje }>) {
 function AfirmacionItem({ afirmacion }: Readonly<{ afirmacion: AfirmacionAsistente }>) {
   return (
     <li className="flex gap-sm">
-      <span className="material-symbols-outlined text-[18px] text-primary mt-[2px]" aria-hidden="true">check_circle</span>
+      <span className="material-symbols-outlined text-[18px] text-primary-ink mt-[2px]" aria-hidden="true">check_circle</span>
       <div className="min-w-0">
         <p className="text-body-md text-on-surface">
           {textoLegible(afirmacion.texto)}{" "}
           {afirmacion.referencias.map((n) => (
-            <sup key={n} className="ml-[2px] inline-flex items-center justify-center rounded bg-primary/10 px-1 text-[10px] font-bold text-primary">[{n}]</sup>
+            <sup key={n} className="ml-[2px] inline-flex items-center justify-center rounded bg-primary/10 px-1 text-[10px] font-bold text-primary-ink">[{n}]</sup>
           ))}
         </p>
         <TextoDocumento

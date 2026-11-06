@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import SectionHeader from "../components/SectionHeader";
 import PaginacionSalto from "../components/PaginacionSalto";
 import Badge from "../components/Badge";
@@ -153,7 +154,7 @@ export default function Ingesta() {
                   <tr key={d.id} onClick={() => setDetalleId(d.id)} title={inactiva ? "La empresa está desactivada en el catálogo" : undefined} className={`border-b border-surface-variant hover:bg-surface/50 transition-colors cursor-pointer ${inactiva ? "opacity-60" : ""}`}>
                     <td className="py-md px-md">
                       <div className="flex items-center gap-sm">
-                        <span className={`material-symbols-outlined ${d.tipo === "REPORTE_SOSTENIBILIDAD_GRI" ? "text-secondary" : "text-primary"}`}>{d.tipo === "REPORTE_SOSTENIBILIDAD_GRI" ? "eco" : "description"}</span>
+                        <span className={`material-symbols-outlined ${d.tipo === "REPORTE_SOSTENIBILIDAD_GRI" ? "text-secondary" : "text-primary-ink"}`}>{d.tipo === "REPORTE_SOSTENIBILIDAD_GRI" ? "eco" : "description"}</span>
                         <div>
                           <p className="font-medium text-on-background">{d.empresa_nombre}</p>
                           <p className="text-label-sm text-outline">{d.nombre_archivo} · {formatearTamano(d.tamano_bytes)}</p>
@@ -166,7 +167,7 @@ export default function Ingesta() {
                     <td className="py-md px-md text-on-surface-variant">{etiquetaAnalisis(d.resultado_analisis)}</td>
                     <td className="py-md px-md text-on-surface-variant whitespace-nowrap">{fechaHora(d.creado_en)}</td>
                     <td className="py-md px-md text-right">
-                      <span className="inline-flex items-center gap-xs text-primary text-label-md"><span className="material-symbols-outlined text-[18px]">visibility</span> Ver</span>
+                      <span className="inline-flex items-center gap-xs text-primary-ink text-label-md"><span className="material-symbols-outlined text-[18px]">visibility</span> Ver</span>
                     </td>
                   </tr>
                   );
@@ -285,7 +286,7 @@ function NuevaCargaModal({
     <Modal open={abierto} onClose={cerrar} width="max-w-2xl">
       <div className="p-xl overflow-y-auto">
         <h3 className="text-title-lg text-on-background mb-lg flex items-center gap-sm">
-          <span className="material-symbols-outlined text-primary" aria-hidden="true">upload_file</span> Nueva carga
+          <span className="material-symbols-outlined text-primary-ink" aria-hidden="true">upload_file</span> Nueva carga
         </h3>
         <div className="space-y-md">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-md">
@@ -325,9 +326,9 @@ function NuevaCargaModal({
             onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("dropzone-active"); }}
             onDragLeave={(e) => e.currentTarget.classList.remove("dropzone-active")}
             onDrop={(e) => { e.preventDefault(); e.currentTarget.classList.remove("dropzone-active"); elegirArchivo(e.dataTransfer.files); }}
-            className="flex flex-col items-center justify-center gap-sm border-2 border-dashed border-outline-variant rounded-xl p-lg text-center cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors"
+            className="flex flex-col items-center justify-center gap-sm border-2 border-dashed border-outline-variant rounded-xl p-lg text-center cursor-pointer hover:border-primary-ink hover:bg-primary/5 transition-colors"
           >
-            <span className="material-symbols-outlined text-[36px] text-primary">cloud_upload</span>
+            <span className="material-symbols-outlined text-[36px] text-primary-ink">cloud_upload</span>
             <span className="text-body-md text-on-background font-medium">Arrastra el .md aquí o haz clic para seleccionar</span>
             <span className="text-label-sm text-outline">Sólo Markdown (.md) · hasta 50 MB</span>
             <input type="file" accept=".md,text/markdown" className="hidden" onChange={(e) => { elegirArchivo(e.target.files); e.target.value = ""; }} />
@@ -335,7 +336,7 @@ function NuevaCargaModal({
 
           {archivo && (
             <div className="rounded-lg border border-outline-variant bg-surface-container-low p-sm flex items-center gap-xs text-body-md text-on-surface">
-              <span className="material-symbols-outlined text-[16px] text-primary" aria-hidden="true">description</span>
+              <span className="material-symbols-outlined text-[16px] text-primary-ink" aria-hidden="true">description</span>
               <span className="truncate">{archivo.name}</span>
               <span className="text-outline shrink-0">· {formatearTamano(archivo.size)}</span>
               <button onClick={() => setArchivo(null)} aria-label="Quitar archivo" title="Quitar archivo" className="ml-auto text-outline hover:text-error"><span className="material-symbols-outlined text-[18px]" aria-hidden="true">close</span></button>
@@ -346,7 +347,7 @@ function NuevaCargaModal({
         </div>
 
         <div className="flex flex-wrap items-center gap-sm mt-lg">
-          <button onClick={() => navigate("/empresas")} disabled={enviando} className="text-label-md text-primary hover:underline flex items-center gap-xs disabled:opacity-50">
+          <button onClick={() => navigate("/empresas")} disabled={enviando} className="text-label-md text-primary-ink hover:underline flex items-center gap-xs disabled:opacity-50">
             <span className="material-symbols-outlined text-[16px]" aria-hidden="true">add_business</span> Empresas
           </button>
           <div className="ml-auto flex items-center gap-sm">
@@ -364,7 +365,7 @@ function NuevaCargaModal({
 }
 
 const CLS_FILTRO =
-  "w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none";
+  "w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary-ink focus:ring-1 focus:ring-primary-ink outline-none";
 
 /** Búsqueda por empresa y botón «Filtros», que despliega debajo los filtros de la lista. */
 function BarraDocumentos({
@@ -407,10 +408,10 @@ function BarraDocumentos({
             onChange={(e) => onBuscar(e.target.value)}
             aria-label="Buscar por empresa"
             placeholder="Buscar por empresa…"
-            className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm pl-[40px] pr-[40px] text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none [&::-webkit-search-cancel-button]:appearance-none"
+            className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm pl-[40px] pr-[40px] text-body-md focus:border-primary-ink focus:ring-1 focus:ring-primary-ink outline-none [&::-webkit-search-cancel-button]:appearance-none"
           />
           {busqueda && (
-            <button type="button" onClick={() => onBuscar("")} aria-label="Borrar búsqueda" title="Borrar búsqueda" className="absolute inset-y-0 right-0 w-10 flex items-center justify-center text-on-surface-variant hover:text-primary">
+            <button type="button" onClick={() => onBuscar("")} aria-label="Borrar búsqueda" title="Borrar búsqueda" className="absolute inset-y-0 right-0 w-10 flex items-center justify-center text-on-surface-variant hover:text-primary-ink">
               <span className="material-symbols-outlined text-[20px]" aria-hidden="true">close</span>
             </button>
           )}
@@ -420,19 +421,29 @@ function BarraDocumentos({
           onClick={() => setAbierto((v) => !v)}
           aria-expanded={abierto}
           aria-controls={idPanel}
-          className={`shrink-0 flex items-center gap-xs px-md py-sm rounded-lg border text-label-md font-semibold transition-colors ${activos > 0 ? "border-primary text-primary" : "border-outline-variant text-on-surface-variant"} hover:bg-surface-container-low`}
+          className={`shrink-0 flex items-center gap-xs px-md py-sm rounded-lg border text-label-md font-semibold transition-colors ${activos > 0 ? "border-primary-ink text-primary-ink" : "border-outline-variant text-on-surface-variant"} hover:bg-surface-container-low`}
         >
           <span className="material-symbols-outlined text-[20px]" aria-hidden="true">tune</span>
           Filtros
           {activos > 0 && (
             <span className="min-w-[20px] h-5 px-xs rounded-full bg-primary text-on-primary text-label-sm flex items-center justify-center" aria-label={`${activos} activos`}>{activos}</span>
           )}
-          <span className="material-symbols-outlined text-[20px]" aria-hidden="true">{abierto ? "expand_less" : "expand_more"}</span>
+          <span className={`material-symbols-outlined text-[20px] transition-transform duration-200 ease-out ${abierto ? "rotate-180" : ""}`} aria-hidden="true">expand_more</span>
         </button>
       </div>
 
+      <AnimatePresence initial={false}>
       {abierto && (
-        <div id={idPanel} className="rounded-lg border border-outline-variant bg-surface-container-lowest p-md space-y-sm">
+        // Se despliega desde el botón: alto y opacidad juntos, así el contenido no salta.
+        <motion.div
+          id={idPanel}
+          className="overflow-hidden"
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: "auto", opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
+        >
+        <div className="border border-outline-variant bg-surface-container-lowest p-md space-y-sm">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-sm">
             <Campo label="Sector">
               <select aria-label="Filtrar por sector" value={sector} onChange={(e) => onSector(e.target.value as "" | SectorApi)} className={CLS_FILTRO}>
@@ -454,10 +465,12 @@ function BarraDocumentos({
             </Campo>
           </div>
           {activos > 0 && (
-            <button type="button" onClick={limpiarFiltros} className="text-label-md text-primary hover:underline">Limpiar filtros</button>
+            <button type="button" onClick={limpiarFiltros} className="text-label-md text-primary-ink hover:underline">Limpiar filtros</button>
           )}
         </div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -517,7 +530,7 @@ function DetalleDocumentoModal({
     <Modal open={id !== null} onClose={onClose}>
       <div className="p-xl max-h-[80vh] overflow-y-auto">
         <h3 className="text-title-lg text-on-background mb-lg flex items-center gap-sm">
-          <span className="material-symbols-outlined text-primary">description</span> Detalle del documento
+          <span className="material-symbols-outlined text-primary-ink">description</span> Detalle del documento
         </h3>
 
         {cargando && <div className="flex items-center gap-sm text-on-surface-variant"><Spinner size={18} /> Cargando…</div>}
@@ -624,7 +637,7 @@ function PanelResultado({ resultado, onReintentar }: Readonly<{ resultado: Resul
   return (
     <div className={`rounded-xl border p-lg ${exito ? "border-primary/40 bg-primary/5" : "border-error/40 bg-error-container/30"}`}>
       <div className="flex items-center gap-sm mb-sm">
-        <span className={`material-symbols-outlined ${exito ? "text-primary" : "text-error"}`}>{exito ? "task_alt" : "error"}</span>
+        <span className={`material-symbols-outlined ${exito ? "text-primary-ink" : "text-error"}`}>{exito ? "task_alt" : "error"}</span>
         <h4 className="text-title-md text-on-background">{exito ? "Ingesta completada" : "Ingesta no completada"}</h4>
       </div>
       <p className="text-body-md text-on-surface-variant mb-sm">Estado: <strong>{etiquetaEstado(resultado.estado as EstadoProgreso)}</strong>{resultado.etapa ? ` · ${resultado.etapa}` : ""}</p>

@@ -28,6 +28,7 @@ import {
   textoLegible,
   filtrarDocumentos,
   accionesReporte,
+  etapaReporte,
   etiquetaAnioReporte,
   mensajeEmision,
   situacionAnioReporte,
@@ -323,6 +324,17 @@ describe("aniosConDocumentos", () => {
 
 describe("reportes versionados", () => {
   const anio = (extra: Partial<AnioDisponible>): AnioDisponible => ({ anio: 2024, estado: "VALIDACION_VIGENTE", puede_generar: true, ...extra });
+
+  it("ubica cada año en la tira de etapas según el estado del servidor", () => {
+    expect(etapaReporte(anio({ estado: "PENDIENTE_REVISION" }))).toEqual({ cumplidas: 0, actual: 0, nuevaVersion: false });
+    expect(etapaReporte(anio({ estado: "PENDIENTE_VALIDACION" }))).toEqual({ cumplidas: 1, actual: 1, nuevaVersion: false });
+    expect(etapaReporte(anio({}))).toEqual({ cumplidas: 2, actual: 2, nuevaVersion: false });
+    expect(etapaReporte(anio({ estado: "ACTUALIZACION_PENDIENTE" }))).toEqual({ cumplidas: 2, actual: 2, nuevaVersion: true });
+    expect(etapaReporte(anio({ estado: "REPORTE_GENERADO" }))).toEqual({ cumplidas: 4, actual: null, nuevaVersion: false });
+    expect(etapaReporte(anio({ estado: "SIN_CODIGOS_GRI" }))).toBeNull();
+    expect(etapaReporte(anio({ estado: "SIN_DOCUMENTACION_ELEGIBLE" }))).toBeNull();
+    expect(etapaReporte(undefined)).toBeNull();
+  });
 
   it("etiqueta cada año según su estado", () => {
     expect(etiquetaAnioReporte(anio({ estado: "PENDIENTE_REVISION" }))).toBe("2024 · Pendiente de revisión");
