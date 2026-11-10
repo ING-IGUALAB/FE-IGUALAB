@@ -46,6 +46,7 @@ import {
   etiquetaEstado,
   etiquetaSector,
   etiquetaTipo,
+  tiposNoCargables,
   formatearTamano,
   validarArchivoIngesta,
 } from "./dominio";
@@ -578,5 +579,31 @@ describe("textoFragmentos", () => {
   });
   it("si quedó a medias, dice cuántos de cuántos", () => {
     expect(textoFragmentos(120, 217)).toBe("120 de 217 fragmentos");
+  });
+});
+
+describe("tiposNoCargables", () => {
+  it("marca los tipos ya cargados o en curso con su motivo y deja libres los disponibles", () => {
+    expect(
+      tiposNoCargables([
+        { tipo: "MEMORIA_ANUAL", estado: "OCUPADO", cargable: false },
+        { tipo: "REPORTE_SOSTENIBILIDAD_GRI", estado: "DISPONIBLE", cargable: true },
+      ]),
+    ).toEqual({ MEMORIA_ANUAL: "ya cargado" });
+    expect(
+      tiposNoCargables([
+        { tipo: "MEMORIA_ANUAL", estado: "EN_PROCESO", cargable: false },
+        { tipo: "REPORTE_SOSTENIBILIDAD_GRI", estado: "LIMPIEZA_PENDIENTE", cargable: false },
+      ]),
+    ).toEqual({ MEMORIA_ANUAL: "en proceso", REPORTE_SOSTENIBILIDAD_GRI: "no disponible por ahora" });
+  });
+
+  it("si el espacio está libre pero no se puede cargar, lo indica como no disponible", () => {
+    expect(tiposNoCargables([{ tipo: "MEMORIA_ANUAL", estado: "DISPONIBLE", cargable: false }])).toEqual({ MEMORIA_ANUAL: "no disponible" });
+  });
+
+  it("sin datos de disponibilidad no bloquea ningún tipo", () => {
+    expect(tiposNoCargables(null)).toEqual({});
+    expect(tiposNoCargables(undefined)).toEqual({});
   });
 });

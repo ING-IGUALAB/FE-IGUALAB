@@ -24,6 +24,7 @@ import {
   nombrePersona,
   paginarLocal,
   textoFragmentos,
+  tiposNoCargables,
   validarArchivoIngesta,
 } from "../lib/dominio";
 import type {
@@ -204,8 +205,40 @@ function NuevaCargaModal({
   const [archivo, setArchivo] = useState<File | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [resultado, setResultado] = useState<ResultadoIngesta | Operacion | null>(null);
+  // Una empresa tiene como máximo un documento de cada tipo por año: los tipos ya ocupados se deshabilitan.
+  const [noCargables, setNoCargables] = useState<Partial<Record<TipoDocumentoApi, string>>>({});
+  const [consultando, setConsultando] = useState(false);
+  const [vueltaDisponibilidad, setVueltaDisponibilidad] = useState(0);
 
   const empresasSector = empresas.filter((e) => e.activa && e.sector === sector);
+  const sinTiposLibres = TIPOS_API.every((t) => noCargables[t]);
+
+  useEffect(() => {
+    setNoCargables({});
+    if (!abierto || !empresaId) {
+      setConsultando(false);
+      return;
+    }
+    let vigente = true;
+    setConsultando(true);
+    documentosApi
+      .disponibilidadIngesta(empresaId, anio)
+      .then((d) => {
+        if (!vigente) return;
+        const ocupados = tiposNoCargables(d.tipos);
+        setNoCargables(ocupados);
+        setTipo((actual) => (ocupados[actual] ? (TIPOS_API.find((t) => !ocupados[t]) ?? actual) : actual));
+      })
+      .catch(() => {
+        // Sin la consulta no se bloquea ningún tipo: la carga vuelve a comprobarlo y avisa si ya existe.
+      })
+      .finally(() => {
+        if (vigente) setConsultando(false);
+      });
+    return () => {
+      vigente = false;
+    };
+  }, [abierto, empresaId, anio, vueltaDisponibilidad]);
 
   function cerrar() {
     if (enviando) return;
@@ -261,6 +294,7 @@ function NuevaCargaModal({
       if (final.exitosa) {
         toast("Documento ingestado e indexado.", "success");
         setArchivo(null);
+        setVueltaDisponibilidad((v) => v + 1);
         onIngestado();
       } else {
         toast("La ingesta no se completó. Revisa el detalle.", "error");
@@ -314,11 +348,18 @@ function NuevaCargaModal({
             <Campo label="Tipo">
               <select value={tipo} onChange={(e) => setTipo(e.target.value as TipoDocumentoApi)} className={CLS_FILTRO}>
                 {TIPOS_API.map((t) => (
-                  <option key={t} value={t}>{etiquetaTipo(t)}</option>
+                  <option key={t} value={t} disabled={Boolean(noCargables[t])}>
+                    {noCargables[t] ? `${etiquetaTipo(t)} — ${noCargables[t]}` : etiquetaTipo(t)}
+                  </option>
                 ))}
               </select>
             </Campo>
           </div>
+          {empresaId && sinTiposLibres && (
+            <p role="status" className="text-label-sm text-on-surface-variant">
+              Esta empresa ya tiene la Memoria Anual y el Reporte de Sostenibilidad GRI de {anio}. Elige otro año.
+            </p>
+          )}
           {empresasSector.length === 0 && (
             <p className="text-label-sm text-on-surface-variant">No hay empresas activas en este sector. Regístralas en el Catálogo de empresas.</p>
           )}
@@ -355,7 +396,7 @@ function NuevaCargaModal({
             <button onClick={cerrar} disabled={enviando} className="px-lg py-sm rounded-lg border border-outline-variant text-body-md text-on-surface-variant hover:bg-surface-container-low disabled:opacity-50">
               {resultado ? "Cerrar" : "Cancelar"}
             </button>
-            <button onClick={realizarIngesta} disabled={enviando || !archivo || !empresaId} className="px-lg py-sm rounded-lg bg-primary text-on-primary text-label-md font-semibold hover:bg-surface-tint disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-sm">
+            <button onClick={realizarIngesta} disabled={enviando || consultando || !archivo || !empresaId || Boolean(noCargables[tipo])} className="px-lg py-sm rounded-lg bg-primary text-on-primary text-label-md font-semibold hover:bg-surface-tint disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-sm">
               {enviando ? <><Spinner size={16} /> Procesando…</> : <><span className="material-symbols-outlined text-[18px]" aria-hidden="true">cloud_sync</span> Realizar ingesta</>}
             </button>
           </div>

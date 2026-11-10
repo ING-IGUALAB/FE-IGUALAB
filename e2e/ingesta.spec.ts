@@ -57,6 +57,38 @@ test.describe("Caso de uso: Ingestar documentos", () => {
     ]);
   });
 
+  test("en Tipo deshabilita lo que la empresa ya cargó para ese año", async ({ page, api }) => {
+    await page.getByRole("button", { name: "Nueva carga" }).click();
+    const dialogo = page.getByRole("dialog");
+    const tipo = campo(dialogo, "Tipo");
+    const memoria = tipo.locator("option", { hasText: "Memoria Anual" });
+    const gri = tipo.locator("option", { hasText: "Reporte de Sostenibilidad GRI" });
+
+    // Minera Andina ya tiene la Memoria Anual 2024: esa opción se deshabilita y se elige la otra.
+    await campo(dialogo, "Empresa").selectOption({ label: "Minera Andina S.A.A." });
+    await campo(dialogo, "Año").selectOption("2024");
+    await expect(memoria).toHaveJSProperty("disabled", true);
+    await expect(memoria).toHaveText("Memoria Anual — ya cargado");
+    await expect(gri).toHaveJSProperty("disabled", false);
+    await expect(tipo).toHaveValue("REPORTE_SOSTENIBILIDAD_GRI");
+    expect(Object.fromEntries(api.llamadasA("GET", "/documentos/disponibilidad").at(-1)!.query)).toEqual({ empresa_id: "e-andina", anio: "2024" });
+
+    // Al cargar el reporte, ya no queda ningún tipo libre para ese año.
+    await page.locator('input[type="file"]').setInputFiles(archivoMd("gri-andina-2024.md"));
+    await dialogo.getByRole("button", { name: "Realizar ingesta" }).click();
+    await expect(dialogo.getByText("Ingesta completada")).toBeVisible();
+    await expect(gri).toHaveJSProperty("disabled", true);
+    await expect(dialogo.getByText("Esta empresa ya tiene la Memoria Anual y el Reporte de Sostenibilidad GRI de 2024. Elige otro año.")).toBeVisible();
+    await page.locator('input[type="file"]').setInputFiles(archivoMd("otro.md"));
+    await expect(dialogo.getByRole("button", { name: "Realizar ingesta" })).toBeDisabled();
+
+    // Otro año vuelve a tener ambos tipos disponibles.
+    await campo(dialogo, "Año").selectOption("2023");
+    await expect(memoria).toHaveJSProperty("disabled", false);
+    await expect(gri).toHaveJSProperty("disabled", false);
+    await expect(dialogo.getByText(/Elige otro año\.$/)).toHaveCount(0);
+  });
+
   test("la lista ocupa todo el ancho y la carga se hace en un modal que no se cierra mientras procesa", async ({ page, api }) => {
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page.locator('input[type="file"]')).toHaveCount(0);

@@ -37,6 +37,26 @@ export interface SesionActual {
 // ---- Catálogo de empresas e ingesta de datos (backend real) ----
 export type SectorApi = "MINERIA" | "PETROLEO" | "ENERGIA" | "OTROS";
 export type TipoDocumentoApi = "MEMORIA_ANUAL" | "REPORTE_SOSTENIBILIDAD_GRI";
+/** Estado del espacio empresa/año/tipo según la reserva que usa la carga. */
+export type EstadoEspacio = "DISPONIBLE" | "EN_PROCESO" | "PUBLICACION_PENDIENTE" | "OCUPADO" | "LIMPIEZA_PENDIENTE";
+export interface DisponibilidadTipo {
+  tipo: TipoDocumentoApi;
+  estado: EstadoEspacio;
+  /** Solo informativo: la carga vuelve a comprobarlo. */
+  cargable: boolean;
+  documento_id?: string | null;
+  nombre_archivo?: string | null;
+  reservado_en?: string | null;
+}
+export interface DisponibilidadIngesta {
+  ambiente: string;
+  empresa_id: string;
+  empresa_nombre: string;
+  empresa_activa: boolean;
+  anio: number;
+  tipos: DisponibilidadTipo[];
+  aviso?: string;
+}
 export type EstadoProgreso =
   | "EN_PROCESO"
   | "PUBLICACION_PENDIENTE"

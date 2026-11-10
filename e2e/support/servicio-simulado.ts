@@ -283,6 +283,7 @@ export class ServicioSimulado {
       { metodo: "POST", patron: /^\/documentos\/operaciones$/, fn: () => this.crearOperacion() },
       { metodo: "POST", patron: /^\/documentos\/operaciones\/([^/]+)\/ingesta$/, fn: (m, req) => this.ingerir(m[1], req) },
       { metodo: "GET", patron: /^\/documentos$/, fn: (_m, _r, q) => ok(this.listarDocumentos(q)) },
+      { metodo: "GET", patron: /^\/documentos\/disponibilidad$/, fn: (_m, _r, q) => this.disponibilidadIngesta(q) },
       { metodo: "GET", patron: /^\/documentos\/([^/]+)$/, fn: (m) => this.detalleDocumento(m[1]) },
       // Asistente de IA
       { metodo: "POST", patron: /^\/asistente\/consultas$/, fn: (_m, req) => this.consultarAsistente(req) },
@@ -448,6 +449,32 @@ export class ServicioSimulado {
       },
       201,
     );
+  }
+
+  /** Un documento de cada tipo por empresa y año: los tipos ya cargados quedan OCUPADO. */
+  private disponibilidadIngesta(q: URLSearchParams): Respuesta {
+    const empresa = this.empresas.find((e) => e.id === q.get("empresa_id"));
+    if (!empresa) return error(404, "COMPANY_NOT_FOUND", "Empresa inexistente.");
+    const anio = Number(q.get("anio"));
+    const tipos: TipoDocumentoApi[] = ["MEMORIA_ANUAL", "REPORTE_SOSTENIBILIDAD_GRI"];
+    return ok({
+      ambiente: "dev",
+      empresa_id: empresa.id,
+      empresa_nombre: empresa.nombre,
+      empresa_activa: empresa.activa,
+      anio,
+      tipos: tipos.map((tipo) => {
+        const doc = this.documentos.find((d) => d.empresa_id === empresa.id && d.anio === anio && d.tipo === tipo);
+        return {
+          tipo,
+          estado: doc ? "OCUPADO" : "DISPONIBLE",
+          cargable: !doc && empresa.activa,
+          documento_id: doc?.id ?? null,
+          nombre_archivo: doc?.nombre_archivo ?? null,
+          reservado_en: doc ? doc.creado_en : null,
+        };
+      }),
+    });
   }
 
   private listarDocumentos(q: URLSearchParams) {

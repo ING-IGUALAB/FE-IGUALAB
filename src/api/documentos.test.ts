@@ -85,6 +85,18 @@ describe("api/documentos", () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
+  it("disponibilidadIngesta consulta por empresa y año, sin el indicador central", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(ok({ tipos: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { LOADING_START } = await import("./client");
+    const handler = vi.fn();
+    globalThis.addEventListener(LOADING_START, handler);
+    await documentosApi.disponibilidadIngesta("e1", 2025);
+    globalThis.removeEventListener(LOADING_START, handler);
+    expect(fetchMock.mock.calls[0][0]).toMatch(/\/documentos\/disponibilidad\?empresa_id=e1&anio=2025$/);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
   it("listarTodosDocumentos recorre todas las páginas de 100 en 100", async () => {
     const pagina = (n: number) => ({ items: [{ id: `d${n}` }], total: 2, pagina: n, tamano: 100, paginas: 2 });
     const fetchMock = vi.fn().mockResolvedValueOnce(ok(pagina(1))).mockResolvedValueOnce(ok(pagina(2)));

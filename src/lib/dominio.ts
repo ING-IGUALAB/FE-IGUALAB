@@ -1,5 +1,7 @@
 import type {
   AnioDisponible,
+  DisponibilidadTipo,
+  EstadoEspacio,
   EstadoAnioReporte,
   EstadoFlujo,
   EstadoGriApi,
@@ -37,6 +39,24 @@ export const TIPO_LABEL: Record<TipoDocumentoApi, string> = {
 
 export function etiquetaTipo(t: TipoDocumentoApi): string {
   return TIPO_LABEL[t] ?? t;
+}
+
+// ---- Un documento de cada tipo por empresa y año ----
+const MOTIVO_ESPACIO: Record<EstadoEspacio, string | null> = {
+  DISPONIBLE: null,
+  OCUPADO: "ya cargado",
+  EN_PROCESO: "en proceso",
+  PUBLICACION_PENDIENTE: "en proceso",
+  LIMPIEZA_PENDIENTE: "no disponible por ahora",
+};
+
+/** Tipos que ya no se pueden cargar para la empresa y el año, con el motivo que acompaña a la opción. */
+export function tiposNoCargables(tipos: DisponibilidadTipo[] | null | undefined): Partial<Record<TipoDocumentoApi, string>> {
+  const r: Partial<Record<TipoDocumentoApi, string>> = {};
+  for (const t of tipos ?? []) {
+    if (!t.cargable) r[t.tipo] = MOTIVO_ESPACIO[t.estado] ?? "no disponible";
+  }
+  return r;
 }
 
 // ---- Estado de progreso del documento (RF-024) ----

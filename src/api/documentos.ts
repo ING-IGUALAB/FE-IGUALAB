@@ -1,5 +1,6 @@
 import { api } from "./client";
 import type {
+  DisponibilidadIngesta,
   DocumentoDetalle,
   DocumentoResumen,
   EstadoProgreso,
@@ -76,6 +77,12 @@ export async function listarTodosDocumentos(filtros: Omit<FiltrosDocumentos, "pa
     pagina += 1;
   } while (pagina <= paginas);
   return todos;
+}
+
+/** Qué tipos de documento se pueden cargar aún para esa empresa y año (uno de cada tipo por año). */
+export function disponibilidadIngesta(empresaId: string, anio: number) {
+  const qs = new URLSearchParams({ empresa_id: empresaId, anio: String(anio) });
+  return api<DisponibilidadIngesta>(`/documentos/disponibilidad?${qs.toString()}`);
 }
 
 export function detalleDocumento(id: string) {
