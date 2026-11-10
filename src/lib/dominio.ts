@@ -256,6 +256,13 @@ export function filtrarDocumentos<T extends { sector: string; empresa_nombre: st
   );
 }
 
+/** Elementos cuyo nombre contiene el texto buscado (basta una parte, sin distinguir mayúsculas ni tildes). */
+export function filtrarPorNombre<T extends { nombre: string }>(items: T[], busqueda: string): T[] {
+  const buscado = normalizarTexto(busqueda);
+  if (!buscado) return items;
+  return items.filter((i) => normalizarTexto(i.nombre).includes(buscado));
+}
+
 export function paginarLocal<T>(items: T[], pagina: number, tamano: number): { items: T[]; pagina: number; paginas: number } {
   const paginas = Math.max(1, Math.ceil(items.length / tamano));
   const actual = Math.min(Math.max(1, pagina), paginas);

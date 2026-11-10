@@ -27,6 +27,7 @@ import {
   tablaMarkdown,
   textoLegible,
   filtrarDocumentos,
+  filtrarPorNombre,
   accionesReporte,
   etapaReporte,
   etiquetaAnioReporte,
@@ -499,6 +500,25 @@ describe("filtrarDocumentos", () => {
   it("sin criterios devuelve todos", () => {
     expect(ids({})).toEqual(["1", "2", "3"]);
     expect(ids({ busqueda: "   " })).toEqual(["1", "2", "3"]);
+  });
+});
+
+describe("filtrarPorNombre", () => {
+  const empresas = [
+    { id: "1", nombre: "Energía Andina S.A." },
+    { id: "2", nombre: "Minera Andina S.A.A." },
+    { id: "3", nombre: "Petro Sur S.A." },
+  ];
+  const ids = (busqueda: string) => filtrarPorNombre(empresas, busqueda).map((e) => e.id);
+  it("busca por una parte del nombre, sin distinguir mayúsculas ni tildes", () => {
+    expect(ids("andina")).toEqual(["1", "2"]);
+    expect(ids("ENERGIA")).toEqual(["1"]);
+    expect(ids("  sur ")).toEqual(["3"]);
+    expect(ids("xyz")).toEqual([]);
+  });
+  it("sin texto devuelve la misma lista", () => {
+    expect(filtrarPorNombre(empresas, "")).toBe(empresas);
+    expect(ids("   ")).toEqual(["1", "2", "3"]);
   });
 });
 

@@ -19,6 +19,34 @@ test.describe("Caso de uso: Gestionar catálogo de empresas", () => {
     await expect(filas.first()).toContainText("Petro Sur S.A.");
   });
 
+  test("busca una empresa por parte del nombre, sin tildes ni mayúsculas", async ({ page, api }) => {
+    const filas = page.locator("tbody tr");
+    await expect(filas).toHaveCount(5);
+    const llamadas = api.llamadasA("GET", "/empresas").length;
+    const buscador = page.getByLabel("Buscar empresa");
+
+    await buscador.fill("PETRO");
+    await expect(filas).toHaveCount(2);
+    await buscador.fill("sur");
+    await expect(filas).toHaveCount(1);
+    await expect(filas.first()).toContainText("Petro Sur S.A.");
+    // Se combina con el sector y no consulta al servidor por cada tecla.
+    expect(api.llamadasA("GET", "/empresas")).toHaveLength(llamadas);
+    await campo(page, "Sector").selectOption({ label: "Minería" });
+    await expect(page.getByText("Ninguna empresa coincide con «sur».")).toBeVisible();
+
+    await expect(filas).toHaveCount(0);
+    await page.getByRole("button", { name: "Borrar búsqueda" }).last().click();
+    await expect(buscador).toHaveValue("");
+    await expect(page.getByText(/Ninguna empresa coincide/)).toHaveCount(0);
+
+    await campo(page, "Sector").selectOption({ label: "Todos" });
+    await buscador.fill("utec");
+    await expect(filas).toHaveCount(1);
+    await buscador.press("Escape");
+    await expect(buscador).toHaveValue("");
+  });
+
   test("registra una empresa nueva", async ({ page, api }) => {
     await page.getByRole("button", { name: "Agregar empresa" }).click();
     const dialogo = page.getByRole("dialog");

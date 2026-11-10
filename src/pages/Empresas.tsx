@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useState, type ReactNode } from "react";
 import SectionHeader from "../components/SectionHeader";
 import Modal from "../components/Modal";
 import Spinner from "../components/Spinner";
 import { useToast } from "../components/ToastProvider";
 import * as empresasApi from "../api/empresas";
 import { mensajeError, tipoAviso } from "../api/client";
-import { SECTORES_API, etiquetaSector } from "../lib/dominio";
+import { SECTORES_API, etiquetaSector, filtrarPorNombre } from "../lib/dominio";
 import type { EmpresaApi, SectorApi } from "../types";
 
 const SKELETON = ["s1", "s2", "s3", "s4"];
@@ -16,6 +16,7 @@ export default function Empresas() {
   const [cargando, setCargando] = useState(true);
   const [sector, setSector] = useState<"" | SectorApi>("");
   const [soloActivas, setSoloActivas] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
   const [crearOpen, setCrearOpen] = useState(false);
   const [editando, setEditando] = useState<EmpresaApi | null>(null);
 
@@ -37,6 +38,10 @@ export default function Empresas() {
   useEffect(() => {
     cargar();
   }, [cargar]);
+
+  // La búsqueda se hace sobre la lista ya cargada: escribir no dispara una petición por tecla.
+  const visibles = filtrarPorNombre(empresas, busqueda);
+  const buscando = busqueda.trim() !== "";
 
   async function cambiarEstado(empresa: EmpresaApi) {
     try {
@@ -63,6 +68,7 @@ export default function Empresas() {
 
       <div className="flex flex-col sm:flex-row sm:items-end gap-md justify-between">
         <div className="flex flex-wrap items-end gap-md">
+          <Buscador valor={busqueda} onCambiar={setBusqueda} />
           <Campo label="Sector">
             <select
               value={sector}
@@ -107,7 +113,7 @@ export default function Empresas() {
               {!cargando && empresas.length === 0 && (
                 <tr><td colSpan={5} className="py-xl px-md text-center text-on-surface-variant">No hay empresas que coincidan con el filtro.</td></tr>
               )}
-              {!cargando && empresas.map((e) => (
+              {!cargando && visibles.map((e) => (
                 <tr key={e.id} className="border-b border-surface-variant hover:bg-surface/50 transition-colors">
                   <td className="py-md px-md font-medium text-on-background">{e.nombre}</td>
                   <td className="py-md px-md text-on-surface-variant">{etiquetaSector(e.sector)}</td>
@@ -133,7 +139,18 @@ export default function Empresas() {
             </tbody>
           </table>
         </div>
+        {/* Fuera de la tabla: en móvil la tabla se desplaza a lo ancho y el aviso quedaría cortado. */}
+        {!cargando && empresas.length > 0 && visibles.length === 0 && (
+          <p className="py-xl px-md text-center text-body-md text-on-surface-variant">
+            Ninguna empresa coincide con «{busqueda.trim()}».{" "}
+            <button type="button" onClick={() => setBusqueda("")} className="font-semibold text-primary-ink underline">Borrar búsqueda</button>
+          </p>
+        )}
       </div>
+      {/* Anuncia a los lectores de pantalla cuántas empresas quedan al buscar. */}
+      <p role="status" className="sr-only">
+        {buscando && !cargando ? `${visibles.length} de ${empresas.length} empresas` : ""}
+      </p>
 
       <EmpresaModal
         modo="crear"
@@ -155,6 +172,34 @@ export default function Empresas() {
 function fechaCorta(iso: string): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString("es-PE", { dateStyle: "medium" });
+}
+
+/** Busca por una parte del nombre. Escape borra la búsqueda. */
+function Buscador({ valor, onCambiar }: Readonly<{ valor: string; onCambiar: (v: string) => void }>) {
+  const id = useId();
+  return (
+    <div className="flex flex-col gap-xs w-full sm:w-[280px]">
+      <label htmlFor={id} className="text-label-md text-on-surface-variant">Buscar empresa</label>
+      <div className="relative">
+        <span className="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-[20px] text-outline pointer-events-none" aria-hidden="true">search</span>
+        <input
+          id={id}
+          type="search"
+          value={valor}
+          onChange={(e) => onCambiar(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Escape" && valor) { e.preventDefault(); onCambiar(""); } }}
+          placeholder="Nombre de la empresa…"
+          autoComplete="off"
+          className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm pl-[40px] pr-[40px] text-body-md focus:border-primary-ink focus:ring-1 focus:ring-primary-ink outline-none [&::-webkit-search-cancel-button]:appearance-none"
+        />
+        {valor && (
+          <button type="button" onClick={() => onCambiar("")} aria-label="Borrar búsqueda" title="Borrar búsqueda" className="absolute inset-y-0 right-0 w-10 flex items-center justify-center text-on-surface-variant hover:text-primary-ink">
+            <span className="material-symbols-outlined text-[20px]" aria-hidden="true">close</span>
+          </button>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function Campo({ label, children }: Readonly<{ label: string; children: ReactNode }>) {
