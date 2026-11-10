@@ -25,7 +25,7 @@ interface Mensaje {
 
 const SUGERENCIAS: { icono: string; texto: string }[] = [
   { icono: "gavel", texto: "¿Qué sanciones ambientales, sociales y de gobernanza (compliance) identificas para esta empresa y año?" },
-  { icono: "co2", texto: "¿Qué indicadores GRI de emisiones reporta?" },
+  { icono: "fact_check", texto: "¿Qué indicadores GRI de emisiones reporta?" },
   { icono: "eco", texto: "Resume el desempeño ambiental, social y de gobernanza (compliance) del año consultado" },
 ];
 const CLS_CONTROL =
