@@ -199,9 +199,9 @@ export default function Asistente() {
               </div>
             </div>
           </div>
-          <p className="text-center text-label-sm text-outline mt-sm flex items-center justify-center gap-xs">
-            <span className="material-symbols-outlined text-[14px]" aria-hidden="true">verified</span>
-            <span>La IA siempre cita la fuente. Si los documentos no bastan para responder, lo indica.</span>
+          <p className="text-center text-label-sm text-outline mt-sm text-balance max-w-[640px] mx-auto">
+            <span className="material-symbols-outlined text-[14px] align-[-3px] mr-xs" aria-hidden="true">verified</span>
+            <span>Responde solo con los documentos de la empresa y el año seleccionados, y cita la fuente de cada dato. Si no hay evidencia suficiente, lo indica en lugar de inventar una respuesta.</span>
           </p>
         </div>
       </div>
