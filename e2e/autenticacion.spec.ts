@@ -148,7 +148,6 @@ test.describe("Menú lateral", () => {
 
     for (const opcion of [
       page.getByRole("link", { name: "Reportes de prospección" }),
-      page.getByRole("link", { name: "Nueva consulta IA" }),
       page.getByRole("link", { name: "Cambiar contraseña" }),
       page.getByRole("button", { name: "Cerrar sesión" }),
     ]) {

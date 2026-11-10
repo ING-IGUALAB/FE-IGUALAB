@@ -160,17 +160,6 @@ export default function Layout() {
               )}
             </NavLink>
           ))}
-          {rol === "administrador" && (
-            <div className={`mt-xl ${menuColapsado ? "md:px-sm" : ""}`}>
-              <NavLink
-                to="/ia"
-                className={`group relative w-full flex items-center justify-center gap-sm bg-primary text-on-primary px-lg h-11 text-label-md font-bold hover:bg-surface-tint transition-colors ${menuColapsado ? "md:px-0 md:gap-0" : ""}`}
-              >
-                <span className="material-symbols-outlined filled text-lg" aria-hidden="true">auto_awesome</span>
-                <span className={rotulo}>Nueva consulta IA</span>
-              </NavLink>
-            </div>
-          )}
         </nav>
         <div className={`border-t border-rail-line mx-md py-md space-y-xs ${menuColapsado ? "md:mx-0 md:px-0" : ""}`}>
           <NavLink to="/mi-cuenta" className={`group relative flex items-center gap-md min-h-10 px-sm text-on-rail-variant hover:text-on-rail transition-colors ${centrado}`}>
