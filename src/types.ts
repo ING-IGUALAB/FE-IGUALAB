@@ -35,7 +35,7 @@ export interface SesionActual {
 }
 
 // ---- Catálogo de empresas e ingesta de datos (backend real) ----
-export type SectorApi = "MINERIA" | "PETROLEO" | "ENERGIA";
+export type SectorApi = "MINERIA" | "PETROLEO" | "ENERGIA" | "OTROS";
 export type TipoDocumentoApi = "MEMORIA_ANUAL" | "REPORTE_SOSTENIBILIDAD_GRI";
 export type EstadoProgreso =
   | "EN_PROCESO"

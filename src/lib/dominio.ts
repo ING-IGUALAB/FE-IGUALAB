@@ -15,11 +15,13 @@ import type {
 } from "../types";
 
 // ---- Sector ----
-export const SECTORES_API: SectorApi[] = ["MINERIA", "PETROLEO", "ENERGIA"];
+/** «Otros» va al final: es para las empresas que no caen en los sectores anteriores. */
+export const SECTORES_API: SectorApi[] = ["MINERIA", "PETROLEO", "ENERGIA", "OTROS"];
 export const SECTOR_LABEL: Record<SectorApi, string> = {
   MINERIA: "Minería",
   PETROLEO: "Petróleo y Gas",
   ENERGIA: "Energía",
+  OTROS: "Otros",
 };
 
 export function etiquetaSector(s: SectorApi): string {

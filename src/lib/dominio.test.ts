@@ -55,6 +55,7 @@ describe("etiquetas de dominio", () => {
     expect(etiquetaSector("MINERIA")).toBe("Minería");
     expect(etiquetaSector("PETROLEO")).toBe("Petróleo y Gas");
     expect(etiquetaSector("ENERGIA")).toBe("Energía");
+    expect(etiquetaSector("OTROS")).toBe("Otros");
   });
 
   it("traduce tipos de documento", () => {

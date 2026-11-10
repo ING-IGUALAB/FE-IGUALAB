@@ -59,6 +59,24 @@ test.describe("Caso de uso: Gestionar catálogo de empresas", () => {
     expect(api.llamadasA("POST", "/empresas")[0].cuerpo).toEqual({ nombre: "Cobre del Sur S.A.", sector: "MINERIA" });
   });
 
+  test("registra una empresa en el sector «Otros» y la filtra por ese sector", async ({ page, api }) => {
+    await page.getByRole("button", { name: "Agregar empresa" }).click();
+    const dialogo = page.getByRole("dialog");
+    await dialogo.getByLabel("Nombre de la empresa").fill("Agroexportadora del Valle S.A.");
+    await campo(dialogo, "Sector").selectOption({ label: "Otros" });
+    await dialogo.getByRole("button", { name: "Registrar" }).click();
+
+    await expect(page.getByText("Empresa 'Agroexportadora del Valle S.A.' registrada.")).toBeVisible();
+    expect(api.llamadasA("POST", "/empresas")[0].cuerpo).toEqual({ nombre: "Agroexportadora del Valle S.A.", sector: "OTROS" });
+    await expect(dialogo).toBeHidden();
+
+    await campo(page, "Sector").selectOption({ label: "Otros" });
+    const filas = page.locator("tbody tr");
+    await expect(filas).toHaveCount(1);
+    await expect(filas.first()).toContainText("Agroexportadora del Valle S.A.");
+    await expect(filas.first()).toContainText("Otros");
+  });
+
   test("exige el nombre y avisa si la empresa ya existe", async ({ page, api }) => {
     await page.getByRole("button", { name: "Agregar empresa" }).click();
     const dialogo = page.getByRole("dialog");
