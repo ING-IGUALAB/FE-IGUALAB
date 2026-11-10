@@ -1,5 +1,6 @@
 import type { Page, Request, Route } from "@playwright/test";
 import type {
+  AdvertenciaAnalisis,
   AnioDisponible,
   AnalisisGri,
   DocumentoResumen,
@@ -53,6 +54,8 @@ interface EstadoAnalisis {
   sanciones: SancionVista[];
   validacion: ValidacionVista | null;
   historial: HistorialGriItem[];
+  /** Avisos del análisis que no son filas evaluables (calidad del documento, referencias desconocidas…). */
+  advertencias?: AdvertenciaAnalisis[];
 }
 interface Llamada {
   metodo: string;
@@ -576,7 +579,7 @@ export class ServicioSimulado {
         total_sanciones: s.sanciones.length,
       })),
       filas: s.filas,
-      advertencias: [],
+      advertencias: s.advertencias ?? [],
       sanciones: s.sanciones,
       resumen_sanciones: {
         total: s.sanciones.length,
@@ -968,7 +971,17 @@ export class ServicioSimulado {
       menciones_en_indice: 1,
       menciones_en_cuerpo: 1,
       documentos: ["d-andina-2024"],
-      advertencias: [],
+      // Mismo aviso que manda el backend para un estándar con varias ediciones y sin edición en el texto.
+      advertencias: edicion
+        ? []
+        : [
+            {
+              codigo: "GRI_EDICION_AMBIGUA",
+              mensaje: "Estándar con varias ediciones y sin edición en el texto. Se conserva como identidad ambigua; no se asumió ninguna edición.",
+              total_menciones: 2,
+              referencias: [`GRI ${codigo}-1`],
+            },
+          ],
       evidencias: [evidencia(`Mención de ${estandar} en el documento.`, identidad.length * 10)],
     });
     const emitido = (id: string, empresa_id: string, empresa_nombre: string, anio: number, sha256: string, creado_en: string): ReporteResumen => ({

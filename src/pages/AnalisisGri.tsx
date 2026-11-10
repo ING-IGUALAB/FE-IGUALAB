@@ -10,6 +10,8 @@ import { useToast } from "../components/ToastProvider";
 import { useAniosConDocumentos } from "../components/useAniosConDocumentos";
 import SelectAnioConDocumentos from "../components/SelectAnioConDocumentos";
 import TextoDocumento from "../components/TextoDocumento";
+import AyudaAdvertencia from "../components/AyudaAdvertencia";
+import { ayudaAdvertencia, ayudasDeAdvertencias } from "../lib/catalogoAdvertencias";
 import * as empresasApi from "../api/empresas";
 import * as analisisApi from "../api/analisis";
 import { ApiError, mensajeError, tipoAviso } from "../api/client";
@@ -361,16 +363,23 @@ function FilaItem({
   guardando,
   onCambiar,
 }: Readonly<{ fila: FilaGri; guardando: boolean; onCambiar: (fila: FilaGri, estado: EstadoGriApi) => void }>) {
-  const ediciones = fila.candidatos.length > 0 ? `Ediciones posibles: ${fila.candidatos.join(", ")}` : undefined;
+  const conAyuda = fila.requiere_revision || fila.advertencias.length > 0;
   return (
     <div className="p-lg flex flex-col md:flex-row md:items-start gap-md">
       <div className="flex-1 min-w-0 space-y-xs">
         <div className="flex flex-wrap items-center gap-sm">
           <span className="bg-secondary-fixed text-on-secondary-fixed px-2 py-0.5 rounded text-label-sm font-bold">{fila.estandar}</span>
           {fila.requiere_revision && (
-            <span title={ediciones} className="bg-tertiary-fixed text-on-tertiary-fixed px-2 py-0.5 rounded-full text-label-sm">
+            <span className="bg-tertiary-fixed text-on-tertiary-fixed px-2 py-0.5 rounded-full text-label-sm">
               Requiere revisión
             </span>
+          )}
+          {conAyuda && (
+            <AyudaAdvertencia
+              etiqueta={`¿Qué significa «Requiere revisión» en ${fila.estandar}?`}
+              entradas={ayudasDeAdvertencias(fila.advertencias.map((a) => a.codigo))}
+              extra={fila.candidatos.length > 0 ? <>Ediciones posibles de este estándar: {fila.candidatos.join(", ")}.</> : undefined}
+            />
           )}
         </div>
         <p className="font-medium text-on-background">{fila.nombre ?? "Nombre no disponible en el catálogo"}</p>
@@ -502,9 +511,12 @@ function AdvertenciasCard({ advertencias }: Readonly<{ advertencias: Advertencia
         {advertencias.map((a) => (
           <li key={`${a.codigo}:${a.documento_id ?? ""}:${a.mensaje}`} className="flex items-start gap-sm text-body-md text-on-surface-variant">
             <span className="material-symbols-outlined text-[18px] text-tertiary">warning</span>
-            <span>
+            <span className="flex-1 min-w-0">
               {a.mensaje}
               {a.documento_nombre && <span className="text-label-sm text-outline"> · {a.documento_nombre}</span>}
+            </span>
+            <span className="-mt-[2px]">
+              <AyudaAdvertencia etiqueta={`¿Qué significa «${ayudaAdvertencia(a.codigo).titulo}»?`} entradas={[ayudaAdvertencia(a.codigo)]} />
             </span>
           </li>
         ))}
