@@ -28,6 +28,7 @@ import {
   textoLegible,
   filtrarDocumentos,
   filtrarPorNombre,
+  textoFragmentos,
   accionesReporte,
   etapaReporte,
   etiquetaAnioReporte,
@@ -566,5 +567,16 @@ describe("paginaValida", () => {
     expect(paginaValida("0", 13)).toBe(1);
     expect(paginaValida("", 13)).toBeNull();
     expect(paginaValida("abc", 13)).toBeNull();
+  });
+});
+
+describe("textoFragmentos", () => {
+  it("muestra un solo número cuando se procesaron todos", () => {
+    expect(textoFragmentos(217, 217)).toBe("217 fragmentos");
+    expect(textoFragmentos(1, 1)).toBe("1 fragmento");
+    expect(textoFragmentos(null, 40)).toBe("40 fragmentos");
+  });
+  it("si quedó a medias, dice cuántos de cuántos", () => {
+    expect(textoFragmentos(120, 217)).toBe("120 de 217 fragmentos");
   });
 });

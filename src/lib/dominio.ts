@@ -129,6 +129,12 @@ export function valorPuntaje(p: PuntajeEsg): string {
   return p.valor_presentacion.toFixed(p.decimales_presentacion);
 }
 
+/** «217 fragmentos» al completarse; solo si quedó a medias se muestra cuántos se procesaron de cuántos. */
+export function textoFragmentos(procesados: number | null | undefined, total: number): string {
+  if (typeof procesados !== "number" || procesados === total) return plural(total, "fragmento", "fragmentos");
+  return `${procesados} de ${plural(total, "fragmento", "fragmentos")}`;
+}
+
 /** "1 código GRI" / "3 códigos GRI". */
 export function plural(n: number, singular: string, pluralForma: string): string {
   return `${n} ${n === 1 ? singular : pluralForma}`;

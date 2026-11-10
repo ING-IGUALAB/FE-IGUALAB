@@ -22,6 +22,7 @@ test.describe("Caso de uso: Ingestar documentos", () => {
 
     await expect(page.getByText("Documento ingestado e indexado.")).toBeVisible();
     await expect(page.getByText("Ingesta completada")).toBeVisible();
+    await expect(page.getByText(/· 4 fragmentos$/)).toBeVisible();
     await expect(page.locator("tbody")).toContainText("gri-andina-2025.md");
     expect(api.llamadasA("POST", /\/ingesta$/)[0].cuerpo).toMatchObject({
       archivo: "gri-andina-2025.md",

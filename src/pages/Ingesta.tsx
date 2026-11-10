@@ -23,6 +23,7 @@ import {
   formatearTamano,
   nombrePersona,
   paginarLocal,
+  textoFragmentos,
   validarArchivoIngesta,
 } from "../lib/dominio";
 import type {
@@ -644,7 +645,7 @@ function PanelResultado({ resultado, onReintentar }: Readonly<{ resultado: Resul
       {exito && (
         <p className="text-body-md text-on-surface-variant">
           Análisis: {etiquetaAnalisis(resultado.resultado_analisis)}
-          {typeof resultado.fragmentos_total === "number" ? ` · ${resultado.fragmentos_procesados}/${resultado.fragmentos_total} fragmentos` : ""}
+          {typeof resultado.fragmentos_total === "number" ? ` · ${textoFragmentos(resultado.fragmentos_procesados, resultado.fragmentos_total)}` : ""}
         </p>
       )}
       {motivos.length > 0 && (
