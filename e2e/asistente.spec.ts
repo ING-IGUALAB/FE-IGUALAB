@@ -186,3 +186,102 @@ test.describe("Barra de contexto del asistente", () => {
     expect(b.x).toBeGreaterThan(a.x + a.width);
   });
 });
+
+test.describe("Guardar el chat e historial", () => {
+  const preguntar = async (page: Page, texto: string) => {
+    await page.getByRole("textbox", { name: "Pregunta para el asistente" }).fill(texto);
+    await page.getByRole("button", { name: "Consultar" }).click();
+  };
+  const historial = (page: Page) => page.getByRole("complementary", { name: "Historial de chats" });
+
+  test.beforeEach(async ({ page, api }) => {
+    await entrarComo(page, api, "administrador", "/ia");
+    await expect(page.getByText("Hola, soy el asistente de IA de Igualab.")).toBeVisible();
+  });
+
+  test("guarda el chat, aparece primero en el historial y lo que sigue se guarda solo", async ({ page, api }) => {
+    const guardar = page.getByRole("button", { name: "Guardar chat" });
+    await expect(guardar).toBeDisabled();
+    await elegirContexto(page, "Minería", "Minera Andina S.A.A.", 2024);
+    await preguntar(page, "¿Qué sanciones tiene?");
+    await expect(page.getByText("Se identifica una multa del OEFA de 59.078 UIT por incumplimiento ambiental.")).toBeVisible();
+
+    // Con mensajes, el contexto queda fijo: un chat es de una sola empresa y año.
+    await expect(campo(page, "Sector")).toBeDisabled();
+    await expect(campo(page, "Empresa")).toBeDisabled();
+    await expect(page.getByText("Chat sin guardar")).toBeVisible();
+
+    await guardar.click();
+    await expect(page.getByText("Chat guardado en tu historial.")).toBeVisible();
+    await expect(page.getByText("Guardado", { exact: true })).toBeVisible();
+    await expect(guardar).toHaveCount(0);
+    const cuerpo = api.llamadasA("POST", "/asistente/conversaciones")[0].cuerpo as Record<string, unknown>;
+    expect(cuerpo).toMatchObject({ empresa_id: "e-andina", sector: "MINERIA", anio: 2024 });
+    expect(cuerpo.clave_idempotencia).toMatch(/^[0-9a-f-]{36}$/);
+    expect((cuerpo.mensajes as { rol: string }[]).map((m) => m.rol)).toEqual(["usuario", "asistente"]);
+
+    // La siguiente pregunta va a la conversación guardada (el servidor la guarda).
+    const directas = api.llamadasA("POST", "/asistente/consultas").length;
+    await preguntar(page, "¿Y de qué año es la multa?");
+    await expect(page.getByText("¿Y de qué año es la multa?")).toBeVisible();
+    await expect(page.getByText("Se identifica una multa del OEFA de 59.078 UIT por incumplimiento ambiental.")).toHaveCount(2);
+    expect(api.llamadasA("POST", /^\/asistente\/conversaciones\/[^/]+\/consultas$/)).toHaveLength(1);
+    expect(api.llamadasA("POST", "/asistente/consultas")).toHaveLength(directas);
+
+    await page.getByRole("button", { name: "Historial" }).click();
+    const primero = historial(page).getByRole("listitem").first();
+    await expect(primero).toContainText("¿Qué sanciones tiene?");
+    await expect(primero).toContainText("Minera Andina S.A.A. · 2024");
+    await expect(primero).toContainText("2 preguntas");
+    await expect(primero.getByRole("button")).toHaveAttribute("aria-current", "true");
+  });
+
+  test("abre un chat guardado con su contexto y sus fuentes, y se puede empezar otro", async ({ page }) => {
+    await page.getByRole("button", { name: "Historial" }).click();
+    await historial(page).getByRole("button", { name: /¿Qué multas recibió en 2024\?/ }).click();
+
+    await expect(page.getByText("Se identifica una multa del OEFA de 59.078 UIT.")).toBeVisible();
+    await expect(page.getByText("memoria-andina-2024.md")).toBeVisible();
+    await expect(page.getByText("Guardado", { exact: true })).toBeVisible();
+    await expect(campo(page, "Sector")).toHaveValue("MINERIA");
+    await expect(campo(page, "Empresa")).toHaveValue("e-andina");
+    await expect(campo(page, "Año")).toHaveValue("2024");
+    await expect(campo(page, "Empresa")).toBeDisabled();
+
+    await page.getByRole("button", { name: "Nueva conversación" }).click();
+    await expect(page.getByText("¿Qué quieres saber?")).toBeVisible();
+    await expect(page.getByText("Conversación nueva")).toBeVisible();
+    await expect(campo(page, "Empresa")).toBeEnabled();
+    await expect(campo(page, "Empresa")).toHaveValue("e-andina");
+  });
+
+  test("avisa antes de cambiar a otro chat si el actual no está guardado", async ({ page }) => {
+    await elegirContexto(page, "Minería", "Minera Andina S.A.A.", 2024);
+    await preguntar(page, "¿Qué sanciones tiene?");
+    await expect(page.getByText("Se identifica una multa del OEFA de 59.078 UIT por incumplimiento ambiental.")).toBeVisible();
+
+    await page.getByRole("button", { name: "Historial" }).click();
+    await historial(page).getByRole("button", { name: /¿Qué multas recibió en 2024\?/ }).click();
+    await expect(historial(page).getByRole("alert")).toContainText("Tu chat actual no está guardado");
+    await historial(page).getByRole("button", { name: "Cancelar" }).click();
+    await expect(page.getByText("¿Qué sanciones tiene?")).toBeVisible();
+
+    await historial(page).getByRole("button", { name: /¿Qué multas recibió en 2024\?/ }).click();
+    await historial(page).getByRole("button", { name: "Abrir igual" }).click();
+    await expect(page.getByText("Se identifica una multa del OEFA de 59.078 UIT.")).toBeVisible();
+    await expect(page.getByText("¿Qué sanciones tiene?")).toHaveCount(0);
+  });
+
+  test("un chat de una empresa desactivada se puede leer, pero no admite preguntas", async ({ page, api }) => {
+    api.empresas.find((e) => e.id === "e-andina")!.activa = false;
+    await page.reload();
+    await page.getByRole("button", { name: "Historial" }).click();
+    const item = historial(page).getByRole("button", { name: /¿Qué multas recibió en 2024\?/ });
+    await expect(item).toContainText("Empresa desactivada");
+    await item.click();
+    await expect(page.getByText("Se identifica una multa del OEFA de 59.078 UIT.")).toBeVisible();
+    await expect(page.getByText("Solo lectura")).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Pregunta para el asistente" })).toBeDisabled();
+    await expect(campo(page, "Empresa")).toHaveValue("e-andina");
+  });
+});

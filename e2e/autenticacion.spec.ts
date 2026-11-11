@@ -148,7 +148,6 @@ test.describe("Menú lateral", () => {
 
     for (const opcion of [
       page.getByRole("link", { name: "Reportes de prospección" }),
-      page.getByRole("link", { name: "Nueva consulta IA" }),
       page.getByRole("link", { name: "Cambiar contraseña" }),
       page.getByRole("button", { name: "Cerrar sesión" }),
     ]) {
@@ -156,6 +155,26 @@ test.describe("Menú lateral", () => {
       const icono = (await opcion.locator(".material-symbols-outlined").boundingBox())!;
       expect(Math.abs(icono.x + icono.width / 2 - 36)).toBeLessThanOrEqual(2);
     }
+  });
+
+  test("el logo lleva a la opción 01 del menú de cada rol", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await entrarComo(page, api, "superadmin", "/auditoria");
+    await page.locator("#menu-lateral").getByRole("link", { name: "Igualab: ir al inicio" }).click();
+    await expect(page).toHaveURL(/\/usuarios$/);
+
+    // Con el menú colapsado, el logo de la cabecera hace lo mismo.
+    await page.getByRole("link", { name: "Auditoría" }).click();
+    await page.getByRole("button", { name: boton }).click();
+    await page.locator("header").getByRole("link", { name: "Igualab: ir al inicio" }).click();
+    await expect(page).toHaveURL(/\/usuarios$/);
+  });
+
+  test("para el Administrador, el logo lleva al Asistente de IA", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await entrarComo(page, api, "administrador", "/reportes");
+    await page.locator("#menu-lateral").getByRole("link", { name: "Igualab: ir al inicio" }).click();
+    await expect(page).toHaveURL(/\/ia$/);
   });
 
   test("en móvil se abre sobre el contenido y se cierra al navegar o con Escape", async ({ page, api }) => {
@@ -177,5 +196,24 @@ test.describe("Menú lateral", () => {
     await page.getByRole("button", { name: boton }).click();
     await page.getByTestId("menu-fondo").click({ position: { x: 340, y: 300 } });
     await expect(enlace).toBeHidden();
+  });
+});
+
+test.describe("Modo día y noche", () => {
+  test("cambia a modo oscuro desde el acceso, lo recuerda al recargar y vuelve a claro desde la app", async ({ page, api }) => {
+    await page.emulateMedia({ colorScheme: "light" });
+    await page.goto("/login");
+    const html = page.locator("html");
+    await expect(html).toHaveAttribute("data-theme", "light");
+
+    await page.getByRole("button", { name: "Activar modo oscuro" }).click();
+    await expect(html).toHaveAttribute("data-theme", "dark");
+    await page.reload();
+    await expect(html).toHaveAttribute("data-theme", "dark");
+
+    await entrarComo(page, api, "superadmin", "/usuarios");
+    await expect(html).toHaveAttribute("data-theme", "dark");
+    await page.getByRole("button", { name: "Activar modo claro" }).click();
+    await expect(html).toHaveAttribute("data-theme", "light");
   });
 });

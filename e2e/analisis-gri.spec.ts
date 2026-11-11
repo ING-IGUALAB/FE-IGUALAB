@@ -61,6 +61,48 @@ test.describe("Caso de uso: Analizar y validar códigos GRI", () => {
     await expect(page.getByRole("cell", { name: "OEFA", exact: true })).toBeVisible();
   });
 
+  test("el «?» junto a «Requiere revisión» explica la advertencia con el texto del catálogo", async ({ page }) => {
+    await consultar(page, "Minería", "Minera Andina S.A.A.", 2024);
+    const ayuda = page.getByRole("button", { name: "¿Qué significa «Requiere revisión» en GRI 102 (edición sin resolver)?" });
+    const panel = page.getByRole("dialog", { name: "¿Qué significa «Requiere revisión» en GRI 102 (edición sin resolver)?" });
+    // Solo el código que requiere revisión tiene ayuda.
+    await expect(page.getByRole("button", { name: /^¿Qué significa «Requiere revisión» en GRI 305/ })).toHaveCount(0);
+
+    // Al pasar el mouse aparece y al salir se va.
+    await ayuda.hover();
+    await expect(panel).toBeVisible();
+    await expect(panel).toContainText("Edición del estándar sin precisar");
+    await expect(panel).toContainText("Qué significa: Este estándar GRI tiene más de una edición");
+    await expect(panel).toContainText("Por qué aparece:");
+    await expect(panel).toContainText("Qué hacer: Revisa las evidencias");
+    await expect(panel).toContainText("Ediciones posibles de este estándar: 2016, 2021.");
+    await page.mouse.move(5, 5);
+    await expect(panel).toHaveCount(0);
+
+    // Con un clic queda fija; se cierra con Escape o con un clic fuera.
+    await ayuda.click();
+    await page.mouse.move(5, 5);
+    await expect(panel).toBeVisible();
+    await expect(ayuda).toHaveAttribute("aria-expanded", "true");
+    await page.keyboard.press("Escape");
+    await expect(panel).toHaveCount(0);
+    await ayuda.click();
+    await expect(panel).toBeVisible();
+    await page.getByRole("heading", { name: "Códigos GRI" }).click();
+    await expect(panel).toHaveCount(0);
+  });
+
+  test("las advertencias del análisis también tienen su explicación", async ({ page, api }) => {
+    api.analisis.get("e-andina:2024")!.advertencias = [
+      { codigo: "MARKDOWN_TABLE_INCONSISTENT", categoria: "calidad_documento", mensaje: "Tablas con columnas inconsistentes.", documento_nombre: "memoria-andina-2024.md" },
+    ];
+    await consultar(page, "Minería", "Minera Andina S.A.A.", 2024);
+    await expect(page.getByText("Tablas con columnas inconsistentes.")).toBeVisible();
+
+    await page.getByRole("button", { name: "¿Qué significa «Tabla con formato irregular»?" }).click();
+    await expect(page.getByRole("dialog", { name: "¿Qué significa «Tabla con formato irregular»?" })).toContainText("Suele ocurrir al convertir el PDF a Markdown");
+  });
+
   test("al asignar estado a todos los códigos queda listo para validar", async ({ page, api }) => {
     await consultar(page, "Minería", "Minera Andina S.A.A.", 2024);
 

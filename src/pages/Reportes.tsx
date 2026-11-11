@@ -5,6 +5,8 @@ import { useDisponibilidadReportes } from "../components/useDisponibilidadReport
 import SectionHeader from "../components/SectionHeader";
 import Spinner from "../components/Spinner";
 import TablaReportes from "../components/TablaReportes";
+import TiraEtapas from "../components/TiraEtapas";
+import GuiaVacia from "../components/GuiaVacia";
 import VistaPreviaPdf from "../components/VistaPreviaPdf";
 import { useToast } from "../components/ToastProvider";
 import { useDescargarReporte } from "../components/useDescargarReporte";
@@ -28,11 +30,11 @@ import type { AnioDisponible, EmpresaApi, ReporteResumen, ReporteVigente, Sector
 
 const RECIENTES = 5;
 const CLS_SELECT =
-  "w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none";
+  "w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary-ink focus:ring-1 focus:ring-primary-ink outline-none";
 const CLS_BOTON_PRINCIPAL =
-  "w-full bg-primary text-on-primary py-md px-sm rounded-lg flex items-center justify-center gap-sm shadow-md hover:bg-surface-tint transition-all text-body-md font-semibold disabled:opacity-50 disabled:cursor-not-allowed";
+  "w-full min-h-12 bg-primary text-on-primary py-sm px-sm flex items-center justify-center gap-sm hover:bg-surface-tint text-body-md font-semibold disabled:cursor-not-allowed";
 const CLS_BOTON_SECUNDARIO =
-  "w-full bg-surface border border-primary text-primary py-md px-sm rounded-lg flex items-center justify-center gap-sm hover:bg-primary/5 transition-all text-body-md font-semibold disabled:opacity-50 disabled:cursor-not-allowed";
+  "w-full min-h-12 bg-surface-container-lowest border border-on-surface text-on-surface py-sm px-sm flex items-center justify-center gap-sm hover:bg-surface-container-low text-body-md font-semibold disabled:cursor-not-allowed";
 
 /** PDF en pantalla. `version` es la versión ya emitida que muestra; null si todavía no se ha emitido. */
 interface VistaPrevia {
@@ -196,21 +198,26 @@ export default function Reportes() {
                 />
               </Campo>
             </div>
+            {item && !seleccion.cargando && (
+              <div className="mt-lg">
+                <TiraEtapas item={item} />
+              </div>
+            )}
             <div className="grid gap-sm mt-lg">
-              <button onClick={verVistaPrevia} disabled={!acciones.vistaPrevia || accion !== null} className={CLS_BOTON_SECUNDARIO}>
+              <button onClick={verVistaPrevia} disabled={!acciones.vistaPrevia || accion !== null} aria-busy={accion === "vista"} className={CLS_BOTON_SECUNDARIO}>
                 {accion === "vista" ? <Spinner size={18} /> : <span className="material-symbols-outlined">visibility</span>} Vista previa
               </button>
               {acciones.descargarActualizado ? (
-                <button onClick={descargarActualizado} disabled={accion !== null} className={CLS_BOTON_PRINCIPAL}>
+                <button onClick={descargarActualizado} disabled={accion !== null} aria-busy={accion === "descargar"} className={CLS_BOTON_PRINCIPAL}>
                   {accion === "descargar" ? <Spinner size={18} /> : <span className="material-symbols-outlined">download</span>} Descargar reporte actualizado
                 </button>
               ) : (
-                <button onClick={generar} disabled={!acciones.generar || accion !== null} className={CLS_BOTON_PRINCIPAL}>
+                <button onClick={generar} disabled={!acciones.generar || accion !== null} aria-busy={accion === "generar"} className={CLS_BOTON_PRINCIPAL}>
                   {accion === "generar" ? <Spinner size={18} /> : <span className="material-symbols-outlined">picture_as_pdf</span>} {acciones.etiquetaGenerar}
                 </button>
               )}
               {acciones.descargarHistorica && (
-                <button onClick={descargarHistorica} disabled={descargando === item?.reporte_id} className={CLS_BOTON_SECUNDARIO}>
+                <button onClick={descargarHistorica} disabled={descargando === item?.reporte_id} aria-busy={descargando === item?.reporte_id} className={CLS_BOTON_SECUNDARIO}>
                   {descargando === item?.reporte_id ? <Spinner size={18} /> : <span className="material-symbols-outlined">history</span>} Descargar versión {item?.reporte_version} — histórica
                 </button>
               )}
@@ -241,21 +248,26 @@ export default function Reportes() {
             {vista ? (
               <VistaPreviaPdf archivo={vista.archivo} titulo="Vista previa del reporte" />
             ) : (
-              <div className="p-xl text-center">
-                <span className="material-symbols-outlined text-[40px] text-outline">picture_as_pdf</span>
-                <p className="text-body-md text-on-surface-variant mt-sm">Elige empresa y año y pulsa «Vista previa» para revisar el PDF.</p>
-              </div>
+              <GuiaVacia
+                icono="picture_as_pdf"
+                mensaje="Elige empresa y año y pulsa «Vista previa» para revisar el PDF."
+                pasos={[
+                  { texto: "Elige la empresa", hecho: !!empresaId },
+                  { texto: "Elige el año", hecho: anio !== null },
+                  { texto: "Abre la vista previa", hecho: false },
+                ]}
+              />
             )}
           </div>
 
           <div className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
             <div className="p-lg border-b border-outline-variant bg-surface-bright flex justify-between items-center gap-md">
               <h3 className="text-title-lg text-on-surface">Reportes recientes</h3>
-              <Link to="/descargas" className="text-label-md text-primary hover:underline">Ver todos</Link>
+              <Link to="/descargas" className="text-label-md text-primary-ink hover:underline">Ver todos</Link>
             </div>
             {cargandoReportes ? (
               <div className="p-lg space-y-sm">
-                {["c1", "c2", "c3"].map((k) => <div key={k} className="h-5 bg-surface-variant rounded animate-pulse" />)}
+                {["w-full", "w-5/6", "w-2/3"].map((k) => <div key={k} className={`h-5 ${k} bg-surface-variant animate-pulse`} />)}
               </div>
             ) : (
               <TablaReportes
@@ -339,14 +351,14 @@ function UltimaEmision({ item, vigente, onVerHistorial }: Readonly<{ item: AnioD
   const validacionDistinta =
     item.ultima_validacion_numero && item.reporte_validacion_numero && item.ultima_validacion_numero !== item.reporte_validacion_numero;
   return (
-    <div className="mt-md rounded-lg border border-outline-variant px-md py-sm text-label-md text-on-surface-variant space-y-xs">
+    <div className="mt-md border border-outline-variant px-md py-sm text-label-md text-on-surface-variant space-y-xs">
       <div className="flex items-center justify-between gap-sm">
         <span className="font-semibold text-on-surface">Última emisión: versión {item.reporte_version}</span>
-        <span className={`shrink-0 rounded-full px-sm py-[2px] text-label-sm ${item.reporte_actualizado ? "bg-primary/10 text-primary" : "bg-tertiary-fixed/60 text-on-tertiary-fixed"}`}>{situacion}</span>
+        <span className={`shrink-0 px-sm py-[2px] text-label-sm uppercase tracking-[0.06em] ${item.reporte_actualizado ? "bg-success-container text-on-success-container" : "bg-tertiary-fixed text-on-tertiary-fixed"}`}>{situacion}</span>
       </div>
       {fecha && <p>Generada el {fechaCorta(fecha)}{vigente ? ` por ${vigente.generado_por_nombre}` : ""}</p>}
       {validacionDistinta && <p>Validación actual: {item.ultima_validacion_numero} · Validación del reporte: {item.reporte_validacion_numero}</p>}
-      <button type="button" onClick={onVerHistorial} className="font-semibold text-primary underline">
+      <button type="button" onClick={onVerHistorial} className="font-semibold text-primary-ink underline">
         Ver historial{item.versiones_emitidas ? ` (${item.versiones_emitidas})` : ""}
       </button>
     </div>
@@ -354,14 +366,14 @@ function UltimaEmision({ item, vigente, onVerHistorial }: Readonly<{ item: AnioD
 }
 
 const TONOS: Record<TonoEstadoReporte, string> = {
-  ok: "bg-primary/10 text-primary",
-  pendiente: "bg-tertiary-fixed/60 text-on-tertiary-fixed",
+  ok: "bg-success-container text-on-success-container",
+  pendiente: "bg-tertiary-fixed text-on-tertiary-fixed",
   neutro: "bg-surface-container-low text-on-surface-variant",
 };
 
 function Aviso({ tono, icono, children }: Readonly<{ tono: TonoEstadoReporte; icono: string; children: ReactNode }>) {
   return (
-    <output className={`mt-md rounded-lg px-md py-sm text-label-md flex gap-sm ${TONOS[tono]}`}>
+    <output className={`mt-md px-md py-sm text-label-md flex gap-sm ${TONOS[tono]}`}>
       <span className="material-symbols-outlined text-[18px] shrink-0" aria-hidden="true">{icono}</span>
       <span className="flex flex-col items-start">{children}</span>
     </output>

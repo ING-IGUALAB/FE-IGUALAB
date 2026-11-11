@@ -1,5 +1,9 @@
 import type { Page, Request, Route } from "@playwright/test";
 import type {
+  AdvertenciaAnalisis,
+  ConsultaAsistente,
+  ConversacionDetalle,
+  MensajeGuardado,
   AnioDisponible,
   AnalisisGri,
   DocumentoResumen,
@@ -53,6 +57,8 @@ interface EstadoAnalisis {
   sanciones: SancionVista[];
   validacion: ValidacionVista | null;
   historial: HistorialGriItem[];
+  /** Avisos del análisis que no son filas evaluables (calidad del documento, referencias desconocidas…). */
+  advertencias?: AdvertenciaAnalisis[];
 }
 interface Llamada {
   metodo: string;
@@ -64,6 +70,14 @@ type Manejador = (m: RegExpMatchArray, req: Request, q: URLSearchParams) => Resp
 
 const AHORA = "2026-10-01T15:00:00Z";
 const PUNTOS: Record<EstadoGriApi, number> = { OK: 100, BAJA_SUSTANCIA: 50, SUB_REPORTADO: 0 };
+
+/** Estado del espacio empresa/año/tipo según el documento que lo reserva (sin documento, libre). */
+function espacioDe(doc: DocumentoResumen | undefined): string {
+  if (!doc) return "DISPONIBLE";
+  if (doc.estado === "COMPLETADO") return "OCUPADO";
+  if (doc.estado === "FALLIDO_LIMPIEZA_PENDIENTE") return "LIMPIEZA_PENDIENTE";
+  return doc.estado === "PUBLICACION_PENDIENTE" ? "PUBLICACION_PENDIENTE" : "EN_PROCESO";
+}
 
 function error(status: number, code: string, message: string, details: unknown = null): Respuesta {
   return { status, body: { error: { code, message, details, request_id: "e2e" } } };
@@ -84,8 +98,24 @@ export class ServicioSimulado {
   llamadas: Llamada[] = [];
   reportes: ReporteResumen[] = [];
   eventos: EventoAuditoriaApi[] = [];
+  /** Doble check: la próxima carga se pausa tras el análisis (202 CONFIRMACION_PENDIENTE). */
+  pausarIngesta = false;
+  /** Doble check: al confirmar, la publicación falla (502) y el documento queda pendiente de publicar. */
+  fallarPublicacionAlConfirmar = false;
+  /**
+   * Avance de la barra de progreso: mientras la carga (o la confirmación) sigue sin responder, cada
+   * consulta de la operación devuelve la siguiente etapa de esta lista. Úsese con `retrasar`.
+   */
+  etapasDuranteIngesta: string[] = [];
+  etapasDuranteConfirmacion: string[] = [];
+  private enCurso = new Map<string, { etapas: string[]; i: number }>();
+  /** Chats guardados del asistente (más reciente al final) y claves ya usadas al guardar. */
+  conversaciones: ConversacionDetalle[] = [];
+  private clavesGuardado = new Map<string, { id: string; contenido: string }>();
+  private rechazadas = new Set<string>();
   private fallos: FalloForzado[] = [];
   private demoras: { metodo: string; ruta: RegExp; ms: number }[] = [];
+  private retenciones: { metodo: string; ruta: RegExp; espera: Promise<void> }[] = [];
   private sesionesExpiradas = false;
   private seq = 100;
   private readonly rutas: { metodo: string; patron: RegExp; fn: Manejador }[];
@@ -127,6 +157,19 @@ export class ServicioSimulado {
   /** Hace que las respuestas a `metodo ruta` tarden `ms` (para probar los indicadores de carga). */
   retrasar(metodo: string, ruta: RegExp, ms: number) {
     this.demoras.push({ metodo, ruta, ms });
+  }
+
+  /**
+   * La próxima respuesta a `metodo ruta` se procesa pero no se entrega hasta llamar a la función
+   * devuelta: así una prueba controla cuándo «termina» una petición sin depender del tiempo real.
+   */
+  retener(metodo: string, ruta: RegExp): () => void {
+    let soltar: () => void = () => undefined;
+    const espera = new Promise<void>((resolve) => {
+      soltar = resolve;
+    });
+    this.retenciones.push({ metodo, ruta, espera });
+    return () => soltar();
   }
 
   /** Agrega `n` documentos más (para probar la paginación con muchas páginas). */
@@ -211,6 +254,14 @@ export class ServicioSimulado {
     }
     const demora = this.demoras.find((d) => d.metodo === metodo && d.ruta.test(ruta));
     if (demora) await new Promise((resolve) => setTimeout(resolve, demora.ms));
+    const retenida = this.retenciones.findIndex((x) => x.metodo === metodo && x.ruta.test(ruta));
+    if (retenida >= 0) await this.retenciones.splice(retenida, 1)[0].espera;
+    // Al responder la carga o la confirmación, la operación deja de estar «en curso».
+    const carga = /^\/documentos\/operaciones\/([^/]+)\/(ingesta|confirmar)$/.exec(ruta);
+    if (carga) {
+      this.enCurso.delete(carga[1]);
+      if (carga[2] === "ingesta" && r.status >= 400) this.rechazadas.add(carga[1]);
+    }
     if (r.status === 204) return route.fulfill({ status: 204 });
     if (r.archivo) {
       const headers: Record<string, string> = {};
@@ -282,10 +333,20 @@ export class ServicioSimulado {
       // Documentos / ingesta
       { metodo: "POST", patron: /^\/documentos\/operaciones$/, fn: () => this.crearOperacion() },
       { metodo: "POST", patron: /^\/documentos\/operaciones\/([^/]+)\/ingesta$/, fn: (m, req) => this.ingerir(m[1], req) },
+      { metodo: "GET", patron: /^\/documentos\/operaciones\/([^/]+)$/, fn: (m) => this.consultarOperacion(m[1]) },
+      { metodo: "POST", patron: /^\/documentos\/operaciones\/([^/]+)\/confirmar$/, fn: (m) => this.conOperacion(m[1], (d) => this.confirmarIngesta(d)) },
+      { metodo: "POST", patron: /^\/documentos\/operaciones\/([^/]+)\/cancelar$/, fn: (m) => this.conOperacion(m[1], (d) => this.cancelarIngesta(d)) },
+      { metodo: "POST", patron: /^\/documentos\/operaciones\/([^/]+)\/reintentar-publicacion$/, fn: (m) => this.conOperacion(m[1], (d) => this.reintentarPublicacion(d)) },
       { metodo: "GET", patron: /^\/documentos$/, fn: (_m, _r, q) => ok(this.listarDocumentos(q)) },
+      { metodo: "GET", patron: /^\/documentos\/disponibilidad$/, fn: (_m, _r, q) => this.disponibilidadIngesta(q) },
       { metodo: "GET", patron: /^\/documentos\/([^/]+)$/, fn: (m) => this.detalleDocumento(m[1]) },
+      { metodo: "POST", patron: /^\/documentos\/([^/]+)\/deshabilitar$/, fn: (m, req) => this.deshabilitarDocumento(m[1], req) },
       // Asistente de IA
       { metodo: "POST", patron: /^\/asistente\/consultas$/, fn: (_m, req) => this.consultarAsistente(req) },
+      { metodo: "POST", patron: /^\/asistente\/conversaciones$/, fn: (_m, req) => this.guardarConversacion(req) },
+      { metodo: "GET", patron: /^\/asistente\/conversaciones$/, fn: (_m, _r, q) => this.listarConversaciones(q) },
+      { metodo: "GET", patron: /^\/asistente\/conversaciones\/([^/]+)$/, fn: (m) => this.conConversacion(m[1], (c) => ok(c)) },
+      { metodo: "POST", patron: /^\/asistente\/conversaciones\/([^/]+)\/consultas$/, fn: (m, req) => this.conConversacion(m[1], (c) => this.continuarConversacion(c, req)) },
       // Reportes de prospección
       { metodo: "GET", patron: /^\/reportes$/, fn: () => ok(this.reportes) },
       { metodo: "GET", patron: /^\/reportes\/disponibilidad$/, fn: (_m, _r, q) => this.disponibilidad(q) },
@@ -417,16 +478,19 @@ export class ServicioSimulado {
       nombre_archivo: f.archivo,
       sha256: "abc123",
       tamano_bytes: (f.archivo__contenido ?? "").length,
-      estado: "COMPLETADO",
+      estado: this.pausarIngesta ? "CONFIRMACION_PENDIENTE" : "COMPLETADO",
       resultado_analisis: "CON_HALLAZGOS",
-      disponible_para_rag: true,
+      disponible_para_rag: !this.pausarIngesta,
       fragmentos_total: 4,
       cantidad_advertencias: 0,
       cargado_por: "u-super",
       creado_en: "2026-10-14T16:00:00Z",
-      completado_en: "2026-10-14T16:00:05Z",
+      completado_en: this.pausarIngesta ? null : "2026-10-14T16:00:05Z",
     };
     this.documentos.unshift(doc);
+    if (this.etapasDuranteIngesta.length > 0) this.enCurso.set(operacionId, { etapas: [...this.etapasDuranteIngesta], i: 0 });
+    // Doble check: el análisis terminó y la carga espera que alguien decida (202, no es un error).
+    if (this.pausarIngesta) return ok(this.vistaOperacion(doc), 202);
     return ok(
       {
         operacion_id: operacionId,
@@ -450,6 +514,147 @@ export class ServicioSimulado {
     );
   }
 
+  /** Progreso de una operación: en curso según el guion de etapas, o según su documento. */
+  private consultarOperacion(operacionId: string): Respuesta {
+    const curso = this.enCurso.get(operacionId);
+    const doc = this.documentos.find((d) => d.operacion_id === operacionId);
+    if (curso && doc) {
+      const etapa = curso.etapas[Math.min(curso.i, curso.etapas.length - 1)];
+      curso.i += 1;
+      const indexando = etapa === "INDEXANDO";
+      return ok({
+        ...this.vistaOperacion(doc),
+        estado: "EN_PROCESO",
+        terminal: false,
+        exitosa: false,
+        etapa,
+        confirmacion_pendiente: false,
+        resumen_confirmacion: null,
+        fragmentos_procesados: indexando ? 2 : 0,
+        fragmentos_total: indexando ? 4 : null,
+      });
+    }
+    if (doc) return ok(this.vistaOperacion(doc));
+    // Sin documento: todavía no se reservó o la carga se rechazó antes de reservarlo.
+    const rechazada = this.rechazadas.has(operacionId);
+    return ok({
+      operacion_id: operacionId,
+      estado: rechazada ? "RECHAZADA" : "VALIDANDO",
+      terminal: rechazada,
+      exitosa: false,
+      etapa: null,
+      documento_id: null,
+      fragmentos_procesados: 0,
+      fragmentos_total: null,
+      advertencias: [],
+      resultado_analisis: null,
+      publicacion_reintentable: false,
+      confirmacion_pendiente: false,
+      resumen_confirmacion: null,
+      error: rechazada ? { code: "DOCUMENT_REJECTED", message: "La carga fue rechazada." } : null,
+      creada_en: AHORA,
+      actualizada_en: AHORA,
+    });
+  }
+
+  private conOperacion(operacionId: string, fn: (d: DocumentoResumen) => Respuesta): Respuesta {
+    const doc = this.documentos.find((d) => d.operacion_id === operacionId);
+    return doc ? fn(doc) : error(404, "OPERATION_NOT_FOUND", "Operación inexistente.");
+  }
+
+  /** Vista de la operación según el estado de su documento (como `GET /documentos/operaciones/{id}`). */
+  private vistaOperacion(doc: DocumentoResumen, error: { code: string; message: string } | null = null) {
+    const pausada = doc.estado === "CONFIRMACION_PENDIENTE";
+    const completado = doc.estado === "COMPLETADO";
+    const fallido = doc.estado === "FALLIDO" || doc.estado === "FALLIDO_LIMPIEZA_PENDIENTE";
+    return {
+      operacion_id: doc.operacion_id,
+      estado: doc.estado,
+      terminal: completado || fallido,
+      exitosa: completado,
+      etapa: doc.estado,
+      documento_id: doc.id,
+      fragmentos_procesados: completado ? 4 : 0,
+      fragmentos_total: 4,
+      advertencias: [],
+      resultado_analisis: completado ? doc.resultado_analisis : null,
+      publicacion_reintentable: doc.estado === "PUBLICACION_PENDIENTE",
+      confirmacion_pendiente: pausada,
+      resumen_confirmacion: pausada
+        ? {
+            resultado: "CON_HALLAZGOS",
+            referencias_gri: 3,
+            sanciones: 1,
+            motivos: ["referencias_gri_catalogadas", "sanciones_economicas"],
+            advertencias: [{ codigo: "GRI_EDICION_AMBIGUA", mensaje: "Estándar conocido con varias ediciones y sin edición en el texto." }],
+            mensaje: "El análisis detectó 3 grupo(s) GRI y 1 mención(es) de sanciones. ¿Desea continuar con la ingesta o cancelarla?",
+          }
+        : null,
+      error: error ?? (fallido ? { code: "UNEXPECTED_ERROR", message: "La ingesta no se completó." } : null),
+      creada_en: AHORA,
+      actualizada_en: AHORA,
+    };
+  }
+
+  private noPendiente(): Respuesta {
+    return error(409, "CONFIRMATION_NOT_PENDING", "La operación no está esperando una confirmación.");
+  }
+
+  private confirmarIngesta(doc: DocumentoResumen): Respuesta {
+    if (doc.estado !== "CONFIRMACION_PENDIENTE") return this.noPendiente();
+    if (this.fallarPublicacionAlConfirmar) {
+      doc.estado = "PUBLICACION_PENDIENTE";
+      return error(502, "VECTOR_PUBLICATION_PENDING", "El documento se completó, pero la publicación quedó pendiente.");
+    }
+    doc.estado = "COMPLETADO";
+    doc.disponible_para_rag = true;
+    doc.completado_en = "2026-10-14T16:01:00Z";
+    if (this.etapasDuranteConfirmacion.length > 0) {
+      this.enCurso.set(doc.operacion_id!, { etapas: [...this.etapasDuranteConfirmacion], i: 0 });
+    }
+    return ok({ ...this.vistaOperacion(doc), motivos: [], fragmentos: 4 }, 201);
+  }
+
+  private cancelarIngesta(doc: DocumentoResumen): Respuesta {
+    if (doc.estado !== "CONFIRMACION_PENDIENTE") return this.noPendiente();
+    doc.estado = "FALLIDO";
+    return ok(this.vistaOperacion(doc, { code: "CONFIRMACION_RECHAZADA", message: "La carga fue cancelada." }));
+  }
+
+  private reintentarPublicacion(doc: DocumentoResumen): Respuesta {
+    if (doc.estado !== "PUBLICACION_PENDIENTE") return error(409, "DOCUMENT_STATE_CONFLICT", "No hay publicación pendiente.");
+    doc.estado = "COMPLETADO";
+    return ok(this.vistaOperacion(doc));
+  }
+
+  /** Un documento de cada tipo por empresa y año: los tipos ya cargados quedan OCUPADO. */
+  private disponibilidadIngesta(q: URLSearchParams): Respuesta {
+    const empresa = this.empresas.find((e) => e.id === q.get("empresa_id"));
+    if (!empresa) return error(404, "COMPANY_NOT_FOUND", "Empresa inexistente.");
+    const anio = Number(q.get("anio"));
+    const tipos: TipoDocumentoApi[] = ["MEMORIA_ANUAL", "REPORTE_SOSTENIBILIDAD_GRI"];
+    return ok({
+      ambiente: "dev",
+      empresa_id: empresa.id,
+      empresa_nombre: empresa.nombre,
+      empresa_activa: empresa.activa,
+      anio,
+      tipos: tipos.map((tipo) => {
+        const doc = this.documentos.find(
+          (d) => d.empresa_id === empresa.id && d.anio === anio && d.tipo === tipo && d.estado !== "FALLIDO" && !d.deshabilitado,
+        );
+        return {
+          tipo,
+          estado: espacioDe(doc),
+          cargable: !doc && empresa.activa,
+          documento_id: doc?.id ?? null,
+          nombre_archivo: doc?.nombre_archivo ?? null,
+          reservado_en: doc ? doc.creado_en : null,
+        };
+      }),
+    });
+  }
+
   private listarDocumentos(q: URLSearchParams) {
     const xs = this.documentos.filter(
       (d) =>
@@ -467,6 +672,31 @@ export class ServicioSimulado {
       tamano,
       paginas: Math.max(1, Math.ceil(xs.length / tamano)),
     };
+  }
+
+  /** Como el backend: solo un documento completado; idempotente; libera su lugar; no se revierte. */
+  private deshabilitarDocumento(id: string, req: Request): Respuesta {
+    const d = this.documentos.find((x) => x.id === id);
+    if (!d) return error(404, "DOCUMENT_NOT_FOUND", "Documento inexistente.");
+    const { motivo } = req.postDataJSON() as { motivo?: string };
+    if (!motivo?.trim()) return error(422, "REQUEST_VALIDATION_ERROR", "El motivo es obligatorio.");
+    if (d.estado !== "COMPLETADO") return error(409, "DOCUMENT_NOT_DISABLEABLE", "Solo se puede deshabilitar un documento completado.");
+    const ya = !!d.deshabilitado;
+    if (!ya) {
+      Object.assign(d, { deshabilitado: true, deshabilitado_en: "2026-11-11T15:00:00Z", deshabilitado_por: "u-super", motivo_deshabilitacion: motivo.trim(), disponible_para_rag: false });
+    }
+    return ok({
+      documento_id: d.id,
+      empresa_id: d.empresa_id,
+      anio: d.anio,
+      tipo: d.tipo,
+      estado: d.estado,
+      deshabilitado: true,
+      deshabilitado_en: d.deshabilitado_en,
+      deshabilitado_por: d.deshabilitado_por,
+      motivo_deshabilitacion: d.motivo_deshabilitacion,
+      ya_estaba_deshabilitado: ya,
+    });
   }
 
   private detalleDocumento(id: string): Respuesta {
@@ -549,7 +779,7 @@ export class ServicioSimulado {
         total_sanciones: s.sanciones.length,
       })),
       filas: s.filas,
-      advertencias: [],
+      advertencias: s.advertencias ?? [],
       sanciones: s.sanciones,
       resumen_sanciones: {
         total: s.sanciones.length,
@@ -640,7 +870,106 @@ export class ServicioSimulado {
 
   // ---------------------------------------------------------------- asistente de IA
   private consultarAsistente(req: Request): Respuesta {
-    const cuerpo = req.postDataJSON() as { pregunta?: string; sector?: SectorApi; empresa_id?: string; anio?: number };
+    return this.responderAsistente(req.postDataJSON() as { pregunta?: string; sector?: SectorApi; empresa_id?: string; anio?: number });
+  }
+
+  // ---------------------------------------------------------------- conversaciones guardadas
+  private contextoDe(empresa: EmpresaApi, anio: number) {
+    return { empresa_id: empresa.id, empresa_nombre: empresa.nombre, empresa_activa: empresa.activa, sector: empresa.sector, anio };
+  }
+
+  private mensajeGuardado(orden: number, m: { rol: "usuario"; contenido: string } | { rol: "asistente"; respuesta: ConsultaAsistente }, procedencia: string): MensajeGuardado {
+    return {
+      id: this.nuevoId("msg"),
+      orden,
+      rol: m.rol,
+      contenido: m.rol === "usuario" ? m.contenido : m.respuesta.respuesta || "Sin evidencia suficiente.",
+      respuesta: m.rol === "asistente" ? m.respuesta : null,
+      procedencia: procedencia as MensajeGuardado["procedencia"],
+      creado_en: AHORA,
+    };
+  }
+
+  /** Guarda un chat tal como lo aporta el cliente; la misma clave con el mismo contenido no duplica. */
+  guardarConversacion(req: Request | { postDataJSON: () => unknown }): Respuesta {
+    const b = req.postDataJSON() as {
+      clave_idempotencia: string;
+      empresa_id: string;
+      sector: SectorApi;
+      anio: number;
+      mensajes: ({ rol: "usuario"; contenido: string } | { rol: "asistente"; respuesta: ConsultaAsistente })[];
+    };
+    const empresa = this.empresas.find((e) => e.id === b.empresa_id);
+    if (!empresa) return error(404, "COMPANY_NOT_FOUND", "La empresa no existe.");
+    if (b.mensajes.length < 2 || b.mensajes.length > 40) return error(422, "REQUEST_VALIDATION_ERROR", "La conversación debe tener entre 2 y 40 mensajes.");
+    const contenido = JSON.stringify(b.mensajes);
+    const previa = this.clavesGuardado.get(b.clave_idempotencia);
+    if (previa) {
+      if (previa.contenido !== contenido) return error(409, "CONVERSATION_IDEMPOTENCY_CONFLICT", "Esa clave ya se usó con otro contenido.");
+      return ok({ ...this.conversaciones.find((c) => c.id === previa.id), reutilizada: true });
+    }
+    const primera = b.mensajes[0];
+    const c: ConversacionDetalle = {
+      id: this.nuevoId("conv"),
+      titulo: (primera.rol === "usuario" ? primera.contenido : "").slice(0, 80),
+      contexto: this.contextoDe(empresa, b.anio),
+      total_mensajes: b.mensajes.length,
+      creada_en: AHORA,
+      actualizada_en: `2026-11-11T16:${String(this.conversaciones.length).padStart(2, "0")}:00Z`,
+      mensajes: b.mensajes.map((m, i) => this.mensajeGuardado(i + 1, m, "APORTADO_POR_CLIENTE")),
+    };
+    this.conversaciones.push(c);
+    this.clavesGuardado.set(b.clave_idempotencia, { id: c.id, contenido });
+    return ok({ ...c, reutilizada: false }, 201);
+  }
+
+  private listarConversaciones(q: URLSearchParams) {
+    const pagina = Number(q.get("pagina") ?? 1);
+    const tamano = Number(q.get("tamano") ?? 20);
+    const todas = [...this.conversaciones]
+      .sort((a, b) => b.actualizada_en.localeCompare(a.actualizada_en))
+      .map(({ mensajes: _m, ...resumen }) => ({ ...resumen, contexto: this.contextoActual(resumen.contexto) }));
+    return ok({ items: todas.slice((pagina - 1) * tamano, pagina * tamano), pagina, tamano, total: todas.length });
+  }
+
+  /** El nombre y el estado de la empresa son los actuales, no los del momento de guardar. */
+  private contextoActual(ctx: ConversacionDetalle["contexto"]) {
+    const e = this.empresas.find((x) => x.id === ctx.empresa_id);
+    return e ? { ...ctx, empresa_nombre: e.nombre, empresa_activa: e.activa } : ctx;
+  }
+
+  private conConversacion(id: string, fn: (c: ConversacionDetalle) => Respuesta): Respuesta {
+    const c = this.conversaciones.find((x) => x.id === id);
+    return c ? fn({ ...c, contexto: this.contextoActual(c.contexto) }) : error(404, "CONVERSATION_NOT_FOUND", "La conversación no existe.");
+  }
+
+  private continuarConversacion(c: ConversacionDetalle, req: Request): Respuesta {
+    const { clave_idempotencia, pregunta } = req.postDataJSON() as { clave_idempotencia: string; pregunta: string };
+    if (!c.contexto.empresa_activa) return error(409, "COMPANY_INACTIVE", "La empresa está desactivada.");
+    if (c.total_mensajes + 2 > 40) return error(409, "CONVERSATION_MESSAGE_LIMIT_REACHED", "Este chat llegó a su límite de 20 preguntas. Empieza uno nuevo.");
+    const r = this.responderAsistente({ pregunta, sector: c.contexto.sector, empresa_id: c.contexto.empresa_id, anio: c.contexto.anio });
+    if (r.status !== 200) return r;
+    const guardada = this.conversaciones.find((x) => x.id === c.id)!;
+    const preguntaG = this.mensajeGuardado(guardada.mensajes.length + 1, { rol: "usuario", contenido: pregunta }, "ENVIADO_POR_USUARIO");
+    const respuestaG = this.mensajeGuardado(guardada.mensajes.length + 2, { rol: "asistente", respuesta: r.body as ConsultaAsistente }, "GENERADO_POR_SERVIDOR");
+    guardada.mensajes.push(preguntaG, respuestaG);
+    guardada.total_mensajes = guardada.mensajes.length;
+    guardada.actualizada_en = "2026-11-11T17:00:00Z";
+    return ok(
+      {
+        conversacion_id: c.id,
+        clave_idempotencia,
+        pregunta: preguntaG,
+        respuesta: respuestaG,
+        total_mensajes: guardada.total_mensajes,
+        actualizada_en: guardada.actualizada_en,
+        reutilizado: false,
+      },
+      201,
+    );
+  }
+
+  private responderAsistente(cuerpo: { pregunta?: string; sector?: SectorApi; empresa_id?: string; anio?: number }): Respuesta {
     // Igual que el backend: sector, empresa y año son obligatorios (422 "Field required").
     const faltan = (["pregunta", "sector", "empresa_id", "anio"] as const).filter((k) => cuerpo[k] === undefined || cuerpo[k] === null);
     if (faltan.length > 0) {
@@ -913,6 +1242,42 @@ export class ServicioSimulado {
       doc("d-utec-2025", utec, 2025, "MEMORIA_ANUAL", "memoria-utec-2025.md"),
     ];
 
+    // Un chat ya guardado del Administrador (Minera Andina 2024), para el historial.
+    const respuestaGuardada: ConsultaAsistente = {
+      respuesta: "Se identifica una multa del OEFA de 59.078 UIT [1].",
+      afirmaciones: [{ texto: "Se identifica una multa del OEFA de 59.078 UIT.", referencias: [1], cita_textual: "OEFA impuso una multa de 59.078 UIT." }],
+      citas: [
+        {
+          referencia: 1,
+          documento_id: "d-andina-2024",
+          documento_nombre: "memoria-andina-2024.md",
+          empresa_id: andina.id,
+          empresa_nombre: andina.nombre,
+          anio: 2024,
+          seccion: "Memoria Anual > Contingencias",
+          extracto: "En el ejercicio, OEFA impuso una multa de 59.078 UIT.",
+        },
+      ],
+      sin_evidencia: false,
+      motivo: null,
+      mensaje: null,
+      afirmaciones_descartadas: 0,
+    };
+    this.conversaciones = [
+      {
+        id: "conv-andina",
+        titulo: "¿Qué multas recibió en 2024?",
+        contexto: { empresa_id: andina.id, empresa_nombre: andina.nombre, empresa_activa: true, sector: andina.sector, anio: 2024 },
+        total_mensajes: 2,
+        creada_en: "2026-11-10T09:00:00Z",
+        actualizada_en: "2026-11-10T09:00:00Z",
+        mensajes: [
+          { id: "msg-1", orden: 1, rol: "usuario", contenido: "¿Qué multas recibió en 2024?", respuesta: null, procedencia: "APORTADO_POR_CLIENTE", creado_en: "2026-11-10T09:00:00Z" },
+          { id: "msg-2", orden: 2, rol: "asistente", contenido: respuestaGuardada.respuesta, respuesta: respuestaGuardada, procedencia: "APORTADO_POR_CLIENTE", creado_en: "2026-11-10T09:00:00Z" },
+        ],
+      },
+    ];
+
     // Minera Andina 2024: dos códigos GRI sin estado y una sanción.
     const evidencia = (cita: string, inicio: number, rol = "cuerpo") => ({
       documento_id: "d-andina-2024",
@@ -941,7 +1306,17 @@ export class ServicioSimulado {
       menciones_en_indice: 1,
       menciones_en_cuerpo: 1,
       documentos: ["d-andina-2024"],
-      advertencias: [],
+      // Mismo aviso que manda el backend para un estándar con varias ediciones y sin edición en el texto.
+      advertencias: edicion
+        ? []
+        : [
+            {
+              codigo: "GRI_EDICION_AMBIGUA",
+              mensaje: "Estándar con varias ediciones y sin edición en el texto. Se conserva como identidad ambigua; no se asumió ninguna edición.",
+              total_menciones: 2,
+              referencias: [`GRI ${codigo}-1`],
+            },
+          ],
       evidencias: [evidencia(`Mención de ${estandar} en el documento.`, identidad.length * 10)],
     });
     const emitido = (id: string, empresa_id: string, empresa_nombre: string, anio: number, sha256: string, creado_en: string): ReporteResumen => ({

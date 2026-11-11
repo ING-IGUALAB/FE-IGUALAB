@@ -4,14 +4,208 @@
 
 :root {
   color-scheme: light;
+  /* Tema claro (por defecto). Valores en «R G B» para usarlos con opacidad. */
+  --c-primary: 119 185 242;
+  --c-on-primary: 15 27 42;
+  --c-primary-ink: 31 95 153;
+  --c-primary-container: 214 233 251;
+  --c-on-primary-container: 15 27 42;
+  --c-primary-fixed: 214 233 251;
+  --c-primary-fixed-dim: 169 209 246;
+  --c-on-primary-fixed: 15 27 42;
+  --c-on-primary-fixed-variant: 31 95 153;
+  --c-inverse-primary: 119 185 242;
+  --c-surface-tint: 90 166 232;
+  --c-secondary: 47 74 102;
+  --c-on-secondary: 255 255 255;
+  --c-secondary-container: 220 231 242;
+  --c-on-secondary-container: 47 74 102;
+  --c-secondary-fixed: 220 231 242;
+  --c-secondary-fixed-dim: 185 204 224;
+  --c-on-secondary-fixed: 15 27 42;
+  --c-on-secondary-fixed-variant: 47 74 102;
+  --c-tertiary: 138 90 0;
+  --c-on-tertiary: 255 255 255;
+  --c-tertiary-container: 138 90 0;
+  --c-on-tertiary-container: 255 244 214;
+  --c-tertiary-fixed: 251 231 181;
+  --c-tertiary-fixed-dim: 242 204 107;
+  --c-on-tertiary-fixed: 58 39 0;
+  --c-on-tertiary-fixed-variant: 91 67 0;
+  --c-success: 30 107 58;
+  --c-success-container: 221 242 227;
+  --c-on-success-container: 15 61 32;
+  --c-error: 179 38 30;
+  --c-on-error: 255 255 255;
+  --c-error-container: 251 224 221;
+  --c-on-error-container: 122 22 16;
+  --c-background: 246 249 252;
+  --c-on-background: 15 27 42;
+  --c-surface: 255 255 255;
+  --c-surface-bright: 255 255 255;
+  --c-surface-dim: 211 221 232;
+  --c-surface-container-lowest: 255 255 255;
+  --c-surface-container-low: 243 247 251;
+  --c-surface-container: 235 241 247;
+  --c-surface-container-high: 226 234 242;
+  --c-surface-container-highest: 220 229 238;
+  --c-surface-variant: 225 232 239;
+  --c-on-surface: 15 27 42;
+  --c-on-surface-variant: 61 75 92;
+  --c-outline: 90 104 120;
+  --c-outline-variant: 200 211 223;
+  --c-inverse-surface: 15 27 42;
+  --c-inverse-on-surface: 238 245 252;
+  --c-rail: 15 27 42;
+  --c-on-rail: 230 238 247;
+  --c-on-rail-variant: 159 176 195;
+  --c-rail-line: 34 50 74;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  /* Tema oscuro: tinta y superficies invierten; el azul de marca se mantiene. */
+  --c-primary: 119 185 242;
+  --c-on-primary: 11 19 32;
+  --c-primary-ink: 142 200 245;
+  --c-primary-container: 27 58 92;
+  --c-on-primary-container: 214 233 251;
+  --c-primary-fixed: 27 58 92;
+  --c-primary-fixed-dim: 42 85 128;
+  --c-on-primary-fixed: 214 233 251;
+  --c-on-primary-fixed-variant: 169 209 246;
+  --c-inverse-primary: 31 95 153;
+  --c-surface-tint: 163 210 247;
+  --c-secondary: 185 204 224;
+  --c-on-secondary: 11 19 32;
+  --c-secondary-container: 34 50 74;
+  --c-on-secondary-container: 185 204 224;
+  --c-secondary-fixed: 34 50 74;
+  --c-secondary-fixed-dim: 46 64 88;
+  --c-on-secondary-fixed: 220 231 242;
+  --c-on-secondary-fixed-variant: 185 204 224;
+  --c-tertiary: 242 204 107;
+  --c-on-tertiary: 42 28 0;
+  --c-tertiary-container: 91 67 0;
+  --c-on-tertiary-container: 255 244 214;
+  --c-tertiary-fixed: 58 44 8;
+  --c-tertiary-fixed-dim: 91 67 0;
+  --c-on-tertiary-fixed: 251 231 181;
+  --c-on-tertiary-fixed-variant: 242 204 107;
+  --c-success: 111 207 142;
+  --c-success-container: 18 53 36;
+  --c-on-success-container: 189 235 203;
+  --c-error: 255 138 128;
+  --c-on-error: 58 10 6;
+  --c-error-container: 74 22 18;
+  --c-on-error-container: 251 224 221;
+  --c-background: 11 19 32;
+  --c-on-background: 230 238 247;
+  --c-surface: 17 27 43;
+  --c-surface-bright: 17 27 43;
+  --c-surface-dim: 11 19 32;
+  --c-surface-container-lowest: 17 27 43;
+  --c-surface-container-low: 21 34 52;
+  --c-surface-container: 26 41 64;
+  --c-surface-container-high: 32 49 74;
+  --c-surface-container-highest: 38 57 84;
+  --c-surface-variant: 34 50 74;
+  --c-on-surface: 230 238 247;
+  --c-on-surface-variant: 169 184 201;
+  --c-outline: 134 152 173;
+  --c-outline-variant: 46 64 88;
+  --c-inverse-surface: 230 238 247;
+  --c-inverse-on-surface: 15 27 42;
+  --c-rail: 7 12 20;
+  --c-on-rail: 230 238 247;
+  --c-on-rail-variant: 134 152 173;
+  --c-rail-line: 26 38 56;
 }
 
 body {
   margin: 0;
-  background: #f8faf9;
-  color: #191c1c;
+  background: rgb(var(--c-background));
+  color: rgb(var(--c-on-background));
   font-family: "Inter Variable", "Inter", system-ui, sans-serif;
+  /* Cifras tabulares en toda la app: años, versiones y conteos quedan alineados en columnas. */
+  font-feature-settings: "tnum" 1, "cv11" 1;
   -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgb(var(--c-primary));
+  color: rgb(var(--c-on-primary));
+}
+
+/* Foco visible y uniforme en todo control: anillo en tinta, separado del borde. */
+:focus-visible {
+  outline: 2px solid rgb(var(--c-on-surface));
+  outline-offset: 2px;
+}
+
+/*
+ * Respuesta al presionar: el control cede apenas, así se siente que la interfaz escuchó.
+ * Solo transform, para no pelear con otras transiciones de color del propio botón.
+ */
+button:not(:disabled),
+a[href] {
+  -webkit-tap-highlight-color: transparent;
+}
+button:not(:disabled):active {
+  transform: scale(0.97);
+}
+button {
+  transition-property: color, background-color, border-color, opacity, transform;
+  transition-duration: 160ms;
+  transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+html {
+  scrollbar-color: rgb(var(--c-outline-variant)) transparent;
+}
+
+/*
+ * Botones deshabilitados: inactivos de verdad (gris plano, sin hover), en vez de un azul lavado que
+ * se confunde con «cargando». Un botón ocupado (aria-busy) conserva su color mientras gira el spinner.
+ */
+button.bg-primary:disabled:not([aria-busy="true"]),
+a.bg-primary[aria-disabled="true"] {
+  background-color: rgb(var(--c-surface-container-high));
+  color: rgb(var(--c-outline));
+  opacity: 1;
+}
+button.border-on-surface:disabled:not([aria-busy="true"]) {
+  border-color: rgb(var(--c-outline-variant));
+  color: rgb(var(--c-outline));
+  background-color: transparent;
+  opacity: 1;
+}
+button[aria-busy="true"] {
+  cursor: progress;
+}
+
+/* Ícono de cada aviso con el color de su estado; el resto del aviso usa la tarjeta neutra. */
+[data-sonner-toast][data-type="success"] [data-icon] {
+  color: rgb(var(--c-success));
+}
+[data-sonner-toast][data-type="error"] [data-icon] {
+  color: rgb(var(--c-error));
+}
+[data-sonner-toast][data-type="warning"] [data-icon] {
+  color: rgb(var(--c-tertiary));
+}
+[data-sonner-toast][data-type="info"] [data-icon] {
+  color: rgb(var(--c-primary-ink));
+}
+
+/* Filas de tabla: se marcan al pasar el mouse para seguir la línea con la vista. */
+@media (hover: hover) and (pointer: fine) {
+  tbody tr {
+    transition: background-color 120ms ease;
+  }
+  tbody tr:hover {
+    background-color: rgb(var(--c-surface-container-low));
+  }
 }
 
 /*
@@ -21,13 +215,16 @@ body {
 select:not([multiple]) {
   appearance: none;
   -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%233f4941' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%233d4b5c' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.75rem center;
   background-size: 1.1rem;
   /* Deja sitio para la flecha aunque el campo tenga px-* de Tailwind. */
   padding-right: 2.5rem !important;
   cursor: pointer;
+}
+:root[data-theme="dark"] select:not([multiple]) {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23a9b8c9' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
 }
 select:not([multiple]):disabled {
   cursor: not-allowed;
@@ -42,63 +239,108 @@ select:not([multiple]):disabled {
   font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;
 }
 
+/* Sin sombras: las tarjetas se separan por su filete de 1 px. */
 .ambient-shadow {
-  box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.04);
+  box-shadow: none;
 }
-.ambient-shadow-hover:hover {
-  box-shadow: 0px 8px 24px rgba(0, 0, 0, 0.08);
-  transform: translateY(-2px);
-  transition: all 0.3s ease;
+.ambient-shadow-hover {
+  transition: border-color 160ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ambient-shadow-hover:hover {
+    border-color: rgb(var(--c-on-surface));
+  }
 }
 
-.bg-grid-pattern {
-  background-image:
-    linear-gradient(to right, #e2e8e5 1px, transparent 1px),
-    linear-gradient(to bottom, #e2e8e5 1px, transparent 1px);
-  background-size: 40px 40px;
-}
 
 .chat-scroll {
   scrollbar-width: thin;
-  scrollbar-color: #bec9bf transparent;
+  scrollbar-color: rgb(var(--c-outline-variant)) transparent;
 }
 .chat-scroll::-webkit-scrollbar {
   width: 6px;
 }
 .chat-scroll::-webkit-scrollbar-thumb {
-  background-color: #bec9bf;
+  background-color: rgb(var(--c-outline-variant));
   border-radius: 9999px;
 }
 
 .dropzone-active {
-  border-color: #006038 !important;
-  background-color: rgba(0, 96, 56, 0.05);
+  border-color: rgb(var(--c-primary-ink)) !important;
+  background-color: rgba(119, 185, 242, 0.12);
 }
 
+/*
+ * Navegación sobre el riel oscuro. La opción actual la marca un bloque azul translúcido que se
+ * desliza entre opciones (ver Layout); aquí solo van el texto, el hover y el numeral.
+ */
 .nav-item {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 8px 16px;
-  border-radius: 8px;
-  color: #3f4941;
-  transition: all 0.2s ease;
+  gap: 12px;
+  min-height: 44px;
+  padding: 10px 12px;
+  color: rgb(var(--c-on-rail-variant));
+  font-weight: 500;
+  transition: color 160ms ease, background-color 160ms ease;
 }
-.nav-item:hover {
-  background-color: #f2f4f3;
+@media (hover: hover) and (pointer: fine) {
+  .nav-item:hover {
+    color: rgb(var(--c-on-rail));
+    background-color: rgb(255 255 255 / 0.04);
+  }
 }
 .nav-item.active {
-  color: #004d2d;
-  font-weight: 700;
-  border-right: 4px solid #006038;
-  background-color: #e6f2ec;
+  color: rgb(var(--c-on-rail));
+  font-weight: 600;
+}
+.nav-item .nav-numeral {
+  color: rgb(var(--c-on-rail-variant) / 0.7);
+  transition: color 160ms ease;
+}
+.nav-item.active .nav-numeral {
+  color: rgb(var(--c-primary));
+}
+
+/* El logo es negro: sobre el riel y en tema oscuro se invierte a blanco. */
+.logo-claro {
+  filter: invert(1);
+}
+:root[data-theme="dark"] .logo-adaptativo {
+  filter: invert(1);
+}
+
+/*
+ * Ola de color de la portada del acceso: cada palabra pasa de tinta a azul y vuelve. El ciclo
+ * dura 7 s; la palabra solo brilla en el primer tramo, el resto es pausa (ver PortadaLogin).
+ */
+.ola-color {
+  animation: ola-color 7s cubic-bezier(0.45, 0, 0.55, 1) infinite both;
+}
+@keyframes ola-color {
+  0%,
+  22%,
+  100% {
+    color: rgb(var(--c-on-rail));
+  }
+  9% {
+    color: rgb(var(--c-primary));
+  }
+}
+
+/* Cambio de tema: el tema nuevo se revela en un círculo que crece desde el botón (ver useTema). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
 }
 
 .typing-dot {
   width: 6px;
   height: 6px;
   border-radius: 9999px;
-  background: #6f7a71;
+  background: rgb(var(--c-outline));
   animation: typing-bounce 1.2s infinite;
 }
 .typing-dot:nth-child(2) { animation-delay: 0.15s; }
@@ -112,26 +354,26 @@ select:not([multiple]):disabled {
   from { opacity: 0; transform: translateY(-8px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.toast-enter { animation: toast-in 0.25s ease; }
+.toast-enter { animation: toast-in 0.22s cubic-bezier(0.23, 1, 0.32, 1); }
 
 @keyframes modal-in {
   from { opacity: 0; transform: scale(0.96); }
   to { opacity: 1; transform: scale(1); }
 }
-.modal-enter { animation: modal-in 0.2s ease; }
+.modal-enter { animation: modal-in 0.2s cubic-bezier(0.23, 1, 0.32, 1); }
 
 /* Entrada suave de páginas */
 @keyframes page-in {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.page-enter { animation: page-in 0.28s ease both; }
+.page-enter { animation: page-in 0.2s cubic-bezier(0.23, 1, 0.32, 1) both; }
 
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
 }
-.fade-in { animation: fade-in 0.4s ease both; }
+.fade-in { animation: fade-in 0.2s cubic-bezier(0.23, 1, 0.32, 1) both; }
 
 /* Shake para errores de formulario */
 @keyframes shake {
@@ -145,10 +387,10 @@ select:not([multiple]):disabled {
 
 /* Skeleton shimmer */
 .skeleton {
-  background: linear-gradient(90deg, #eceeed 25%, #f2f4f3 50%, #eceeed 75%);
+  background: linear-gradient(90deg, rgb(var(--c-surface-container)) 25%, rgb(var(--c-surface-container-low)) 50%, rgb(var(--c-surface-container)) 75%);
   background-size: 200% 100%;
   animation: skeleton-wave 1.2s infinite;
-  border-radius: 6px;
+  border-radius: 2px;
 }
 @keyframes skeleton-wave {
   0% { background-position: 200% 0; }
@@ -163,5 +405,26 @@ select:not([multiple]):disabled {
     left: 0;
     top: 0;
     width: 100%;
+  }
+}
+
+/* Movimiento reducido: se quitan desplazamientos y escalas; quedan solo cambios de opacidad y color. */
+@media (prefers-reduced-motion: reduce) {
+  /* Los indicadores de carga siguen girando: avisan que algo está pasando. */
+  .page-enter,
+  .modal-enter,
+  .toast-enter {
+    animation-name: fade-in;
+  }
+  .shake,
+  .typing-dot,
+  .ola-color {
+    animation: none;
+  }
+  .ambient-shadow-hover:hover {
+    transform: none;
+  }
+  button:not(:disabled):active {
+    transform: none;
   }
 }

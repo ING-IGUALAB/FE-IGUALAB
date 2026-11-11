@@ -27,7 +27,14 @@ import {
   tablaMarkdown,
   textoLegible,
   filtrarDocumentos,
+  puedeDeshabilitar,
+  confirmacionDeshabilitarValida,
+  filtrarPorNombre,
+  conRecientesPrimero,
+  porFechaReciente,
+  textoFragmentos,
   accionesReporte,
+  etapaReporte,
   etiquetaAnioReporte,
   mensajeEmision,
   situacionAnioReporte,
@@ -41,8 +48,19 @@ import {
   anioIngestaValido,
   etiquetaAnalisis,
   etiquetaEstado,
+  etiquetaEstadoOperacion,
+  necesitaDecision,
+  cierreDeCarga,
+  etiquetaHallazgos,
+  textoResumenConfirmacion,
+  motivoLegible,
+  badgeDeEstado,
+  etiquetaEstadoResumida,
+  estadosDeFiltro,
+  FILTROS_ESTADO,
   etiquetaSector,
   etiquetaTipo,
+  tiposNoCargables,
   formatearTamano,
   validarArchivoIngesta,
 } from "./dominio";
@@ -53,6 +71,7 @@ describe("etiquetas de dominio", () => {
     expect(etiquetaSector("MINERIA")).toBe("Minería");
     expect(etiquetaSector("PETROLEO")).toBe("Petróleo y Gas");
     expect(etiquetaSector("ENERGIA")).toBe("Energía");
+    expect(etiquetaSector("OTROS")).toBe("Otros");
   });
 
   it("traduce tipos de documento", () => {
@@ -66,6 +85,7 @@ describe("etiquetas de dominio", () => {
     expect(etiquetaEstado("PUBLICACION_PENDIENTE")).toBe("Publicación pendiente");
     expect(etiquetaEstado("FALLIDO")).toBe("Fallido");
     expect(etiquetaEstado("FALLIDO_LIMPIEZA_PENDIENTE")).toBe("Fallido (limpieza pendiente)");
+    expect(etiquetaEstado("CONFIRMACION_PENDIENTE")).toBe("Confirmación pendiente");
   });
 
   it("traduce el resultado de análisis, con guion si falta", () => {
@@ -324,6 +344,17 @@ describe("aniosConDocumentos", () => {
 describe("reportes versionados", () => {
   const anio = (extra: Partial<AnioDisponible>): AnioDisponible => ({ anio: 2024, estado: "VALIDACION_VIGENTE", puede_generar: true, ...extra });
 
+  it("ubica cada año en la tira de etapas según el estado del servidor", () => {
+    expect(etapaReporte(anio({ estado: "PENDIENTE_REVISION" }))).toEqual({ cumplidas: 0, actual: 0, nuevaVersion: false });
+    expect(etapaReporte(anio({ estado: "PENDIENTE_VALIDACION" }))).toEqual({ cumplidas: 1, actual: 1, nuevaVersion: false });
+    expect(etapaReporte(anio({}))).toEqual({ cumplidas: 2, actual: 2, nuevaVersion: false });
+    expect(etapaReporte(anio({ estado: "ACTUALIZACION_PENDIENTE" }))).toEqual({ cumplidas: 2, actual: 2, nuevaVersion: true });
+    expect(etapaReporte(anio({ estado: "REPORTE_GENERADO" }))).toEqual({ cumplidas: 4, actual: null, nuevaVersion: false });
+    expect(etapaReporte(anio({ estado: "SIN_CODIGOS_GRI" }))).toBeNull();
+    expect(etapaReporte(anio({ estado: "SIN_DOCUMENTACION_ELEGIBLE" }))).toBeNull();
+    expect(etapaReporte(undefined)).toBeNull();
+  });
+
   it("etiqueta cada año según su estado", () => {
     expect(etiquetaAnioReporte(anio({ estado: "PENDIENTE_REVISION" }))).toBe("2024 · Pendiente de revisión");
     expect(etiquetaAnioReporte(anio({ estado: "PENDIENTE_VALIDACION" }))).toBe("2024 · Sin validar");
@@ -490,6 +521,25 @@ describe("filtrarDocumentos", () => {
   });
 });
 
+describe("filtrarPorNombre", () => {
+  const empresas = [
+    { id: "1", nombre: "Energía Andina S.A." },
+    { id: "2", nombre: "Minera Andina S.A.A." },
+    { id: "3", nombre: "Petro Sur S.A." },
+  ];
+  const ids = (busqueda: string) => filtrarPorNombre(empresas, busqueda).map((e) => e.id);
+  it("busca por una parte del nombre, sin distinguir mayúsculas ni tildes", () => {
+    expect(ids("andina")).toEqual(["1", "2"]);
+    expect(ids("ENERGIA")).toEqual(["1"]);
+    expect(ids("  sur ")).toEqual(["3"]);
+    expect(ids("xyz")).toEqual([]);
+  });
+  it("sin texto devuelve la misma lista", () => {
+    expect(filtrarPorNombre(empresas, "")).toBe(empresas);
+    expect(ids("   ")).toEqual(["1", "2", "3"]);
+  });
+});
+
 describe("bloquesPaginacion", () => {
   it("con 7 páginas o menos las muestra todas, sin campo de salto", () => {
     expect(bloquesPaginacion(1, 5)).toEqual({ inicio: [1, 2, 3, 4, 5], fin: [] });
@@ -533,5 +583,155 @@ describe("paginaValida", () => {
     expect(paginaValida("0", 13)).toBe(1);
     expect(paginaValida("", 13)).toBeNull();
     expect(paginaValida("abc", 13)).toBeNull();
+  });
+});
+
+describe("textoFragmentos", () => {
+  it("muestra un solo número cuando se procesaron todos", () => {
+    expect(textoFragmentos(217, 217)).toBe("217 fragmentos");
+    expect(textoFragmentos(1, 1)).toBe("1 fragmento");
+    expect(textoFragmentos(null, 40)).toBe("40 fragmentos");
+  });
+  it("si quedó a medias, dice cuántos de cuántos", () => {
+    expect(textoFragmentos(120, 217)).toBe("120 de 217 fragmentos");
+  });
+});
+
+describe("tiposNoCargables", () => {
+  it("marca los tipos ya cargados o en curso con su motivo y deja libres los disponibles", () => {
+    expect(
+      tiposNoCargables([
+        { tipo: "MEMORIA_ANUAL", estado: "OCUPADO", cargable: false },
+        { tipo: "REPORTE_SOSTENIBILIDAD_GRI", estado: "DISPONIBLE", cargable: true },
+      ]),
+    ).toEqual({ MEMORIA_ANUAL: "ya cargado" });
+    expect(
+      tiposNoCargables([
+        { tipo: "MEMORIA_ANUAL", estado: "EN_PROCESO", cargable: false },
+        { tipo: "REPORTE_SOSTENIBILIDAD_GRI", estado: "LIMPIEZA_PENDIENTE", cargable: false },
+      ]),
+    ).toEqual({ MEMORIA_ANUAL: "en proceso", REPORTE_SOSTENIBILIDAD_GRI: "no disponible por ahora" });
+  });
+
+  it("si el espacio está libre pero no se puede cargar, lo indica como no disponible", () => {
+    expect(tiposNoCargables([{ tipo: "MEMORIA_ANUAL", estado: "DISPONIBLE", cargable: false }])).toEqual({ MEMORIA_ANUAL: "no disponible" });
+  });
+
+  it("sin datos de disponibilidad no bloquea ningún tipo", () => {
+    expect(tiposNoCargables(null)).toEqual({});
+    expect(tiposNoCargables(undefined)).toEqual({});
+  });
+});
+
+describe("estado resumido de la lista de documentos", () => {
+  it("contrae los estados del backend a Completado, En proceso o Fallido", () => {
+    expect(badgeDeEstado("COMPLETADO")).toBe("completado");
+    for (const e of ["EN_PROCESO", "CONFIRMACION_PENDIENTE", "PUBLICACION_PENDIENTE"]) expect(badgeDeEstado(e)).toBe("en_proceso");
+    for (const e of ["FALLIDO", "FALLIDO_LIMPIEZA_PENDIENTE"]) expect(badgeDeEstado(e)).toBe("fallido");
+    expect(badgeDeEstado("ESTADO_NUEVO")).toBe("en_proceso");
+  });
+
+  it("da la etiqueta que se pinta en la tabla", () => {
+    expect(etiquetaEstadoResumida("COMPLETADO")).toBe("Completado");
+    expect(etiquetaEstadoResumida("CONFIRMACION_PENDIENTE")).toBe("En proceso");
+    expect(etiquetaEstadoResumida("FALLIDO_LIMPIEZA_PENDIENTE")).toBe("Fallido");
+  });
+
+  it("el filtro tiene tres opciones además de «Todos» y cada una reúne sus estados", () => {
+    expect(FILTROS_ESTADO.map((f) => f.etiqueta)).toEqual(["Completados", "En curso", "Fallidos"]);
+    expect(estadosDeFiltro("")).toEqual([]);
+    expect(estadosDeFiltro("completados")).toEqual(["COMPLETADO"]);
+    expect(estadosDeFiltro("en_curso")).toEqual(["EN_PROCESO", "CONFIRMACION_PENDIENTE", "PUBLICACION_PENDIENTE"]);
+    expect(estadosDeFiltro("fallidos")).toEqual(["FALLIDO", "FALLIDO_LIMPIEZA_PENDIENTE"]);
+  });
+});
+
+describe("doble check de la ingesta", () => {
+  it("detecta la operación que espera una decisión", () => {
+    expect(necesitaDecision({ confirmacion_pendiente: true })).toBe(true);
+    expect(necesitaDecision({ estado: "CONFIRMACION_PENDIENTE" })).toBe(true);
+    expect(necesitaDecision({ confirmacion_pendiente: false, estado: "COMPLETADO" })).toBe(false);
+    expect(necesitaDecision(null)).toBe(false);
+  });
+
+  it("distingue una carga cancelada o vencida de un fallo", () => {
+    expect(cierreDeCarga({ error: { code: "CONFIRMACION_RECHAZADA" } })).toBe("cancelada");
+    expect(cierreDeCarga({ error: { code: "CONFIRMACION_VENCIDA" } })).toBe("vencida");
+    expect(cierreDeCarga({ error: { code: "UNEXPECTED_ERROR" } })).toBeNull();
+    expect(cierreDeCarga({ error: null })).toBeNull();
+  });
+
+  it("resume el análisis en palabras con los contadores", () => {
+    const base = { motivos: [], advertencias: [], mensaje: "x" };
+    expect(textoResumenConfirmacion({ ...base, resultado: "CON_HALLAZGOS", referencias_gri: 3, sanciones: 1 })).toBe(
+      "Se detectaron 3 grupos GRI y 1 mención de sanciones.",
+    );
+    expect(textoResumenConfirmacion({ ...base, resultado: "OBSERVADO", referencias_gri: 0, sanciones: 0 })).toMatch(/^El documento no tiene referencias GRI/);
+    expect(textoResumenConfirmacion(null)).toMatch(/^El análisis terminó/);
+    expect(etiquetaHallazgos("OBSERVADO")).toBe("Sin hallazgos");
+    expect(etiquetaHallazgos("CON_HALLAZGOS")).toBe("Con hallazgos");
+  });
+
+  it("muestra los motivos sin códigos ni guiones bajos", () => {
+    expect(motivoLegible("sin_referencias_gri_catalogadas_ni_sanciones_economicas")).toBe("No tiene referencias GRI del catálogo ni sanciones económicas.");
+    expect(motivoLegible("monto_con_separador_ambiguo")).toBe("Monto con separador ambiguo");
+  });
+
+  it("nombra también los estados propios de la operación", () => {
+    expect(etiquetaEstadoOperacion("RECHAZADA")).toBe("Rechazada");
+    expect(etiquetaEstadoOperacion("CONFIRMACION_PENDIENTE")).toBe("Confirmación pendiente");
+  });
+});
+
+describe("conRecientesPrimero", () => {
+  const items = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }];
+  it("pone arriba lo recién creado (lo último primero) y deja el resto en su orden", () => {
+    expect(conRecientesPrimero(items, ["d", "b"]).map((x) => x.id)).toEqual(["d", "b", "a", "c"]);
+  });
+  it("sin recientes o con recientes que no están en la lista, no cambia nada", () => {
+    expect(conRecientesPrimero(items, []).map((x) => x.id)).toEqual(["a", "b", "c", "d"]);
+    expect(conRecientesPrimero(items, ["z"]).map((x) => x.id)).toEqual(["a", "b", "c", "d"]);
+  });
+});
+
+describe("deshabilitar documentos", () => {
+  const docs = [
+    { sector: "MINERIA", empresa_nombre: "Andina", deshabilitado: false },
+    { sector: "MINERIA", empresa_nombre: "Andina", deshabilitado: true },
+    { sector: "ENERGIA", empresa_nombre: "Luz" },
+  ];
+  it("filtra por habilitados o deshabilitados, y combina con los demás filtros", () => {
+    expect(filtrarDocumentos(docs, { habilitacion: "habilitados" })).toHaveLength(2);
+    expect(filtrarDocumentos(docs, { habilitacion: "deshabilitados" })).toEqual([docs[1]]);
+    expect(filtrarDocumentos(docs, { habilitacion: "habilitados", sector: "MINERIA" })).toEqual([docs[0]]);
+    expect(filtrarDocumentos(docs, {})).toHaveLength(3);
+  });
+
+  it("solo se deshabilita un documento completado que sigue habilitado", () => {
+    expect(puedeDeshabilitar({ estado: "COMPLETADO" })).toBe(true);
+    expect(puedeDeshabilitar({ estado: "COMPLETADO", deshabilitado: true })).toBe(false);
+    expect(puedeDeshabilitar({ estado: "EN_PROCESO" })).toBe(false);
+  });
+
+  it("solo confirma al escribir exactamente «deshabilitar»", () => {
+    expect(confirmacionDeshabilitarValida("deshabilitar")).toBe(true);
+    expect(confirmacionDeshabilitarValida("  deshabilitar ")).toBe(true);
+    expect(confirmacionDeshabilitarValida("Deshabilitar")).toBe(false);
+    expect(confirmacionDeshabilitarValida("deshabilita")).toBe(false);
+    expect(confirmacionDeshabilitarValida("")).toBe(false);
+  });
+});
+
+describe("porFechaReciente", () => {
+  it("ordena de la más reciente a la más antigua y mantiene el orden si la fecha es igual", () => {
+    const xs = [
+      { id: "a", creada_en: "2026-11-02T10:00:00Z" },
+      { id: "b", creada_en: "2026-11-09T08:00:00Z" },
+      { id: "c", creada_en: "2026-11-05T12:00:00Z" },
+      { id: "d", creada_en: "2026-11-09T08:00:00Z" },
+      { id: "e", creada_en: "fecha-rara" },
+    ];
+    expect(porFechaReciente(xs).map((x) => x.id)).toEqual(["b", "d", "c", "a", "e"]);
+    expect(xs.map((x) => x.id)).toEqual(["a", "b", "c", "d", "e"]);
   });
 });

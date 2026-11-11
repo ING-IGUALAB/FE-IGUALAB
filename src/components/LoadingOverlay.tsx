@@ -65,7 +65,7 @@ export default function LoadingOverlay() {
       {visible && (
         <motion.div
           data-testid="carga-global"
-          className="fixed inset-0 z-[90] flex items-center justify-center bg-inverse-surface/30 backdrop-blur-[3px]"
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/30"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -78,8 +78,8 @@ export default function LoadingOverlay() {
             exit={{ opacity: 0, scale: 0.94, y: 6 }}
             transition={{ type: "spring", stiffness: 320, damping: 24 }}
           >
-            <img src="/logo.webp" alt="Igualab" className="h-7 object-contain" />
-            <ScaleLoader color="#006038" height={30} width={4} radius={4} margin={3} />
+            <img src="/logo.webp" alt="Igualab" className="h-7 object-contain logo-adaptativo" />
+            <ScaleLoader color="rgb(var(--c-primary))" height={30} width={4} radius={4} margin={3} />
             <p className="text-label-md text-on-surface-variant">Cargando…</p>
           </motion.div>
         </motion.div>

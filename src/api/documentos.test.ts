@@ -39,6 +39,47 @@ describe("api/documentos", () => {
     expect(opts.headers["Content-Type"]).toBeUndefined();
   });
 
+  const archivoMd = () => new File(["# hola"], "memoria.md", { type: "text/markdown" });
+  const datosCarga = () => ({ archivo: archivoMd(), empresaId: "e1", anio: 2024, tipoDocumento: "MEMORIA_ANUAL" as const });
+
+  it("ingerirDocumento con 201 devuelve el resultado de la carga terminada", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok({ operacion_id: "op1", terminal: true, exitosa: true }, 201)));
+    const res = await documentosApi.ingerirDocumento("op1", datosCarga());
+    expect(res).toEqual({ status: 201, data: { operacion_id: "op1", terminal: true, exitosa: true } });
+  });
+
+  it("ingerirDocumento con 202 devuelve la operación en pausa (no es un error)", async () => {
+    const pausa = { operacion_id: "op1", estado: "CONFIRMACION_PENDIENTE", terminal: false, confirmacion_pendiente: true };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(pausa, 202)));
+    const res = await documentosApi.ingerirDocumento("op1", datosCarga());
+    expect(res.status).toBe(202);
+    expect(res.data.confirmacion_pendiente).toBe(true);
+  });
+
+  it("ingerirDocumento lanza el error del backend", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok({ error: { code: "DUPLICATE_DOCUMENT", message: "Ya existe." } }, 409)));
+    await expect(documentosApi.ingerirDocumento("op1", datosCarga())).rejects.toMatchObject({ status: 409, code: "DUPLICATE_DOCUMENT" });
+  });
+
+  it("confirmarOperacion y cancelarOperacion hacen POST a …/confirmar y …/cancelar", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(ok({ operacion_id: "op1" }));
+    vi.stubGlobal("fetch", fetchMock);
+    await documentosApi.confirmarOperacion("op1");
+    await documentosApi.cancelarOperacion("op1");
+    expect(fetchMock.mock.calls[0][0]).toMatch(/\/documentos\/operaciones\/op1\/confirmar$/);
+    expect(fetchMock.mock.calls[0][1].method).toBe("POST");
+    expect(fetchMock.mock.calls[1][0]).toMatch(/\/documentos\/operaciones\/op1\/cancelar$/);
+    expect(fetchMock.mock.calls[1][1].method).toBe("POST");
+  });
+
+  it("listarPorEstados no repite un documento que aparece en dos estados", async () => {
+    const pagina = (items: unknown[]) => ok({ items, total: items.length, pagina: 1, tamano: 100, paginas: 1 });
+    const doc = { id: "d1", creado_en: "2026-10-01T00:00:00Z" };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(pagina([doc])).mockResolvedValueOnce(pagina([doc])));
+    const docs = await documentosApi.listarPorEstados(["EN_PROCESO", "CONFIRMACION_PENDIENTE"]);
+    expect(docs.map((d) => d.id)).toEqual(["d1"]);
+  });
+
   it("listarDocumentos arma los filtros y paginación", async () => {
     const fetchMock = vi.fn().mockResolvedValue(ok({ items: [], total: 0, pagina: 1, tamano: 10, paginas: 1 }));
     vi.stubGlobal("fetch", fetchMock);
@@ -83,6 +124,43 @@ describe("api/documentos", () => {
     await documentosApi.detalleDocumento("d1");
     globalThis.removeEventListener(LOADING_START, handler);
     expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("disponibilidadIngesta consulta por empresa y año, sin el indicador central", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(ok({ tipos: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { LOADING_START } = await import("./client");
+    const handler = vi.fn();
+    globalThis.addEventListener(LOADING_START, handler);
+    await documentosApi.disponibilidadIngesta("e1", 2025);
+    globalThis.removeEventListener(LOADING_START, handler);
+    expect(fetchMock.mock.calls[0][0]).toMatch(/\/documentos\/disponibilidad\?empresa_id=e1&anio=2025$/);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("listarPorEstados pide cada estado por separado y los une del más reciente al más antiguo", async () => {
+    const pagina = (items: unknown[]) => ok({ items, total: items.length, pagina: 1, tamano: 100, paginas: 1 });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(pagina([{ id: "a", creado_en: "2026-10-01T00:00:00Z" }]))
+      .mockResolvedValueOnce(pagina([{ id: "b", creado_en: "2026-10-03T00:00:00Z" }, { id: "c", creado_en: "2026-09-01T00:00:00Z" }]));
+    vi.stubGlobal("fetch", fetchMock);
+    const docs = await documentosApi.listarPorEstados(["FALLIDO", "FALLIDO_LIMPIEZA_PENDIENTE"], { tipo: "MEMORIA_ANUAL" });
+    expect(docs.map((d) => d.id)).toEqual(["b", "a", "c"]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toContain("estado=FALLIDO&");
+    expect(fetchMock.mock.calls[1][0]).toContain("estado=FALLIDO_LIMPIEZA_PENDIENTE");
+    expect(fetchMock.mock.calls[1][0]).toContain("tipo=MEMORIA_ANUAL");
+  });
+
+  it("listarPorEstados con un estado o ninguno hace una sola consulta", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(ok({ items: [], total: 0, pagina: 1, tamano: 100, paginas: 1 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await documentosApi.listarPorEstados([]);
+    expect(fetchMock.mock.calls[0][0]).not.toContain("estado=");
+    await documentosApi.listarPorEstados(["COMPLETADO"]);
+    expect(fetchMock.mock.calls[1][0]).toContain("estado=COMPLETADO");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("listarTodosDocumentos recorre todas las páginas de 100 en 100", async () => {

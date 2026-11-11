@@ -155,8 +155,8 @@ export default function Usuarios() {
 type ErroresCampo = { nombre?: string; correo?: string; password?: string; confirmacion?: string };
 
 const claseInput = (invalido: boolean) =>
-  `rounded-xl border py-sm px-md text-body-md focus:ring-1 focus:ring-primary outline-none ${
-    invalido ? "border-error focus:border-error" : "border-outline-variant focus:border-primary"
+  `rounded-xl border py-sm px-md text-body-md focus:ring-1 focus:ring-primary-ink outline-none ${
+    invalido ? "border-error focus:border-error" : "border-outline-variant focus:border-primary-ink"
   }`;
 
 function CrearUsuarioModal({ open, onClose, onCreado }: Readonly<{ open: boolean; onClose: () => void; onCreado: () => void }>) {
@@ -209,7 +209,7 @@ function CrearUsuarioModal({ open, onClose, onCreado }: Readonly<{ open: boolean
     <Modal open={open} onClose={cerrar}>
       <div className="p-xl">
         <h3 className="text-title-lg text-on-background mb-lg flex items-center gap-sm">
-          <span className="material-symbols-outlined text-primary">person_add</span> Crear usuario
+          <span className="material-symbols-outlined text-primary-ink">person_add</span> Crear usuario
         </h3>
         <div className="space-y-md">
           <label className="flex flex-col gap-xs">
@@ -264,7 +264,7 @@ function CrearUsuarioModal({ open, onClose, onCreado }: Readonly<{ open: boolean
             {errs.confirmacion && <span id="cu-err-confirmacion" className="text-label-sm text-error">{errs.confirmacion}</span>}
             <ul className="grid grid-cols-2 gap-xs text-label-sm mt-xs">
               {reglas.map((r) => (
-                <li key={r.msg} className={`flex items-center gap-xs ${r.ok ? "text-primary" : "text-on-surface-variant"}`}>
+                <li key={r.msg} className={`flex items-center gap-xs ${r.ok ? "text-primary-ink" : "text-on-surface-variant"}`}>
                   <span className="material-symbols-outlined text-[16px]">{r.ok ? "check_circle" : "radio_button_unchecked"}</span>
                   {r.msg}
                 </li>
@@ -311,7 +311,7 @@ function ToggleModal({ usuario, onClose, onHecho }: Readonly<{ usuario: Usuario 
   return (
     <Modal open={!!usuario} onClose={onClose}>
       <div className="p-xl text-center">
-        <span className={`material-symbols-outlined text-[48px] ${habilitar ? "text-primary" : "text-tertiary"}`}>{habilitar ? "how_to_reg" : "person_off"}</span>
+        <span className={`material-symbols-outlined text-[48px] ${habilitar ? "text-primary-ink" : "text-tertiary"}`}>{habilitar ? "how_to_reg" : "person_off"}</span>
         <h3 className="text-title-lg text-on-background mt-md">{habilitar ? "Habilitar" : "Deshabilitar"} a {usuario.nombre}?</h3>
         <p className="text-body-md text-on-surface-variant mt-sm">
           {habilitar ? "La cuenta recuperará el acceso a la plataforma." : "Perderá acceso inmediato y se cerrarán sus sesiones activas."}
