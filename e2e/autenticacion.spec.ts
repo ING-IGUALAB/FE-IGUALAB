@@ -157,6 +157,26 @@ test.describe("Menú lateral", () => {
     }
   });
 
+  test("el logo lleva a la opción 01 del menú de cada rol", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await entrarComo(page, api, "superadmin", "/auditoria");
+    await page.locator("#menu-lateral").getByRole("link", { name: "Igualab: ir al inicio" }).click();
+    await expect(page).toHaveURL(/\/usuarios$/);
+
+    // Con el menú colapsado, el logo de la cabecera hace lo mismo.
+    await page.getByRole("link", { name: "Auditoría" }).click();
+    await page.getByRole("button", { name: boton }).click();
+    await page.locator("header").getByRole("link", { name: "Igualab: ir al inicio" }).click();
+    await expect(page).toHaveURL(/\/usuarios$/);
+  });
+
+  test("para el Administrador, el logo lleva al Asistente de IA", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await entrarComo(page, api, "administrador", "/reportes");
+    await page.locator("#menu-lateral").getByRole("link", { name: "Igualab: ir al inicio" }).click();
+    await expect(page).toHaveURL(/\/ia$/);
+  });
+
   test("en móvil se abre sobre el contenido y se cierra al navegar o con Escape", async ({ page, api }) => {
     await page.setViewportSize({ width: 375, height: 700 });
     await entrarComo(page, api, "superadmin", "/usuarios");

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { NavLink, useLocation, useNavigate, useOutlet } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate, useOutlet } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "../auth/AuthContext";
 import { useToast } from "./ToastProvider";
@@ -52,6 +52,8 @@ export default function Layout() {
   const [menuMovil, setMenuMovil] = useState(false); // móvil: menú sobre el contenido
 
   const items = rol ? MENUS[rol] : [];
+  // El logo lleva a la primera opción del menú del rol (la «01»).
+  const inicio = items[0]?.to ?? "/";
 
   function alternarMenu() {
     if (esEscritorio()) {
@@ -131,7 +133,9 @@ export default function Layout() {
       >
         <div className={`px-lg pt-xl pb-lg flex items-center gap-md ${menuColapsado ? "md:hidden" : ""}`}>
           {/* El logo es negro sobre transparente: sobre el riel oscuro se invierte a blanco. */}
-          <img src="/logo.webp" alt="Igualab" className="h-9 object-contain logo-claro" />
+          <Link to={inicio} aria-label="Igualab: ir al inicio" title="Ir al inicio">
+            <img src="/logo.webp" alt="Igualab" className="h-9 object-contain logo-claro" />
+          </Link>
         </div>
         <nav className={`flex-1 overflow-y-auto pb-lg px-md ${menuColapsado ? "md:overflow-visible md:px-0 md:pt-lg" : ""}`}>
           {rol && (
@@ -187,7 +191,9 @@ export default function Layout() {
               <span className="material-symbols-outlined" aria-hidden="true">menu</span>
             </button>
             {/* Con la barra colapsada (o en móvil) el logo de la barra no se ve: se muestra aquí. */}
-            <img src="/logo.webp" alt="Igualab" className={`h-7 object-contain logo-adaptativo ${menuColapsado ? "" : "md:hidden"}`} />
+            <Link to={inicio} aria-label="Igualab: ir al inicio" title="Ir al inicio" className={menuColapsado ? "" : "md:hidden"}>
+              <img src="/logo.webp" alt="Igualab" className="h-7 object-contain logo-adaptativo" />
+            </Link>
           </div>
           <div className="flex items-center gap-sm md:gap-md">
             <span className="hidden lg:inline text-label-md text-on-surface-variant">Sesión activa · {reloj}</span>
