@@ -407,6 +407,15 @@ export function confirmacionDeshabilitarValida(palabra: string): boolean {
   return palabra.trim() === PALABRA_DESHABILITAR;
 }
 
+/** De la más reciente a la más antigua por fecha de registro; con la misma fecha se respeta el orden recibido. */
+export function porFechaReciente<T extends { creada_en: string }>(items: T[]): T[] {
+  const tiempo = (iso: string) => {
+    const t = Date.parse(iso);
+    return Number.isNaN(t) ? 0 : t;
+  };
+  return [...items].sort((a, b) => tiempo(b.creada_en) - tiempo(a.creada_en));
+}
+
 /**
  * Pone primero los elementos recién creados (en el orden dado: el más reciente primero) y deja el
  * resto en su orden original. Así lo que se acaba de registrar se ve arriba sin buscarlo.

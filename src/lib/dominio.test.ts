@@ -31,6 +31,7 @@ import {
   confirmacionDeshabilitarValida,
   filtrarPorNombre,
   conRecientesPrimero,
+  porFechaReciente,
   textoFragmentos,
   accionesReporte,
   etapaReporte,
@@ -718,5 +719,19 @@ describe("deshabilitar documentos", () => {
     expect(confirmacionDeshabilitarValida("Deshabilitar")).toBe(false);
     expect(confirmacionDeshabilitarValida("deshabilita")).toBe(false);
     expect(confirmacionDeshabilitarValida("")).toBe(false);
+  });
+});
+
+describe("porFechaReciente", () => {
+  it("ordena de la más reciente a la más antigua y mantiene el orden si la fecha es igual", () => {
+    const xs = [
+      { id: "a", creada_en: "2026-11-02T10:00:00Z" },
+      { id: "b", creada_en: "2026-11-09T08:00:00Z" },
+      { id: "c", creada_en: "2026-11-05T12:00:00Z" },
+      { id: "d", creada_en: "2026-11-09T08:00:00Z" },
+      { id: "e", creada_en: "fecha-rara" },
+    ];
+    expect(porFechaReciente(xs).map((x) => x.id)).toEqual(["b", "d", "c", "a", "e"]);
+    expect(xs.map((x) => x.id)).toEqual(["a", "b", "c", "d", "e"]);
   });
 });

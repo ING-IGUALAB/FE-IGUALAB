@@ -5,7 +5,7 @@ import Spinner from "../components/Spinner";
 import { useToast } from "../components/ToastProvider";
 import * as empresasApi from "../api/empresas";
 import { mensajeError, tipoAviso } from "../api/client";
-import { SECTORES_API, conRecientesPrimero, etiquetaSector, filtrarPorNombre } from "../lib/dominio";
+import { SECTORES_API, conRecientesPrimero, etiquetaSector, filtrarPorNombre, porFechaReciente } from "../lib/dominio";
 import type { EmpresaApi, SectorApi } from "../types";
 
 const SKELETON = ["s1", "s2", "s3", "s4"];
@@ -42,7 +42,8 @@ export default function Empresas() {
   }, [cargar]);
 
   // La búsqueda se hace sobre la lista ya cargada: escribir no dispara una petición por tecla.
-  const visibles = conRecientesPrimero(filtrarPorNombre(empresas, busqueda), recientes);
+  // Apiladas por fecha de registro: la más reciente arriba (no por orden alfabético).
+  const visibles = conRecientesPrimero(porFechaReciente(filtrarPorNombre(empresas, busqueda)), recientes);
   const buscando = busqueda.trim() !== "";
 
   // La empresa recién registrada queda primera y a la vista: se quita la búsqueda y, si el filtro

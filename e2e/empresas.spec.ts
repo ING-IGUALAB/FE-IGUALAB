@@ -59,6 +59,20 @@ test.describe("Caso de uso: Gestionar catálogo de empresas", () => {
     expect(api.llamadasA("POST", "/empresas")[0].cuerpo).toEqual({ nombre: "Cobre del Sur S.A.", sector: "MINERIA" });
   });
 
+  test("las empresas se apilan por fecha de registro, la más reciente arriba", async ({ page, api }) => {
+    const fechas: Record<string, string> = {
+      "e-andina": "2026-11-02T10:00:00Z",
+      "e-utec": "2026-11-09T08:00:00Z",
+      "e-psur": "2026-11-05T12:00:00Z",
+    };
+    for (const e of api.empresas) e.creada_en = fechas[e.id] ?? "2026-10-01T00:00:00Z";
+    await page.reload();
+    const nombres = page.locator("tbody tr td:first-child");
+    await expect(nombres.nth(0)).toHaveText("Utec ELEC S.A.");
+    await expect(nombres.nth(1)).toHaveText("Petro Sur S.A.");
+    await expect(nombres.nth(2)).toHaveText("Minera Andina S.A.A.");
+  });
+
   test("la empresa recién registrada aparece primera, sin buscarla, aunque hubiera un filtro", async ({ page }) => {
     const filas = page.locator("tbody tr");
     await page.getByRole("searchbox", { name: "Buscar empresa" }).fill("petro");
