@@ -15,21 +15,22 @@ export default function MigasDePan({ migas }: Readonly<{ migas: Miga[] }>) {
           return (
             <Fragment key={`${m.etiqueta}-${i}`}>
               {i > 0 && (
-                <li aria-hidden="true" className="material-symbols-outlined text-[18px] text-outline select-none">
+                <li aria-hidden="true" className="material-symbols-outlined text-[18px] leading-none text-outline select-none">
                   chevron_right
                 </li>
               )}
-              <li className={`min-w-0 ${ultima ? "truncate" : "shrink-0"}`}>
+              {/* Cada paso centra su ícono y su texto en la misma línea, para que todos queden alineados. */}
+              <li className={`flex items-center min-w-0 leading-5 ${ultima ? "" : "shrink-0"}`}>
                 {ultima && (
-                  <span aria-current="page" className="inline-flex items-center gap-xs font-semibold text-on-surface">
-                    {m.icono && <span className="material-symbols-outlined text-[18px] text-primary-ink" aria-hidden="true">{m.icono}</span>}
-                    {m.etiqueta}
+                  <span aria-current="page" className="flex items-center gap-xs min-w-0 font-semibold text-on-surface">
+                    {m.icono && <span className="material-symbols-outlined text-[18px] leading-none text-primary-ink" aria-hidden="true">{m.icono}</span>}
+                    <span className="truncate">{m.etiqueta}</span>
                   </span>
                 )}
                 {!ultima && m.to && (
-                  <Link to={m.to} className="inline-flex items-center gap-xs hover:text-primary-ink hover:underline">
-                    {i === 0 && <span className="material-symbols-outlined text-[18px]" aria-hidden="true">home</span>}
-                    {m.etiqueta}
+                  <Link to={m.to} className="flex items-center gap-xs hover:text-primary-ink [&:hover>span:last-child]:underline">
+                    {i === 0 && <span className="material-symbols-outlined text-[18px] leading-none" aria-hidden="true">home</span>}
+                    <span>{m.etiqueta}</span>
                   </Link>
                 )}
                 {!ultima && !m.to && <span>{m.etiqueta}</span>}
