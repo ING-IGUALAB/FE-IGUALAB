@@ -86,24 +86,9 @@ export default function PortadaLogin() {
                     {String(i + 1).padStart(2, "0")}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-sm">
-                      <span className={`text-body-lg font-semibold transition-colors ${esActivo ? "text-on-rail" : "text-on-rail-variant"}`}>
-                        {paso.titulo}
-                      </span>
-                      <AnimatePresence>
-                        {esActivo && i === PASOS.length - 1 && (
-                          <motion.span
-                            className="px-sm py-[2px] bg-primary text-on-primary text-label-sm uppercase tracking-[0.06em]"
-                            initial={{ opacity: 0, scale: 0.9, filter: "blur(4px)" }}
-                            animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            transition={{ duration: 0.25, ease: EASE_SALIDA }}
-                          >
-                            v2 · Última emisión
-                          </motion.span>
-                        )}
-                      </AnimatePresence>
-                    </div>
+                    <span className={`block text-body-lg font-semibold transition-colors ${esActivo ? "text-on-rail" : "text-on-rail-variant"}`}>
+                      {paso.titulo}
+                    </span>
                     <AnimatePresence initial={false}>
                       {esActivo && (
                         <motion.p
