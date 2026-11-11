@@ -190,10 +190,7 @@ export default function Layout() {
             >
               <span className="material-symbols-outlined" aria-hidden="true">menu</span>
             </button>
-            {/* Con la barra colapsada (o en móvil) el logo de la barra no se ve: se muestra aquí. */}
-            <Link to={inicio} aria-label="Igualab: ir al inicio" title="Ir al inicio" className={`shrink-0 ${menuColapsado ? "" : "md:hidden"}`}>
-              <img src="/logo.webp" alt="Igualab" className="h-7 object-contain logo-adaptativo" />
-            </Link>
+            {/* Sin logo en la cabecera: para volver al inicio están las migas de pan. */}
             <MigasDePan migas={migasDePan(rol, location.pathname)} />
           </div>
           <div className="flex items-center gap-sm md:gap-md">

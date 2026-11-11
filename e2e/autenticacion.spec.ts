@@ -163,10 +163,11 @@ test.describe("Menú lateral", () => {
     await page.locator("#menu-lateral").getByRole("link", { name: "Igualab: ir al inicio" }).click();
     await expect(page).toHaveURL(/\/usuarios$/);
 
-    // Con el menú colapsado, el logo de la cabecera hace lo mismo.
+    // Con el menú colapsado no hay logo en la cabecera: se vuelve con «Inicio» de las migas.
     await page.getByRole("link", { name: "Auditoría" }).click();
     await page.getByRole("button", { name: boton }).click();
-    await page.locator("header").getByRole("link", { name: "Igualab: ir al inicio" }).click();
+    await expect(page.locator("header img")).toHaveCount(0);
+    await page.getByRole("navigation", { name: "Migas de pan" }).getByRole("link", { name: "Inicio" }).click();
     await expect(page).toHaveURL(/\/usuarios$/);
   });
 
