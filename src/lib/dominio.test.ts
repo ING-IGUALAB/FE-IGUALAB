@@ -66,6 +66,12 @@ import {
 } from "./dominio";
 import type { AnioDisponible, EstadoAnioReporte } from "../types";
 
+
+// Datos de prueba compartidos.
+const monto = (texto: string, unidad: string) => ({ texto, unidad, separador_ambiguo: false });
+const conDocs = (n: number): PromiseSettledResult<{ documentos: unknown[] }> => ({ status: "fulfilled", value: { documentos: Array(n).fill({}) } });
+const anio = (extra: Partial<AnioDisponible>): AnioDisponible => ({ anio: 2024, estado: "VALIDACION_VIGENTE", puede_generar: true, ...extra });
+
 describe("etiquetas de dominio", () => {
   it("traduce sectores del backend", () => {
     expect(etiquetaSector("MINERIA")).toBe("Minería");
@@ -223,7 +229,6 @@ describe("paginarLocal", () => {
 });
 
 describe("textoMonto", () => {
-  const monto = (texto: string, unidad: string) => ({ texto, unidad, separador_ambiguo: false });
   it("deja el texto si ya trae la moneda", () => {
     expect(textoMonto(monto("S/ 32,000", "S/"))).toBe("S/ 32,000");
     expect(textoMonto(monto("59.078 UIT", "UIT"))).toBe("59.078 UIT");
@@ -328,7 +333,6 @@ describe("nombrePersona", () => {
 });
 
 describe("aniosConDocumentos", () => {
-  const conDocs = (n: number): PromiseSettledResult<{ documentos: unknown[] }> => ({ status: "fulfilled", value: { documentos: Array(n).fill({}) } });
   it("deja solo los años con documentos, en el mismo orden", () => {
     expect(aniosConDocumentos([2025, 2024, 2023], [conDocs(0), conDocs(2), conDocs(1)])).toEqual([2024, 2023]);
   });
@@ -342,7 +346,6 @@ describe("aniosConDocumentos", () => {
 });
 
 describe("reportes versionados", () => {
-  const anio = (extra: Partial<AnioDisponible>): AnioDisponible => ({ anio: 2024, estado: "VALIDACION_VIGENTE", puede_generar: true, ...extra });
 
   it("ubica cada año en la tira de etapas según el estado del servidor", () => {
     expect(etapaReporte(anio({ estado: "PENDIENTE_REVISION" }))).toEqual({ cumplidas: 0, actual: 0, nuevaVersion: false });

@@ -483,7 +483,7 @@ test.describe("Barra de progreso de los 9 pasos de la ingesta", () => {
     }
     await expect(paso(page, 3)).toContainText("completado");
     await expect(paso(page, 5)).toHaveAttribute("aria-current", "step");
-    await expect(barra).toHaveAttribute("aria-valuenow", "50");
+    await expect(barra).toHaveAttribute("value", "50");
 
     // El servidor responde 202: se detiene en el paso 6 a esperar la decisión.
     soltarCarga();
@@ -502,7 +502,7 @@ test.describe("Barra de progreso de los 9 pasos de la ingesta", () => {
     await expect(estadoBarra(page)).toHaveText("Paso 8 de 9: Publicar");
     soltarConfirmacion();
     await expect(estadoBarra(page)).toHaveText("Completada: 9 de 9 pasos");
-    await expect(barra).toHaveAttribute("aria-valuenow", "100");
+    await expect(barra).toHaveAttribute("value", "100");
     await expect(dialogo.getByText("Ingesta completada")).toBeVisible();
   });
 

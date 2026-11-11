@@ -46,6 +46,32 @@ type DocumentoConTransicion = Document & {
   startViewTransition?: (cambio: () => void) => { ready: Promise<void> };
 };
 
+/** Cambia de tema; si se indica el botón de origen, el nuevo tema se revela en un círculo desde él. */
+function alternarTema(origen?: HTMLElement | null) {
+  const siguiente: Tema = actual === "oscuro" ? "claro" : "oscuro";
+  const doc = document as DocumentoConTransicion;
+  const reducir = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  if (!doc.startViewTransition || reducir || !origen) {
+    fijarTema(siguiente);
+    return;
+  }
+  const caja = origen.getBoundingClientRect();
+  const x = caja.left + caja.width / 2;
+  const y = caja.top + caja.height / 2;
+  const radio = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+  const transicion = doc.startViewTransition(() => fijarTema(siguiente));
+  transicion.ready
+    .then(() => {
+      document.documentElement.animate(
+        { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radio}px at ${x}px ${y}px)`] },
+        { duration: 480, easing: "cubic-bezier(0.23, 1, 0.32, 1)", pseudoElement: "::view-transition-new(root)" },
+      );
+    })
+    .catch(() => {
+      // Si el navegador cancela la transición, el tema ya quedó aplicado.
+    });
+}
+
 /**
  * Tema claro/oscuro compartido por toda la app. Al alternar desde un botón, el tema nuevo se
  * revela en un círculo que crece desde ese botón; con «reducir movimiento» cambia al instante.
@@ -59,30 +85,5 @@ export function useTema() {
     () => actual,
   );
 
-  function alternar(origen?: HTMLElement | null) {
-    const siguiente: Tema = actual === "oscuro" ? "claro" : "oscuro";
-    const doc = document as DocumentoConTransicion;
-    const reducir = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    if (!doc.startViewTransition || reducir || !origen) {
-      fijarTema(siguiente);
-      return;
-    }
-    const caja = origen.getBoundingClientRect();
-    const x = caja.left + caja.width / 2;
-    const y = caja.top + caja.height / 2;
-    const radio = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
-    const transicion = doc.startViewTransition(() => fijarTema(siguiente));
-    transicion.ready
-      .then(() => {
-        document.documentElement.animate(
-          { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radio}px at ${x}px ${y}px)`] },
-          { duration: 480, easing: "cubic-bezier(0.23, 1, 0.32, 1)", pseudoElement: "::view-transition-new(root)" },
-        );
-      })
-      .catch(() => {
-        // Si el navegador cancela la transición, el tema ya quedó aplicado.
-      });
-  }
-
-  return { tema, alternar };
+  return { tema, alternar: alternarTema };
 }

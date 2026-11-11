@@ -436,9 +436,9 @@ function NuevaCargaModal({
             </Campo>
           </div>
           {empresaId && sinTiposLibres && (
-            <p role="status" className="text-label-sm text-on-surface-variant">
+            <output className="block text-label-sm text-on-surface-variant">
               Esta empresa ya tiene la Memoria Anual y el Reporte de Sostenibilidad GRI de {anio}. Elige otro año.
-            </p>
+            </output>
           )}
           {empresasSector.length === 0 && (
             <p className="text-label-sm text-on-surface-variant">No hay empresas activas en este sector. Regístralas en el Catálogo de empresas.</p>
@@ -730,7 +730,7 @@ function PanelDobleCheck({
         <span className="material-symbols-outlined text-tertiary" aria-hidden="true">pending_actions</span>
         <div className="min-w-0">
           <h4 id={tituloId} className="text-title-md text-on-background">Revisa el análisis antes de continuar</h4>
-          <p role="status" aria-live="polite" className="text-body-md text-on-surface-variant mt-xs">{textoResumenConfirmacion(r)}</p>
+          <output className="block text-body-md text-on-surface-variant mt-xs">{textoResumenConfirmacion(r)}</output>
         </div>
       </div>
 
@@ -1209,7 +1209,7 @@ function PanelResultado({ resultado, onReintentar }: Readonly<{ resultado: Resul
   const exito = resultado.exitosa;
   const estilo = PANEL_RESULTADO[tipoPanelResultado(resultado)];
   return (
-    <div role="status" aria-live="polite" className={`rounded-xl border p-lg ${estilo.caja}`}>
+    <div aria-live="polite" className={`rounded-xl border p-lg ${estilo.caja}`}>
       <div className="flex items-center gap-sm mb-sm">
         <span className={`material-symbols-outlined ${estilo.icono}`} aria-hidden="true">{estilo.simbolo}</span>
         <h4 className="text-title-md text-on-background">{estilo.titulo}</h4>
@@ -1243,7 +1243,7 @@ function PanelResultado({ resultado, onReintentar }: Readonly<{ resultado: Resul
 function PanelCargaCerrada({ cierre }: Readonly<{ cierre: "cancelada" | "vencida" }>) {
   const cancelada = cierre === "cancelada";
   return (
-    <div role="status" aria-live="polite" className="rounded-xl border border-outline-variant bg-surface-container-low p-lg">
+    <div aria-live="polite" className="rounded-xl border border-outline-variant bg-surface-container-low p-lg">
       <div className="flex items-center gap-sm mb-sm">
         <span className="material-symbols-outlined text-on-surface-variant" aria-hidden="true">{cancelada ? "block" : "timer_off"}</span>
         <h4 className="text-title-md text-on-background">{cancelada ? "Carga cancelada" : "Carga vencida"}</h4>

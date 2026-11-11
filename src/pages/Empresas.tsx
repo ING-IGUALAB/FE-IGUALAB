@@ -169,9 +169,9 @@ export default function Empresas() {
         )}
       </div>
       {/* Anuncia a los lectores de pantalla cuántas empresas quedan al buscar. */}
-      <p role="status" className="sr-only">
+      <output className="sr-only">
         {buscando && !cargando ? `${visibles.length} de ${empresas.length} empresas` : ""}
-      </p>
+      </output>
 
       <EmpresaModal
         modo="crear"

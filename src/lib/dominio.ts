@@ -409,11 +409,13 @@ export function confirmacionDeshabilitarValida(palabra: string): boolean {
 
 /** De la más reciente a la más antigua por fecha de registro; con la misma fecha se respeta el orden recibido. */
 export function porFechaReciente<T extends { creada_en: string }>(items: T[]): T[] {
-  const tiempo = (iso: string) => {
-    const t = Date.parse(iso);
-    return Number.isNaN(t) ? 0 : t;
-  };
-  return [...items].sort((a, b) => tiempo(b.creada_en) - tiempo(a.creada_en));
+  return [...items].sort((a, b) => milisegundos(b.creada_en) - milisegundos(a.creada_en));
+}
+
+/** Fecha ISO en milisegundos; una fecha inválida cuenta como la más antigua. */
+function milisegundos(iso: string): number {
+  const t = Date.parse(iso);
+  return Number.isNaN(t) ? 0 : t;
 }
 
 /**

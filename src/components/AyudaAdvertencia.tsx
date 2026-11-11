@@ -20,7 +20,7 @@ export default function AyudaAdvertencia({
 }: Readonly<{ entradas: EntradaAdvertencia[]; etiqueta: string; extra?: ReactNode }>) {
   const id = useId();
   const boton = useRef<HTMLButtonElement>(null);
-  const panel = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDialogElement>(null);
   const cierre = useRef<ReturnType<typeof setTimeout>>();
   const [fijada, setFijada] = useState(false);
   const [conMouse, setConMouse] = useState(false);
@@ -104,10 +104,11 @@ export default function AyudaAdvertencia({
       </button>
       {abierta &&
         createPortal(
-          <motion.div
+          // <dialog open> no modal: se anula su margen y su borde derecho por defecto para ubicarlo junto al ícono.
+          <motion.dialog
             ref={panel}
             id={id}
-            role="dialog"
+            open
             aria-label={etiqueta}
             onPointerEnter={entrar}
             onPointerLeave={salir}
@@ -115,7 +116,7 @@ export default function AyudaAdvertencia({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.12, ease: [0.23, 1, 0.32, 1] }}
             style={posicion ?? { top: 0, left: 0, visibility: "hidden" }}
-            className="fixed z-50 w-[340px] max-w-[calc(100vw-32px)] rounded-lg border border-outline-variant bg-surface-container-lowest shadow-lg p-md text-left"
+            className="fixed z-50 m-0 right-auto w-[340px] max-w-[calc(100vw-32px)] rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface shadow-lg p-md text-left"
           >
             <div className="divide-y divide-outline-variant">
               {entradas.map((e) => (
@@ -128,7 +129,7 @@ export default function AyudaAdvertencia({
               ))}
             </div>
             {extra && <div className="mt-sm pt-sm border-t border-outline-variant text-label-sm text-on-surface-variant">{extra}</div>}
-          </motion.div>,
+          </motion.dialog>,
           document.body,
         )}
     </>
