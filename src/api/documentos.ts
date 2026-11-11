@@ -85,6 +85,19 @@ export function disponibilidadIngesta(empresaId: string, anio: number) {
   return api<DisponibilidadIngesta>(`/documentos/disponibilidad?${qs.toString()}`);
 }
 
+/**
+ * Documentos de varios estados a la vez. El backend filtra un estado por petición, así que se pide
+ * cada uno y se unen, del más reciente al más antiguo. Sin estados, trae todos.
+ */
+export async function listarPorEstados(
+  estados: EstadoProgreso[],
+  filtros: Omit<FiltrosDocumentos, "estado" | "pagina" | "tamano"> = {},
+) {
+  if (estados.length <= 1) return listarTodosDocumentos({ ...filtros, estado: estados[0] });
+  const listas = await Promise.all(estados.map((estado) => listarTodosDocumentos({ ...filtros, estado })));
+  return listas.flat().sort((a, b) => b.creado_en.localeCompare(a.creado_en));
+}
+
 export function detalleDocumento(id: string) {
   return api<DocumentoDetalle>(`/documentos/${id}`);
 }

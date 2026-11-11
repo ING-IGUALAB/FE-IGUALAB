@@ -17,6 +17,10 @@ import {
   TIPOS_API,
   etiquetaAnalisis,
   etiquetaEstado,
+  etiquetaEstadoResumida,
+  estadosDeFiltro,
+  FILTROS_ESTADO,
+  type FiltroEstado,
   etiquetaSector,
   etiquetaTipo,
   filtrarDocumentos,
@@ -38,7 +42,6 @@ import type {
   TipoDocumentoApi,
 } from "../types";
 
-const ESTADOS: EstadoProgreso[] = ["COMPLETADO", "EN_PROCESO", "PUBLICACION_PENDIENTE", "FALLIDO", "FALLIDO_LIMPIEZA_PENDIENTE"];
 const ANIOS = aniosDisponibles();
 const TAM_PAGINA = 10;
 
@@ -53,7 +56,7 @@ export default function Ingesta() {
   const [todosDocs, setTodosDocs] = useState<DocumentoResumen[] | null>(null);
   const [cargandoDocs, setCargandoDocs] = useState(true);
   const [busqueda, setBusqueda] = useState("");
-  const [fEstado, setFEstado] = useState<"" | EstadoProgreso>("");
+  const [fEstado, setFEstado] = useState<FiltroEstado>("");
   const [fTipo, setFTipo] = useState<"" | TipoDocumentoApi>("");
   const [fSector, setFSector] = useState<"" | SectorApi>("");
   const [pagina, setPagina] = useState(1);
@@ -77,19 +80,21 @@ export default function Ingesta() {
       .catch((err) => toast(mensajeError(err, "No se pudieron cargar las empresas."), tipoAviso(err)));
   }, [toast]);
 
-  // El backend no busca por nombre de empresa ni filtra por sector: en esos casos se traen todos los
-  // documentos una vez y se filtra aquí, así escribir en la búsqueda no hace una petición por tecla.
-  const filtroLocal = !!fSector || !!busqueda.trim();
+  // El backend no busca por nombre de empresa, no filtra por sector y filtra un solo estado por
+  // petición: en esos casos se traen todos los documentos una vez y se filtra y pagina aquí, así
+  // escribir en la búsqueda no hace una petición por tecla.
+  const filtroLocal = !!fSector || !!busqueda.trim() || estadosDeFiltro(fEstado).length > 1;
   const paginaAPedir = filtroLocal ? 1 : pagina;
 
   const cargarDocs = useCallback(async () => {
     setCargandoDocs(true);
     try {
-      const filtros = { estado: fEstado || undefined, tipo: fTipo || undefined };
+      const estados = estadosDeFiltro(fEstado);
+      const filtros = { tipo: fTipo || undefined };
       if (filtroLocal) {
-        setTodosDocs(await documentosApi.listarTodosDocumentos(filtros));
+        setTodosDocs(await documentosApi.listarPorEstados(estados, filtros));
       } else {
-        const data = await documentosApi.listarDocumentos({ ...filtros, pagina: paginaAPedir, tamano: TAM_PAGINA });
+        const data = await documentosApi.listarDocumentos({ ...filtros, estado: estados[0], pagina: paginaAPedir, tamano: TAM_PAGINA });
         setPaginaServidor({ items: data.items, pagina: data.pagina, paginas: Math.max(1, data.paginas) });
         setTodosDocs(null);
       }
@@ -165,7 +170,7 @@ export default function Ingesta() {
                     </td>
                     <td className="py-md px-md text-on-surface-variant">{d.anio}</td>
                     <td className="py-md px-md">{etiquetaTipo(d.tipo)}</td>
-                    <td className="py-md px-md"><Badge estado={inactiva ? "Inactivo" : etiquetaEstado(d.estado)} /></td>
+                    <td className="py-md px-md"><Badge estado={inactiva ? "Inactivo" : etiquetaEstadoResumida(d.estado)} /></td>
                     <td className="py-md px-md text-on-surface-variant">{etiquetaAnalisis(d.resultado_analisis)}</td>
                     <td className="py-md px-md text-on-surface-variant whitespace-nowrap">{fechaHora(d.creado_en)}</td>
                     <td className="py-md px-md text-right">
@@ -426,8 +431,8 @@ function BarraDocumentos({
   onSector: (v: "" | SectorApi) => void;
   tipo: "" | TipoDocumentoApi;
   onTipo: (v: "" | TipoDocumentoApi) => void;
-  estado: "" | EstadoProgreso;
-  onEstado: (v: "" | EstadoProgreso) => void;
+  estado: FiltroEstado;
+  onEstado: (v: FiltroEstado) => void;
 }>) {
   const [abierto, setAbierto] = useState(false);
   const idPanel = useId();
@@ -500,9 +505,9 @@ function BarraDocumentos({
               </select>
             </Campo>
             <Campo label="Estado">
-              <select aria-label="Filtrar por estado" value={estado} onChange={(e) => onEstado(e.target.value as "" | EstadoProgreso)} className={CLS_FILTRO}>
+              <select aria-label="Filtrar por estado" value={estado} onChange={(e) => onEstado(e.target.value as FiltroEstado)} className={CLS_FILTRO}>
                 <option value="">Todos</option>
-                {ESTADOS.map((s) => <option key={s} value={s}>{etiquetaEstado(s)}</option>)}
+                {FILTROS_ESTADO.map((f) => <option key={f.valor} value={f.valor}>{f.etiqueta}</option>)}
               </select>
             </Campo>
           </div>

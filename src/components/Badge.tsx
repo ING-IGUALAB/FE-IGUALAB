@@ -10,6 +10,7 @@ const MAPA: Record<string, string> = {
   Rechazado: "bg-error-container text-on-error-container",
   // Estados de progreso del backend (EstadoProgreso)
   Completado: "bg-success-container text-on-success-container",
+  "Confirmación pendiente": "bg-tertiary-fixed text-on-tertiary-fixed",
   "Publicación pendiente": "bg-tertiary-fixed text-on-tertiary-fixed",
   Fallido: "bg-error-container text-on-error-container",
   "Fallido (limpieza pendiente)": "bg-error-container text-on-error-container",

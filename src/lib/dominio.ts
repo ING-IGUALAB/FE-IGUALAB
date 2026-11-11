@@ -62,6 +62,7 @@ export function tiposNoCargables(tipos: DisponibilidadTipo[] | null | undefined)
 // ---- Estado de progreso del documento (RF-024) ----
 export const ESTADO_PROGRESO_LABEL: Record<EstadoProgreso, string> = {
   EN_PROCESO: "En proceso",
+  CONFIRMACION_PENDIENTE: "Confirmación pendiente",
   PUBLICACION_PENDIENTE: "Publicación pendiente",
   COMPLETADO: "Completado",
   FALLIDO: "Fallido",
@@ -70,6 +71,46 @@ export const ESTADO_PROGRESO_LABEL: Record<EstadoProgreso, string> = {
 
 export function etiquetaEstado(e: EstadoProgreso): string {
   return ESTADO_PROGRESO_LABEL[e] ?? e;
+}
+
+// En la lista de documentos el estado se resume en tres: el detalle conserva el estado exacto.
+export type EstadoBadge = "completado" | "en_proceso" | "fallido";
+
+const ETIQUETA_BADGE: Record<EstadoBadge, string> = {
+  completado: "Completado",
+  en_proceso: "En proceso",
+  fallido: "Fallido",
+};
+
+export function badgeDeEstado(estado: string): EstadoBadge {
+  switch (estado) {
+    case "COMPLETADO":
+      return "completado";
+    case "FALLIDO":
+    case "FALLIDO_LIMPIEZA_PENDIENTE":
+      return "fallido";
+    default:
+      // EN_PROCESO, CONFIRMACION_PENDIENTE, PUBLICACION_PENDIENTE y cualquier estado nuevo: sigue su curso.
+      return "en_proceso";
+  }
+}
+
+export function etiquetaEstadoResumida(estado: string): string {
+  return ETIQUETA_BADGE[badgeDeEstado(estado)];
+}
+
+/** Filtro de estado de la lista: «Todos» más tres opciones, cada una con los estados del backend que reúne. */
+export type FiltroEstado = "" | "completados" | "en_curso" | "fallidos";
+
+export const FILTROS_ESTADO: { valor: Exclude<FiltroEstado, "">; etiqueta: string; estados: EstadoProgreso[] }[] = [
+  { valor: "completados", etiqueta: "Completados", estados: ["COMPLETADO"] },
+  { valor: "en_curso", etiqueta: "En curso", estados: ["EN_PROCESO", "CONFIRMACION_PENDIENTE", "PUBLICACION_PENDIENTE"] },
+  { valor: "fallidos", etiqueta: "Fallidos", estados: ["FALLIDO", "FALLIDO_LIMPIEZA_PENDIENTE"] },
+];
+
+/** Estados del backend que pide un filtro; vacío para «Todos». */
+export function estadosDeFiltro(filtro: FiltroEstado): EstadoProgreso[] {
+  return FILTROS_ESTADO.find((f) => f.valor === filtro)?.estados ?? [];
 }
 
 export function etiquetaAnalisis(r: ResultadoAnalisis | null | undefined): string {

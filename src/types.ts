@@ -59,6 +59,7 @@ export interface DisponibilidadIngesta {
 }
 export type EstadoProgreso =
   | "EN_PROCESO"
+  | "CONFIRMACION_PENDIENTE"
   | "PUBLICACION_PENDIENTE"
   | "COMPLETADO"
   | "FALLIDO_LIMPIEZA_PENDIENTE"
@@ -69,6 +70,7 @@ export type EstadoOperacion =
   | "INTERRUMPIDA"
   | "RECHAZADA"
   | "EN_PROCESO"
+  | "CONFIRMACION_PENDIENTE"
   | "PUBLICACION_PENDIENTE"
   | "COMPLETADO"
   | "FALLIDO"

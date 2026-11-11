@@ -175,6 +175,48 @@ test.describe("Caso de uso: Ingestar documentos", () => {
     await expect(filas.first()).toContainText("Petro Norte S.A.");
   });
 
+  test("la columna Estado solo muestra Completado, En proceso o Fallido y el filtro reúne los estados", async ({ page, api }) => {
+    const [andina, psur, pnorte, utec] = api.documentos;
+    andina.estado = "CONFIRMACION_PENDIENTE";
+    psur.estado = "FALLIDO_LIMPIEZA_PENDIENTE";
+    pnorte.estado = "COMPLETADO"; // Petro Norte está desactivada: su fila se ve como Inactivo.
+    utec.estado = "PUBLICACION_PENDIENTE";
+    await page.reload();
+    const filas = page.locator("tbody tr");
+    await expect(filas).toHaveCount(4);
+
+    // En la tabla no queda ningún estado interno a la vista.
+    const estados = filas.locator("td:nth-child(4)");
+    await expect(estados).toHaveText(["En proceso", "Fallido", "Inactivo", "En proceso"], { ignoreCase: true });
+    for (const crudo of [/confirmaci/i, /publicaci/i, /limpieza/i, /_/]) await expect(page.locator("tbody")).not.toContainText(crudo);
+
+    // Exactamente «Todos» y las tres opciones.
+    await page.getByRole("button", { name: /^Filtros/ }).click();
+    const filtro = page.getByLabel("Filtrar por estado");
+    await expect(filtro.locator("option")).toHaveText(["Todos", "Completados", "En curso", "Fallidos"]);
+
+    // «En curso» une tres estados: una consulta por cada uno.
+    const antes = api.llamadasA("GET", "/documentos").length;
+    await filtro.selectOption({ label: "En curso" });
+    await expect(filas).toHaveCount(2);
+    await expect(page.locator("tbody")).toContainText("Minera Andina S.A.A.");
+    await expect(page.locator("tbody")).toContainText("Utec ELEC");
+    const pedidos = api.llamadasA("GET", "/documentos").slice(antes).map((l) => l.query.get("estado"));
+    expect(pedidos.sort()).toEqual(["CONFIRMACION_PENDIENTE", "EN_PROCESO", "PUBLICACION_PENDIENTE"]);
+
+    await filtro.selectOption({ label: "Fallidos" });
+    await expect(filas).toHaveCount(1);
+    await expect(filas.first()).toContainText("Petro Sur");
+
+    await filtro.selectOption({ label: "Completados" });
+    await expect(filas).toHaveCount(1);
+    await expect(filas.first()).toContainText("Petro Norte S.A.");
+    expect(api.llamadasA("GET", "/documentos").at(-1)!.query.get("estado")).toBe("COMPLETADO");
+
+    await filtro.selectOption({ label: "Todos" });
+    await expect(filas).toHaveCount(4);
+  });
+
   test("muestra el detalle de un documento con el nombre de quien lo cargó", async ({ page }) => {
     await page.getByRole("row", { name: /memoria-andina-2024.md/ }).click();
     const dialogo = page.getByRole("dialog");

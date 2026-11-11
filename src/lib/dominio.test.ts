@@ -44,6 +44,10 @@ import {
   anioIngestaValido,
   etiquetaAnalisis,
   etiquetaEstado,
+  badgeDeEstado,
+  etiquetaEstadoResumida,
+  estadosDeFiltro,
+  FILTROS_ESTADO,
   etiquetaSector,
   etiquetaTipo,
   tiposNoCargables,
@@ -71,6 +75,7 @@ describe("etiquetas de dominio", () => {
     expect(etiquetaEstado("PUBLICACION_PENDIENTE")).toBe("Publicación pendiente");
     expect(etiquetaEstado("FALLIDO")).toBe("Fallido");
     expect(etiquetaEstado("FALLIDO_LIMPIEZA_PENDIENTE")).toBe("Fallido (limpieza pendiente)");
+    expect(etiquetaEstado("CONFIRMACION_PENDIENTE")).toBe("Confirmación pendiente");
   });
 
   it("traduce el resultado de análisis, con guion si falta", () => {
@@ -605,5 +610,28 @@ describe("tiposNoCargables", () => {
   it("sin datos de disponibilidad no bloquea ningún tipo", () => {
     expect(tiposNoCargables(null)).toEqual({});
     expect(tiposNoCargables(undefined)).toEqual({});
+  });
+});
+
+describe("estado resumido de la lista de documentos", () => {
+  it("contrae los estados del backend a Completado, En proceso o Fallido", () => {
+    expect(badgeDeEstado("COMPLETADO")).toBe("completado");
+    for (const e of ["EN_PROCESO", "CONFIRMACION_PENDIENTE", "PUBLICACION_PENDIENTE"]) expect(badgeDeEstado(e)).toBe("en_proceso");
+    for (const e of ["FALLIDO", "FALLIDO_LIMPIEZA_PENDIENTE"]) expect(badgeDeEstado(e)).toBe("fallido");
+    expect(badgeDeEstado("ESTADO_NUEVO")).toBe("en_proceso");
+  });
+
+  it("da la etiqueta que se pinta en la tabla", () => {
+    expect(etiquetaEstadoResumida("COMPLETADO")).toBe("Completado");
+    expect(etiquetaEstadoResumida("CONFIRMACION_PENDIENTE")).toBe("En proceso");
+    expect(etiquetaEstadoResumida("FALLIDO_LIMPIEZA_PENDIENTE")).toBe("Fallido");
+  });
+
+  it("el filtro tiene tres opciones además de «Todos» y cada una reúne sus estados", () => {
+    expect(FILTROS_ESTADO.map((f) => f.etiqueta)).toEqual(["Completados", "En curso", "Fallidos"]);
+    expect(estadosDeFiltro("")).toEqual([]);
+    expect(estadosDeFiltro("completados")).toEqual(["COMPLETADO"]);
+    expect(estadosDeFiltro("en_curso")).toEqual(["EN_PROCESO", "CONFIRMACION_PENDIENTE", "PUBLICACION_PENDIENTE"]);
+    expect(estadosDeFiltro("fallidos")).toEqual(["FALLIDO", "FALLIDO_LIMPIEZA_PENDIENTE"]);
   });
 });

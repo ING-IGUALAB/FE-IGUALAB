@@ -97,6 +97,31 @@ describe("api/documentos", () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
+  it("listarPorEstados pide cada estado por separado y los une del más reciente al más antiguo", async () => {
+    const pagina = (items: unknown[]) => ok({ items, total: items.length, pagina: 1, tamano: 100, paginas: 1 });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(pagina([{ id: "a", creado_en: "2026-10-01T00:00:00Z" }]))
+      .mockResolvedValueOnce(pagina([{ id: "b", creado_en: "2026-10-03T00:00:00Z" }, { id: "c", creado_en: "2026-09-01T00:00:00Z" }]));
+    vi.stubGlobal("fetch", fetchMock);
+    const docs = await documentosApi.listarPorEstados(["FALLIDO", "FALLIDO_LIMPIEZA_PENDIENTE"], { tipo: "MEMORIA_ANUAL" });
+    expect(docs.map((d) => d.id)).toEqual(["b", "a", "c"]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toContain("estado=FALLIDO&");
+    expect(fetchMock.mock.calls[1][0]).toContain("estado=FALLIDO_LIMPIEZA_PENDIENTE");
+    expect(fetchMock.mock.calls[1][0]).toContain("tipo=MEMORIA_ANUAL");
+  });
+
+  it("listarPorEstados con un estado o ninguno hace una sola consulta", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(ok({ items: [], total: 0, pagina: 1, tamano: 100, paginas: 1 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await documentosApi.listarPorEstados([]);
+    expect(fetchMock.mock.calls[0][0]).not.toContain("estado=");
+    await documentosApi.listarPorEstados(["COMPLETADO"]);
+    expect(fetchMock.mock.calls[1][0]).toContain("estado=COMPLETADO");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("listarTodosDocumentos recorre todas las páginas de 100 en 100", async () => {
     const pagina = (n: number) => ({ items: [{ id: `d${n}` }], total: 2, pagina: n, tamano: 100, paginas: 2 });
     const fetchMock = vi.fn().mockResolvedValueOnce(ok(pagina(1))).mockResolvedValueOnce(ok(pagina(2)));
