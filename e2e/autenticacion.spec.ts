@@ -199,6 +199,38 @@ test.describe("Menú lateral", () => {
   });
 });
 
+test.describe("Migas de pan", () => {
+  const migas = (page: import("@playwright/test").Page) => page.getByRole("navigation", { name: "Migas de pan" });
+
+  test("muestran Inicio › sección › página actual y llevan de vuelta al inicio", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await entrarComo(page, api, "administrador", "/analisis");
+    await expect(migas(page).getByRole("listitem").filter({ hasNotText: "chevron_right" })).toHaveText(["homeInicio", "Flujo de trabajo", "fact_checkAnálisis GRI"]);
+    await expect(migas(page).locator('[aria-current="page"]')).toHaveText("fact_checkAnálisis GRI");
+    // Solo «Inicio» es enlace: la sección no es una página y la actual ya está abierta.
+    await expect(migas(page).getByRole("link")).toHaveCount(1);
+
+    await page.getByRole("link", { name: "Reportes de prospección" }).click();
+    await expect(migas(page).locator('[aria-current="page"]')).toHaveText("assessmentReportes de prospección");
+
+    await migas(page).getByRole("link", { name: "Inicio" }).click();
+    await expect(page).toHaveURL(/\/ia$/);
+    await expect(migas(page).locator('[aria-current="page"]')).toHaveText("psychologyAsistente de IA");
+  });
+
+  test("para el SuperAdmin usan su sección y también cubren «Cambiar contraseña»", async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await entrarComo(page, api, "superadmin", "/auditoria");
+    await expect(migas(page)).toContainText("Administración");
+    await expect(migas(page).locator('[aria-current="page"]')).toHaveText("historyAuditoría");
+
+    await page.getByRole("link", { name: "Cambiar contraseña" }).click();
+    await expect(migas(page).locator('[aria-current="page"]')).toHaveText("keyCambiar contraseña");
+    await migas(page).getByRole("link", { name: "Inicio" }).click();
+    await expect(page).toHaveURL(/\/usuarios$/);
+  });
+});
+
 test.describe("Modo día y noche", () => {
   test("cambia a modo oscuro desde el acceso, lo recuerda al recargar y vuelve a claro desde la app", async ({ page, api }) => {
     await page.emulateMedia({ colorScheme: "light" });

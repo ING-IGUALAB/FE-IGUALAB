@@ -272,7 +272,7 @@ select:not([multiple]):disabled {
 
 /*
  * Navegación sobre el riel oscuro. La opción actual la marca un bloque azul translúcido que se
- * desliza entre opciones (ver Layout); aquí solo van el texto, el hover y el numeral.
+ * desliza entre opciones (ver Layout); aquí solo van el texto, el hover y el ícono.
  */
 .nav-item {
   position: relative;
@@ -295,11 +295,12 @@ select:not([multiple]):disabled {
   color: rgb(var(--c-on-rail));
   font-weight: 600;
 }
-.nav-item .nav-numeral {
-  color: rgb(var(--c-on-rail-variant) / 0.7);
+.nav-item .nav-icono {
+  font-size: 20px;
+  color: rgb(var(--c-on-rail-variant) / 0.8);
   transition: color 160ms ease;
 }
-.nav-item.active .nav-numeral {
+.nav-item.active .nav-icono {
   color: rgb(var(--c-primary));
 }
 
