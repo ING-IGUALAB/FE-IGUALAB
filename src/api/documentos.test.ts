@@ -39,6 +39,47 @@ describe("api/documentos", () => {
     expect(opts.headers["Content-Type"]).toBeUndefined();
   });
 
+  const archivoMd = () => new File(["# hola"], "memoria.md", { type: "text/markdown" });
+  const datosCarga = () => ({ archivo: archivoMd(), empresaId: "e1", anio: 2024, tipoDocumento: "MEMORIA_ANUAL" as const });
+
+  it("ingerirDocumento con 201 devuelve el resultado de la carga terminada", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok({ operacion_id: "op1", terminal: true, exitosa: true }, 201)));
+    const res = await documentosApi.ingerirDocumento("op1", datosCarga());
+    expect(res).toEqual({ status: 201, data: { operacion_id: "op1", terminal: true, exitosa: true } });
+  });
+
+  it("ingerirDocumento con 202 devuelve la operación en pausa (no es un error)", async () => {
+    const pausa = { operacion_id: "op1", estado: "CONFIRMACION_PENDIENTE", terminal: false, confirmacion_pendiente: true };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(pausa, 202)));
+    const res = await documentosApi.ingerirDocumento("op1", datosCarga());
+    expect(res.status).toBe(202);
+    expect(res.data.confirmacion_pendiente).toBe(true);
+  });
+
+  it("ingerirDocumento lanza el error del backend", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok({ error: { code: "DUPLICATE_DOCUMENT", message: "Ya existe." } }, 409)));
+    await expect(documentosApi.ingerirDocumento("op1", datosCarga())).rejects.toMatchObject({ status: 409, code: "DUPLICATE_DOCUMENT" });
+  });
+
+  it("confirmarOperacion y cancelarOperacion hacen POST a …/confirmar y …/cancelar", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(ok({ operacion_id: "op1" }));
+    vi.stubGlobal("fetch", fetchMock);
+    await documentosApi.confirmarOperacion("op1");
+    await documentosApi.cancelarOperacion("op1");
+    expect(fetchMock.mock.calls[0][0]).toMatch(/\/documentos\/operaciones\/op1\/confirmar$/);
+    expect(fetchMock.mock.calls[0][1].method).toBe("POST");
+    expect(fetchMock.mock.calls[1][0]).toMatch(/\/documentos\/operaciones\/op1\/cancelar$/);
+    expect(fetchMock.mock.calls[1][1].method).toBe("POST");
+  });
+
+  it("listarPorEstados no repite un documento que aparece en dos estados", async () => {
+    const pagina = (items: unknown[]) => ok({ items, total: items.length, pagina: 1, tamano: 100, paginas: 1 });
+    const doc = { id: "d1", creado_en: "2026-10-01T00:00:00Z" };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(pagina([doc])).mockResolvedValueOnce(pagina([doc])));
+    const docs = await documentosApi.listarPorEstados(["EN_PROCESO", "CONFIRMACION_PENDIENTE"]);
+    expect(docs.map((d) => d.id)).toEqual(["d1"]);
+  });
+
   it("listarDocumentos arma los filtros y paginación", async () => {
     const fetchMock = vi.fn().mockResolvedValue(ok({ items: [], total: 0, pagina: 1, tamano: 10, paginas: 1 }));
     vi.stubGlobal("fetch", fetchMock);

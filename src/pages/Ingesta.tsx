@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import SectionHeader from "../components/SectionHeader";
@@ -10,14 +10,21 @@ import { useToast } from "../components/ToastProvider";
 import * as empresasApi from "../api/empresas";
 import * as documentosApi from "../api/documentos";
 import * as usuariosApi from "../api/usuarios";
-import { mensajeError, tipoAviso } from "../api/client";
+import { ApiError, mensajeError, tipoAviso } from "../api/client";
 import {
   aniosDisponibles,
   SECTORES_API,
   TIPOS_API,
   etiquetaAnalisis,
   etiquetaEstado,
+  etiquetaEstadoOperacion,
   etiquetaEstadoResumida,
+  cierreDeCarga,
+  etiquetaHallazgos,
+  motivoLegible,
+  necesitaDecision,
+  textoResumenConfirmacion,
+  MINUTOS_VIGENCIA_CONFIRMACION,
   estadosDeFiltro,
   FILTROS_ESTADO,
   type FiltroEstado,
@@ -27,6 +34,7 @@ import {
   formatearTamano,
   nombrePersona,
   paginarLocal,
+  plural,
   textoFragmentos,
   tiposNoCargables,
   validarArchivoIngesta,
@@ -35,12 +43,14 @@ import type {
   DocumentoDetalle,
   DocumentoResumen,
   EmpresaApi,
-  EstadoProgreso,
   Operacion,
   ResultadoIngesta,
   SectorApi,
   TipoDocumentoApi,
 } from "../types";
+
+/** Lo que devuelve una carga: el resultado completo o la vista de la operación. */
+type ResultadoCarga = ResultadoIngesta | Operacion;
 
 const ANIOS = aniosDisponibles();
 const TAM_PAGINA = 10;
@@ -61,6 +71,8 @@ export default function Ingesta() {
   const [fSector, setFSector] = useState<"" | SectorApi>("");
   const [pagina, setPagina] = useState(1);
   const [detalleId, setDetalleId] = useState<string | null>(null);
+  // Carga en pausa que se retoma desde la lista para decidir continuar o cancelar.
+  const [decisionDoc, setDecisionDoc] = useState<DocumentoResumen | null>(null);
   const [nombres, setNombres] = useState<Map<string, string>>(new Map());
 
   // Nombres de los usuarios, para mostrar «Cargado por» con el nombre y no con su ID.
@@ -174,7 +186,17 @@ export default function Ingesta() {
                     <td className="py-md px-md text-on-surface-variant">{etiquetaAnalisis(d.resultado_analisis)}</td>
                     <td className="py-md px-md text-on-surface-variant whitespace-nowrap">{fechaHora(d.creado_en)}</td>
                     <td className="py-md px-md text-right">
-                      <span className="inline-flex items-center gap-xs text-primary-ink text-label-md"><span className="material-symbols-outlined text-[18px]">visibility</span> Ver</span>
+                      {necesitaDecision(d) && d.operacion_id ? (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setDecisionDoc(d); }}
+                          className="inline-flex items-center gap-xs px-sm py-xs rounded-lg bg-tertiary-fixed text-on-tertiary-fixed text-label-md font-semibold whitespace-nowrap hover:brightness-95"
+                        >
+                          <span className="material-symbols-outlined text-[18px]" aria-hidden="true">pending_actions</span> Revisar decisión
+                        </button>
+                      ) : (
+                        <span className="inline-flex items-center gap-xs text-primary-ink text-label-md"><span className="material-symbols-outlined text-[18px]">visibility</span> Ver</span>
+                      )}
                     </td>
                   </tr>
                   );
@@ -189,6 +211,7 @@ export default function Ingesta() {
           )}
         </div>
       <NuevaCargaModal abierto={cargaAbierta} empresas={empresas} onClose={() => setCargaAbierta(false)} onIngestado={() => { setPagina(1); cargarDocs(); }} />
+      <DecisionPendienteModal documento={decisionDoc} onClose={() => setDecisionDoc(null)} onResuelto={cargarDocs} />
       <DetalleDocumentoModal id={detalleId} empresasInactivas={empresasInactivas} nombres={nombres} onClose={() => setDetalleId(null)} />
     </>
   );
@@ -209,7 +232,15 @@ function NuevaCargaModal({
   const [tipo, setTipo] = useState<TipoDocumentoApi>(TIPOS_API[0]);
   const [archivo, setArchivo] = useState<File | null>(null);
   const [enviando, setEnviando] = useState(false);
-  const [resultado, setResultado] = useState<ResultadoIngesta | Operacion | null>(null);
+  const [resultado, setResultado] = useState<ResultadoCarga | null>(null);
+  const reintentar = useReintentarPublicacion(setResultado, onIngestado);
+  // Doble check: la carga se pausa tras el análisis hasta que se decide continuar o cancelar.
+  const { pendiente, setPendiente, resolviendo, resolver } = useDobleCheck((op) => {
+    if (op) setResultado(op);
+    setArchivo(null);
+    setVueltaDisponibilidad((v) => v + 1);
+    onIngestado();
+  });
   // Una empresa tiene como máximo un documento de cada tipo por año: los tipos ya ocupados se deshabilitan.
   const [noCargables, setNoCargables] = useState<Partial<Record<TipoDocumentoApi, string>>>({});
   const [consultando, setConsultando] = useState(false);
@@ -246,7 +277,13 @@ function NuevaCargaModal({
   }, [abierto, empresaId, anio, vueltaDisponibilidad]);
 
   function cerrar() {
-    if (enviando) return;
+    if (enviando || resolviendo) return;
+    if (pendiente) {
+      // No se decide por la persona: la carga sigue en pausa y se retoma desde la lista.
+      toast(`La carga quedó en pausa. Retómala desde la lista con «Revisar decisión» antes de ${MINUTOS_VIGENCIA_CONFIRMACION} minutos.`, "info");
+      setPendiente(null);
+      onIngestado();
+    }
     setEmpresaId("");
     setArchivo(null);
     setResultado(null);
@@ -264,10 +301,11 @@ function NuevaCargaModal({
     setArchivo(f);
   }
 
+  // Se deja de consultar al terminar, al quedar en pausa esperando una decisión o al agotar los intentos.
   async function esperarTerminal(opId: string, inicial: Operacion): Promise<Operacion> {
     let actual = inicial;
     let intentos = 0;
-    while (!actual.terminal && intentos < 20) {
+    while (!actual.terminal && !necesitaDecision(actual) && intentos < 20) {
       await new Promise((r) => setTimeout(r, 1500));
       actual = await documentosApi.consultarOperacion(opId);
       intentos += 1;
@@ -286,16 +324,23 @@ function NuevaCargaModal({
     }
     setEnviando(true);
     setResultado(null);
+    setPendiente(null);
     try {
       const op = await documentosApi.crearOperacion();
-      const res = await documentosApi.ingerirDocumento(op.operacion_id, {
+      const { status, data } = await documentosApi.ingerirDocumento(op.operacion_id, {
         archivo,
         empresaId,
         anio,
         tipoDocumento: tipo,
       });
-      const final = res.terminal ? res : await esperarTerminal(op.operacion_id, res);
-      setResultado({ ...res, ...final });
+      const final = status === 202 || data.terminal || necesitaDecision(data) ? data : await esperarTerminal(op.operacion_id, data);
+      if (necesitaDecision(final)) {
+        // No es un error: el análisis terminó y falta decidir.
+        setPendiente(final);
+        toast("El análisis terminó. Revisa el resumen y decide si continuar.", "info");
+        return;
+      }
+      setResultado({ ...data, ...final });
       if (final.exitosa) {
         toast("Documento ingestado e indexado.", "success");
         setArchivo(null);
@@ -311,17 +356,6 @@ function NuevaCargaModal({
     }
   }
 
-  async function reintentar(opId: string) {
-    try {
-      const op = await documentosApi.reintentarPublicacion(opId);
-      setResultado((prev) => (prev ? { ...prev, ...op } : op));
-      toast(op.exitosa ? "Publicación completada." : "Aún no se pudo publicar.", op.exitosa ? "success" : "warn");
-      if (op.exitosa) onIngestado();
-    } catch (err) {
-      toast(mensajeError(err, "No se pudo reintentar la publicación."), tipoAviso(err));
-    }
-  }
-
   return (
     <Modal open={abierto} onClose={cerrar} width="max-w-2xl">
       <div className="p-xl overflow-y-auto">
@@ -329,6 +363,8 @@ function NuevaCargaModal({
           <span className="material-symbols-outlined text-primary-ink" aria-hidden="true">upload_file</span> Nueva carga
         </h3>
         <div className="space-y-md">
+          {/* Mientras se espera la decisión, el formulario queda bloqueado: la carga ya se hizo. */}
+          <fieldset disabled={!!pendiente} className="space-y-md disabled:opacity-60">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-md">
             <Campo label="Sector">
               <select value={sector} onChange={(e) => { setSector(e.target.value as SectorApi); setEmpresaId(""); }} className={CLS_FILTRO}>
@@ -373,7 +409,7 @@ function NuevaCargaModal({
             onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("dropzone-active"); }}
             onDragLeave={(e) => e.currentTarget.classList.remove("dropzone-active")}
             onDrop={(e) => { e.preventDefault(); e.currentTarget.classList.remove("dropzone-active"); elegirArchivo(e.dataTransfer.files); }}
-            className="flex flex-col items-center justify-center gap-sm border-2 border-dashed border-outline-variant rounded-xl p-lg text-center cursor-pointer hover:border-primary-ink hover:bg-primary/5 transition-colors"
+            className={`flex-col items-center justify-center gap-sm border-2 border-dashed border-outline-variant rounded-xl p-lg text-center cursor-pointer hover:border-primary-ink hover:bg-primary/5 transition-colors ${pendiente ? "hidden" : "flex"}`}
           >
             <span className="material-symbols-outlined text-[36px] text-primary-ink">cloud_upload</span>
             <span className="text-body-md text-on-background font-medium">Arrastra el .md aquí o haz clic para seleccionar</span>
@@ -390,6 +426,16 @@ function NuevaCargaModal({
             </div>
           )}
 
+          </fieldset>
+
+          {pendiente && (
+            <PanelDobleCheck
+              operacion={pendiente}
+              resolviendo={resolviendo}
+              onConfirmar={() => resolver("confirmar")}
+              onCancelar={() => resolver("cancelar")}
+            />
+          )}
           {resultado && <PanelResultado resultado={resultado} onReintentar={reintentar} />}
         </div>
 
@@ -398,13 +444,281 @@ function NuevaCargaModal({
             <span className="material-symbols-outlined text-[16px]" aria-hidden="true">add_business</span> Empresas
           </button>
           <div className="ml-auto flex items-center gap-sm">
-            <button onClick={cerrar} disabled={enviando} className="px-lg py-sm rounded-lg border border-outline-variant text-body-md text-on-surface-variant hover:bg-surface-container-low disabled:opacity-50">
-              {resultado ? "Cerrar" : "Cancelar"}
+            <button onClick={cerrar} disabled={enviando || !!resolviendo} className="px-lg py-sm rounded-lg border border-outline-variant text-body-md text-on-surface-variant hover:bg-surface-container-low disabled:opacity-50">
+              {textoBotonCerrar(!!pendiente, !!resultado)}
             </button>
-            <button onClick={realizarIngesta} disabled={enviando || consultando || !archivo || !empresaId || Boolean(noCargables[tipo])} className="px-lg py-sm rounded-lg bg-primary text-on-primary text-label-md font-semibold hover:bg-surface-tint disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-sm">
+            <button onClick={realizarIngesta} disabled={enviando || consultando || !!pendiente || !archivo || !empresaId || Boolean(noCargables[tipo])} className="px-lg py-sm rounded-lg bg-primary text-on-primary text-label-md font-semibold hover:bg-surface-tint disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-sm">
               {enviando ? <><Spinner size={16} /> Procesando…</> : <><span className="material-symbols-outlined text-[18px]" aria-hidden="true">cloud_sync</span> Realizar ingesta</>}
             </button>
           </div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function textoBotonCerrar(pendiente: boolean, conResultado: boolean): string {
+  if (pendiente) return "Decidir después";
+  return conResultado ? "Cerrar" : "Cancelar";
+}
+
+type AccionDobleCheck = "confirmar" | "cancelar";
+
+/**
+ * Doble check: continuar o cancelar una carga en pausa. Si otra persona ya decidió (409) o la
+ * publicación quedó pendiente (502), se pregunta al servidor cómo quedó en lugar de reintentar a
+ * ciegas. Ante un error de red el panel sigue abierto para volver a intentarlo. Nunca decide solo.
+ */
+function useDobleCheck(onResuelto: (op: Operacion | null) => void) {
+  const toast = useToast();
+  const [pendiente, setPendiente] = useState<Operacion | null>(null);
+  const [resolviendo, setResolviendo] = useState<AccionDobleCheck | null>(null);
+  const resuelto = useRef(onResuelto);
+  resuelto.current = onResuelto;
+
+  async function reconciliar(opId: string) {
+    const actual = await documentosApi.consultarOperacion(opId).catch(() => null);
+    if (actual && necesitaDecision(actual)) {
+      setPendiente(actual);
+      return;
+    }
+    setPendiente(null);
+    resuelto.current(actual);
+  }
+
+  async function resolver(accion: AccionDobleCheck) {
+    if (!pendiente || resolviendo) return;
+    const opId = pendiente.operacion_id;
+    setResolviendo(accion);
+    try {
+      if (accion === "confirmar") {
+        const op = await documentosApi.confirmarOperacion(opId);
+        setPendiente(null);
+        toast(op.exitosa ? "Documento ingestado e indexado." : "La ingesta no se completó. Revisa el detalle.", op.exitosa ? "success" : "error");
+        resuelto.current(op);
+      } else {
+        const op = await documentosApi.cancelarOperacion(opId);
+        setPendiente(null);
+        toast("Carga cancelada. Ya puedes volver a cargar ese documento.", "info");
+        resuelto.current(op);
+      }
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        toast("Esta carga ya se había resuelto. Se muestra cómo quedó.", "warn");
+        await reconciliar(opId);
+      } else if (err instanceof ApiError && err.status === 502) {
+        toast("El documento se cargó, pero falta publicarlo. Usa «Reintentar publicación».", "warn");
+        await reconciliar(opId);
+      } else {
+        toast(mensajeError(err, "No se pudo completar la decisión. Inténtalo de nuevo."), tipoAviso(err));
+      }
+    } finally {
+      setResolviendo(null);
+    }
+  }
+
+  return { pendiente, setPendiente, resolviendo, resolver };
+}
+
+/** Reintento de la publicación de un documento que quedó cargado pero sin publicar. */
+function useReintentarPublicacion(
+  setResultado: (f: (prev: ResultadoCarga | null) => ResultadoCarga | null) => void,
+  onPublicado: () => void,
+) {
+  const toast = useToast();
+  return async function reintentar(opId: string) {
+    try {
+      const op = await documentosApi.reintentarPublicacion(opId);
+      setResultado((prev) => (prev ? { ...prev, ...op } : op));
+      toast(op.exitosa ? "Publicación completada." : "Aún no se pudo publicar.", op.exitosa ? "success" : "warn");
+      if (op.exitosa) onPublicado();
+    } catch (err) {
+      toast(mensajeError(err, "No se pudo reintentar la publicación."), tipoAviso(err));
+    }
+  };
+}
+
+/** Resumen del análisis con los botones para continuar o cancelar la carga en pausa. */
+function PanelDobleCheck({
+  operacion,
+  resolviendo,
+  onConfirmar,
+  onCancelar,
+}: Readonly<{ operacion: Operacion; resolviendo: AccionDobleCheck | null; onConfirmar: () => void; onCancelar: () => void }>) {
+  const tituloId = useId();
+  const caja = useRef<HTMLElement>(null);
+  const [confirmandoCancelar, setConfirmandoCancelar] = useState(false);
+  // Al aparecer se lleva a la vista: en pantallas bajas el formulario lo deja fuera.
+  useEffect(() => {
+    caja.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+  }, []);
+  const r = operacion.resumen_confirmacion;
+  const advertencias = (r?.advertencias ?? []).filter((a) => a.mensaje);
+  const motivos = r?.motivos ?? [];
+  const ocupado = resolviendo !== null;
+
+  return (
+    <section ref={caja} aria-labelledby={tituloId} aria-busy={ocupado} className="rounded-xl border border-tertiary/40 bg-tertiary-fixed/20 p-lg space-y-md">
+      <div className="flex items-start gap-sm">
+        <span className="material-symbols-outlined text-tertiary" aria-hidden="true">pending_actions</span>
+        <div className="min-w-0">
+          <h4 id={tituloId} className="text-title-md text-on-background">Revisa el análisis antes de continuar</h4>
+          <p role="status" aria-live="polite" className="text-body-md text-on-surface-variant mt-xs">{textoResumenConfirmacion(r)}</p>
+        </div>
+      </div>
+
+      {r && (
+        <dl className="grid grid-cols-1 sm:grid-cols-3 gap-sm">
+          <Contador etiqueta="Resultado" valor={etiquetaHallazgos(r.resultado)} />
+          <Contador etiqueta="Referencias GRI" valor={plural(r.referencias_gri, "grupo", "grupos")} />
+          <Contador etiqueta="Sanciones" valor={plural(r.sanciones, "mención", "menciones")} />
+        </dl>
+      )}
+
+      {advertencias.length > 0 && (
+        <details className="text-body-md text-on-surface-variant">
+          <summary className="cursor-pointer text-label-md text-on-surface">Advertencias ({advertencias.length})</summary>
+          <ul className="mt-xs space-y-xs">
+            {advertencias.map((a, i) => (
+              <li key={`${a.codigo ?? ""}-${i}`} className="flex items-start gap-xs text-label-sm">
+                <span className="material-symbols-outlined text-[14px] text-tertiary mt-[1px]" aria-hidden="true">warning</span>
+                {a.mensaje}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      {motivos.length > 0 && (
+        <details className="text-body-md text-on-surface-variant">
+          <summary className="cursor-pointer text-label-md text-on-surface">Detalle técnico</summary>
+          <ul className="mt-xs list-disc list-inside text-label-sm space-y-xs">
+            {motivos.map((m) => <li key={m}>{motivoLegible(m)}</li>)}
+          </ul>
+        </details>
+      )}
+
+      <p className="flex items-start gap-xs text-label-sm text-on-surface-variant">
+        <span className="material-symbols-outlined text-[16px]" aria-hidden="true">schedule</span>
+        Si nadie decide, la carga se cancelará sola a los {MINUTOS_VIGENCIA_CONFIRMACION} minutos y se eliminarán el archivo y sus fragmentos.
+      </p>
+
+      {confirmandoCancelar ? (
+        <div className="rounded-lg border border-error/40 bg-error-container/30 p-md space-y-sm">
+          <p className="text-body-md text-on-error-container">
+            ¿Cancelar la carga? Se eliminarán el archivo original y sus fragmentos, y no se puede deshacer.
+          </p>
+          <div className="flex flex-wrap justify-end gap-sm">
+            <button type="button" onClick={() => setConfirmandoCancelar(false)} disabled={ocupado} className="px-md py-sm rounded-lg border border-outline-variant text-label-md text-on-surface-variant hover:bg-surface-container-low disabled:opacity-50">
+              Volver
+            </button>
+            <button type="button" onClick={onCancelar} disabled={ocupado} className="px-md py-sm rounded-lg bg-error text-on-error text-label-md font-semibold flex items-center gap-sm disabled:opacity-60">
+              {resolviendo === "cancelar" ? <><Spinner size={16} /> Cancelando…</> : "Sí, cancelar y eliminar"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap justify-end gap-sm">
+          <button type="button" onClick={() => setConfirmandoCancelar(true)} disabled={ocupado} className="px-md py-sm rounded-lg border border-error/60 text-error text-label-md font-semibold hover:bg-error-container/30 disabled:opacity-50">
+            Cancelar y eliminar
+          </button>
+          <button type="button" onClick={onConfirmar} disabled={ocupado} className="px-md py-sm rounded-lg bg-primary text-on-primary text-label-md font-semibold hover:bg-surface-tint flex items-center gap-sm disabled:opacity-60">
+            {resolviendo === "confirmar" ? (
+              <><Spinner size={16} /> Continuando…</>
+            ) : (
+              <><span className="material-symbols-outlined text-[18px]" aria-hidden="true">play_arrow</span> Continuar con la ingesta</>
+            )}
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function Contador({ etiqueta, valor }: Readonly<{ etiqueta: string; valor: string }>) {
+  return (
+    <div className="rounded-lg bg-surface-container-lowest border border-outline-variant px-md py-sm">
+      <dt className="text-label-sm text-on-surface-variant">{etiqueta}</dt>
+      <dd className="text-body-md font-semibold text-on-surface">{valor}</dd>
+    </div>
+  );
+}
+
+/** Retoma desde la lista una carga en pausa: consulta cómo está y, si sigue esperando, muestra la decisión. */
+function DecisionPendienteModal({
+  documento,
+  onClose,
+  onResuelto,
+}: Readonly<{ documento: DocumentoResumen | null; onClose: () => void; onResuelto: () => void }>) {
+  const toast = useToast();
+  const [cargando, setCargando] = useState(false);
+  const [resultado, setResultado] = useState<ResultadoCarga | null>(null);
+  const resuelto = useRef(onResuelto);
+  resuelto.current = onResuelto;
+  const reintentar = useReintentarPublicacion(setResultado, () => resuelto.current());
+  const { pendiente, setPendiente, resolviendo, resolver } = useDobleCheck((op) => {
+    setResultado(op);
+    resuelto.current();
+  });
+  const opId = documento?.operacion_id ?? null;
+
+  useEffect(() => {
+    if (!opId) return;
+    let vigente = true;
+    setCargando(true);
+    setResultado(null);
+    setPendiente(null);
+    documentosApi
+      .consultarOperacion(opId)
+      .then((op) => {
+        if (!vigente) return;
+        if (necesitaDecision(op)) {
+          setPendiente(op);
+        } else {
+          setResultado(op);
+          toast("Esta carga ya se había resuelto. Se muestra cómo quedó.", "info");
+          resuelto.current();
+        }
+      })
+      .catch((err) => {
+        if (vigente) toast(mensajeError(err, "No se pudo consultar la carga."), tipoAviso(err));
+      })
+      .finally(() => {
+        if (vigente) setCargando(false);
+      });
+    return () => {
+      vigente = false;
+    };
+  }, [opId, setPendiente, toast]);
+
+  function cerrar() {
+    if (resolviendo) return;
+    onClose();
+  }
+
+  return (
+    <Modal open={!!documento} onClose={cerrar} width="max-w-2xl">
+      <div className="p-xl overflow-y-auto space-y-md">
+        <div>
+          <h3 className="text-title-lg text-on-background flex items-center gap-sm">
+            <span className="material-symbols-outlined text-tertiary" aria-hidden="true">pending_actions</span> Decisión pendiente
+          </h3>
+          {documento && (
+            <p className="text-label-md text-on-surface-variant mt-xs">
+              {documento.empresa_nombre} · {documento.anio} · {etiquetaTipo(documento.tipo)} · {documento.nombre_archivo}
+            </p>
+          )}
+        </div>
+        {cargando && (
+          <p className="flex items-center gap-sm text-body-md text-on-surface-variant"><Spinner size={16} /> Cargando…</p>
+        )}
+        {pendiente && (
+          <PanelDobleCheck operacion={pendiente} resolviendo={resolviendo} onConfirmar={() => resolver("confirmar")} onCancelar={() => resolver("cancelar")} />
+        )}
+        {resultado && <PanelResultado resultado={resultado} onReintentar={reintentar} />}
+        <div className="flex justify-end">
+          <button onClick={cerrar} disabled={!!resolviendo} className="px-lg py-sm rounded-lg border border-outline-variant text-body-md text-on-surface-variant hover:bg-surface-container-low disabled:opacity-50">
+            {pendiente ? "Decidir después" : "Cerrar"}
+          </button>
         </div>
       </div>
     </Modal>
@@ -678,33 +992,68 @@ function DetallesTecnicos({
   );
 }
 
-function PanelResultado({ resultado, onReintentar }: Readonly<{ resultado: ResultadoIngesta | Operacion; onReintentar: (opId: string) => void }>) {
+const PANEL_RESULTADO = {
+  exito: { caja: "border-primary/40 bg-primary/5", icono: "text-primary-ink", simbolo: "task_alt", titulo: "Ingesta completada" },
+  porPublicar: { caja: "border-tertiary/40 bg-tertiary-fixed/20", icono: "text-tertiary", simbolo: "cloud_sync", titulo: "Falta publicar el documento" },
+  fallo: { caja: "border-error/40 bg-error-container/30", icono: "text-error", simbolo: "error", titulo: "Ingesta no completada" },
+} as const;
+
+// El documento quedó cargado pero sin publicar: no es un fallo, falta un paso que se puede reintentar.
+function tipoPanelResultado(r: Operacion): keyof typeof PANEL_RESULTADO {
+  if (r.exitosa) return "exito";
+  return r.publicacion_reintentable ? "porPublicar" : "fallo";
+}
+
+function PanelResultado({ resultado, onReintentar }: Readonly<{ resultado: ResultadoCarga; onReintentar: (opId: string) => void }>) {
+  const cierre = cierreDeCarga(resultado);
+  if (cierre) return <PanelCargaCerrada cierre={cierre} />;
   const motivos = "motivos" in resultado ? resultado.motivos ?? [] : [];
   const exito = resultado.exitosa;
+  const estilo = PANEL_RESULTADO[tipoPanelResultado(resultado)];
   return (
-    <div className={`rounded-xl border p-lg ${exito ? "border-primary/40 bg-primary/5" : "border-error/40 bg-error-container/30"}`}>
+    <div role="status" aria-live="polite" className={`rounded-xl border p-lg ${estilo.caja}`}>
       <div className="flex items-center gap-sm mb-sm">
-        <span className={`material-symbols-outlined ${exito ? "text-primary-ink" : "text-error"}`}>{exito ? "task_alt" : "error"}</span>
-        <h4 className="text-title-md text-on-background">{exito ? "Ingesta completada" : "Ingesta no completada"}</h4>
+        <span className={`material-symbols-outlined ${estilo.icono}`} aria-hidden="true">{estilo.simbolo}</span>
+        <h4 className="text-title-md text-on-background">{estilo.titulo}</h4>
       </div>
-      <p className="text-body-md text-on-surface-variant mb-sm">Estado: <strong>{etiquetaEstado(resultado.estado as EstadoProgreso)}</strong>{resultado.etapa ? ` · ${resultado.etapa}` : ""}</p>
+      <p className="text-body-md text-on-surface-variant mb-sm">Estado: <strong>{etiquetaEstadoOperacion(resultado.estado)}</strong></p>
       {exito && (
         <p className="text-body-md text-on-surface-variant">
-          Análisis: {etiquetaAnalisis(resultado.resultado_analisis)}
+          Análisis: {resultado.resultado_analisis ? etiquetaHallazgos(resultado.resultado_analisis) : "—"}
           {typeof resultado.fragmentos_total === "number" ? ` · ${textoFragmentos(resultado.fragmentos_procesados, resultado.fragmentos_total)}` : ""}
         </p>
       )}
       {motivos.length > 0 && (
-        <ul className="mt-sm list-disc list-inside text-body-md text-on-error-container space-y-xs">
-          {motivos.map((m) => <li key={m}>{m}</li>)}
-        </ul>
+        <details className="mt-sm text-body-md text-on-surface-variant">
+          <summary className="cursor-pointer text-label-md text-on-surface">Detalle técnico</summary>
+          <ul className="mt-xs list-disc list-inside text-label-sm space-y-xs">
+            {motivos.map((m) => <li key={m}>{motivoLegible(m)}</li>)}
+          </ul>
+        </details>
       )}
       {resultado.error && <p className="mt-sm text-body-md text-on-error-container">{resultado.error.message}</p>}
       {resultado.publicacion_reintentable && (
         <button onClick={() => onReintentar(resultado.operacion_id)} className="mt-md px-md py-sm rounded-lg bg-primary text-on-primary text-label-md font-semibold hover:bg-surface-tint flex items-center gap-sm">
-          <span className="material-symbols-outlined text-[18px]">refresh</span> Reintentar publicación
+          <span className="material-symbols-outlined text-[18px]" aria-hidden="true">refresh</span> Reintentar publicación
         </button>
       )}
+    </div>
+  );
+}
+
+/** Carga que no siguió por decisión o por vencimiento: no es un error, se informa en tono neutro. */
+function PanelCargaCerrada({ cierre }: Readonly<{ cierre: "cancelada" | "vencida" }>) {
+  const cancelada = cierre === "cancelada";
+  return (
+    <div role="status" aria-live="polite" className="rounded-xl border border-outline-variant bg-surface-container-low p-lg">
+      <div className="flex items-center gap-sm mb-sm">
+        <span className="material-symbols-outlined text-on-surface-variant" aria-hidden="true">{cancelada ? "block" : "timer_off"}</span>
+        <h4 className="text-title-md text-on-background">{cancelada ? "Carga cancelada" : "Carga vencida"}</h4>
+      </div>
+      <p className="text-body-md text-on-surface-variant">
+        {cancelada ? "" : `Pasaron ${MINUTOS_VIGENCIA_CONFIRMACION} minutos sin una decisión y la carga se canceló sola. `}
+        Se eliminaron el archivo original y sus fragmentos. Puedes volver a cargar el documento para esta empresa y año.
+      </p>
     </div>
   );
 }

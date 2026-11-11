@@ -1,4 +1,4 @@
-import { api } from "./client";
+import { api, apiConEstado } from "./client";
 import type {
   DisponibilidadIngesta,
   DocumentoDetalle,
@@ -16,20 +16,37 @@ export function crearOperacion() {
   return api<OperacionCreada>("/documentos/operaciones", { method: "POST" });
 }
 
+/**
+ * Respuesta de la carga: 201 si terminó de una vez; 202 si quedó en pausa esperando que alguien
+ * decida continuar o cancelar (doble check). El 202 no es un error.
+ */
+export type RespuestaIngesta = { status: 201; data: ResultadoIngesta } | { status: 202; data: Operacion };
+
 /** Paso 2: sube el archivo .md a la operación (multipart). Procesamiento síncrono (RF-022). */
-export function ingerirDocumento(
+export async function ingerirDocumento(
   operacionId: string,
   datos: { archivo: File; empresaId: string; anio: number; tipoDocumento: TipoDocumentoApi },
-) {
+): Promise<RespuestaIngesta> {
   const form = new FormData();
   form.append("archivo", datos.archivo);
   form.append("empresa_id", datos.empresaId);
   form.append("anio", String(datos.anio));
   form.append("tipo_documento", datos.tipoDocumento);
-  return api<ResultadoIngesta>(`/documentos/operaciones/${operacionId}/ingesta`, {
+  const { status, data } = await apiConEstado<ResultadoIngesta | Operacion>(`/documentos/operaciones/${operacionId}/ingesta`, {
     method: "POST",
     body: form,
   });
+  return status === 202 ? { status: 202, data: data as Operacion } : { status: 201, data: data as ResultadoIngesta };
+}
+
+/** Doble check: continúa una ingesta en pausa (indexa y publica). */
+export function confirmarOperacion(operacionId: string) {
+  return api<ResultadoIngesta>(`/documentos/operaciones/${operacionId}/confirmar`, { method: "POST" });
+}
+
+/** Doble check: cancela una ingesta en pausa; se eliminan el original y los fragmentos. */
+export function cancelarOperacion(operacionId: string) {
+  return api<Operacion>(`/documentos/operaciones/${operacionId}/cancelar`, { method: "POST" });
 }
 
 /** Consulta el progreso/resultado de una operación (polling si no fue terminal). */
@@ -95,7 +112,9 @@ export async function listarPorEstados(
 ) {
   if (estados.length <= 1) return listarTodosDocumentos({ ...filtros, estado: estados[0] });
   const listas = await Promise.all(estados.map((estado) => listarTodosDocumentos({ ...filtros, estado })));
-  return listas.flat().sort((a, b) => b.creado_en.localeCompare(a.creado_en));
+  // Sin repetidos: un documento puede cambiar de estado entre una consulta y otra.
+  const porId = new Map(listas.flat().map((d) => [d.id, d]));
+  return [...porId.values()].sort((a, b) => b.creado_en.localeCompare(a.creado_en));
 }
 
 export function detalleDocumento(id: string) {

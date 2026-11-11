@@ -68,6 +68,14 @@ type Manejador = (m: RegExpMatchArray, req: Request, q: URLSearchParams) => Resp
 const AHORA = "2026-10-01T15:00:00Z";
 const PUNTOS: Record<EstadoGriApi, number> = { OK: 100, BAJA_SUSTANCIA: 50, SUB_REPORTADO: 0 };
 
+/** Estado del espacio empresa/año/tipo según el documento que lo reserva (sin documento, libre). */
+function espacioDe(doc: DocumentoResumen | undefined): string {
+  if (!doc) return "DISPONIBLE";
+  if (doc.estado === "COMPLETADO") return "OCUPADO";
+  if (doc.estado === "FALLIDO_LIMPIEZA_PENDIENTE") return "LIMPIEZA_PENDIENTE";
+  return doc.estado === "PUBLICACION_PENDIENTE" ? "PUBLICACION_PENDIENTE" : "EN_PROCESO";
+}
+
 function error(status: number, code: string, message: string, details: unknown = null): Respuesta {
   return { status, body: { error: { code, message, details, request_id: "e2e" } } };
 }
@@ -87,6 +95,10 @@ export class ServicioSimulado {
   llamadas: Llamada[] = [];
   reportes: ReporteResumen[] = [];
   eventos: EventoAuditoriaApi[] = [];
+  /** Doble check: la próxima carga se pausa tras el análisis (202 CONFIRMACION_PENDIENTE). */
+  pausarIngesta = false;
+  /** Doble check: al confirmar, la publicación falla (502) y el documento queda pendiente de publicar. */
+  fallarPublicacionAlConfirmar = false;
   private fallos: FalloForzado[] = [];
   private demoras: { metodo: string; ruta: RegExp; ms: number }[] = [];
   private sesionesExpiradas = false;
@@ -285,6 +297,10 @@ export class ServicioSimulado {
       // Documentos / ingesta
       { metodo: "POST", patron: /^\/documentos\/operaciones$/, fn: () => this.crearOperacion() },
       { metodo: "POST", patron: /^\/documentos\/operaciones\/([^/]+)\/ingesta$/, fn: (m, req) => this.ingerir(m[1], req) },
+      { metodo: "GET", patron: /^\/documentos\/operaciones\/([^/]+)$/, fn: (m) => this.conOperacion(m[1], (d) => ok(this.vistaOperacion(d))) },
+      { metodo: "POST", patron: /^\/documentos\/operaciones\/([^/]+)\/confirmar$/, fn: (m) => this.conOperacion(m[1], (d) => this.confirmarIngesta(d)) },
+      { metodo: "POST", patron: /^\/documentos\/operaciones\/([^/]+)\/cancelar$/, fn: (m) => this.conOperacion(m[1], (d) => this.cancelarIngesta(d)) },
+      { metodo: "POST", patron: /^\/documentos\/operaciones\/([^/]+)\/reintentar-publicacion$/, fn: (m) => this.conOperacion(m[1], (d) => this.reintentarPublicacion(d)) },
       { metodo: "GET", patron: /^\/documentos$/, fn: (_m, _r, q) => ok(this.listarDocumentos(q)) },
       { metodo: "GET", patron: /^\/documentos\/disponibilidad$/, fn: (_m, _r, q) => this.disponibilidadIngesta(q) },
       { metodo: "GET", patron: /^\/documentos\/([^/]+)$/, fn: (m) => this.detalleDocumento(m[1]) },
@@ -421,16 +437,18 @@ export class ServicioSimulado {
       nombre_archivo: f.archivo,
       sha256: "abc123",
       tamano_bytes: (f.archivo__contenido ?? "").length,
-      estado: "COMPLETADO",
+      estado: this.pausarIngesta ? "CONFIRMACION_PENDIENTE" : "COMPLETADO",
       resultado_analisis: "CON_HALLAZGOS",
-      disponible_para_rag: true,
+      disponible_para_rag: !this.pausarIngesta,
       fragmentos_total: 4,
       cantidad_advertencias: 0,
       cargado_por: "u-super",
       creado_en: "2026-10-14T16:00:00Z",
-      completado_en: "2026-10-14T16:00:05Z",
+      completado_en: this.pausarIngesta ? null : "2026-10-14T16:00:05Z",
     };
     this.documentos.unshift(doc);
+    // Doble check: el análisis terminó y la carga espera que alguien decida (202, no es un error).
+    if (this.pausarIngesta) return ok(this.vistaOperacion(doc), 202);
     return ok(
       {
         operacion_id: operacionId,
@@ -454,6 +472,73 @@ export class ServicioSimulado {
     );
   }
 
+  private conOperacion(operacionId: string, fn: (d: DocumentoResumen) => Respuesta): Respuesta {
+    const doc = this.documentos.find((d) => d.operacion_id === operacionId);
+    return doc ? fn(doc) : error(404, "OPERATION_NOT_FOUND", "Operación inexistente.");
+  }
+
+  /** Vista de la operación según el estado de su documento (como `GET /documentos/operaciones/{id}`). */
+  private vistaOperacion(doc: DocumentoResumen, error: { code: string; message: string } | null = null) {
+    const pausada = doc.estado === "CONFIRMACION_PENDIENTE";
+    const completado = doc.estado === "COMPLETADO";
+    const fallido = doc.estado === "FALLIDO" || doc.estado === "FALLIDO_LIMPIEZA_PENDIENTE";
+    return {
+      operacion_id: doc.operacion_id,
+      estado: doc.estado,
+      terminal: completado || fallido,
+      exitosa: completado,
+      etapa: doc.estado,
+      documento_id: doc.id,
+      fragmentos_procesados: completado ? 4 : 0,
+      fragmentos_total: 4,
+      advertencias: [],
+      resultado_analisis: completado ? doc.resultado_analisis : null,
+      publicacion_reintentable: doc.estado === "PUBLICACION_PENDIENTE",
+      confirmacion_pendiente: pausada,
+      resumen_confirmacion: pausada
+        ? {
+            resultado: "CON_HALLAZGOS",
+            referencias_gri: 3,
+            sanciones: 1,
+            motivos: ["referencias_gri_catalogadas", "sanciones_economicas"],
+            advertencias: [{ codigo: "GRI_EDICION_AMBIGUA", mensaje: "Estándar conocido con varias ediciones y sin edición en el texto." }],
+            mensaje: "El análisis detectó 3 grupo(s) GRI y 1 mención(es) de sanciones. ¿Desea continuar con la ingesta o cancelarla?",
+          }
+        : null,
+      error: error ?? (fallido ? { code: "UNEXPECTED_ERROR", message: "La ingesta no se completó." } : null),
+      creada_en: AHORA,
+      actualizada_en: AHORA,
+    };
+  }
+
+  private noPendiente(): Respuesta {
+    return error(409, "CONFIRMATION_NOT_PENDING", "La operación no está esperando una confirmación.");
+  }
+
+  private confirmarIngesta(doc: DocumentoResumen): Respuesta {
+    if (doc.estado !== "CONFIRMACION_PENDIENTE") return this.noPendiente();
+    if (this.fallarPublicacionAlConfirmar) {
+      doc.estado = "PUBLICACION_PENDIENTE";
+      return error(502, "VECTOR_PUBLICATION_PENDING", "El documento se completó, pero la publicación quedó pendiente.");
+    }
+    doc.estado = "COMPLETADO";
+    doc.disponible_para_rag = true;
+    doc.completado_en = "2026-10-14T16:01:00Z";
+    return ok({ ...this.vistaOperacion(doc), motivos: [], fragmentos: 4 }, 201);
+  }
+
+  private cancelarIngesta(doc: DocumentoResumen): Respuesta {
+    if (doc.estado !== "CONFIRMACION_PENDIENTE") return this.noPendiente();
+    doc.estado = "FALLIDO";
+    return ok(this.vistaOperacion(doc, { code: "CONFIRMACION_RECHAZADA", message: "La carga fue cancelada." }));
+  }
+
+  private reintentarPublicacion(doc: DocumentoResumen): Respuesta {
+    if (doc.estado !== "PUBLICACION_PENDIENTE") return error(409, "DOCUMENT_STATE_CONFLICT", "No hay publicación pendiente.");
+    doc.estado = "COMPLETADO";
+    return ok(this.vistaOperacion(doc));
+  }
+
   /** Un documento de cada tipo por empresa y año: los tipos ya cargados quedan OCUPADO. */
   private disponibilidadIngesta(q: URLSearchParams): Respuesta {
     const empresa = this.empresas.find((e) => e.id === q.get("empresa_id"));
@@ -467,10 +552,12 @@ export class ServicioSimulado {
       empresa_activa: empresa.activa,
       anio,
       tipos: tipos.map((tipo) => {
-        const doc = this.documentos.find((d) => d.empresa_id === empresa.id && d.anio === anio && d.tipo === tipo);
+        const doc = this.documentos.find(
+          (d) => d.empresa_id === empresa.id && d.anio === anio && d.tipo === tipo && d.estado !== "FALLIDO",
+        );
         return {
           tipo,
-          estado: doc ? "OCUPADO" : "DISPONIBLE",
+          estado: espacioDe(doc),
           cargable: !doc && empresa.activa,
           documento_id: doc?.id ?? null,
           nombre_archivo: doc?.nombre_archivo ?? null,

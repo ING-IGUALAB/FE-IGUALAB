@@ -44,6 +44,12 @@ import {
   anioIngestaValido,
   etiquetaAnalisis,
   etiquetaEstado,
+  etiquetaEstadoOperacion,
+  necesitaDecision,
+  cierreDeCarga,
+  etiquetaHallazgos,
+  textoResumenConfirmacion,
+  motivoLegible,
   badgeDeEstado,
   etiquetaEstadoResumida,
   estadosDeFiltro,
@@ -633,5 +639,42 @@ describe("estado resumido de la lista de documentos", () => {
     expect(estadosDeFiltro("completados")).toEqual(["COMPLETADO"]);
     expect(estadosDeFiltro("en_curso")).toEqual(["EN_PROCESO", "CONFIRMACION_PENDIENTE", "PUBLICACION_PENDIENTE"]);
     expect(estadosDeFiltro("fallidos")).toEqual(["FALLIDO", "FALLIDO_LIMPIEZA_PENDIENTE"]);
+  });
+});
+
+describe("doble check de la ingesta", () => {
+  it("detecta la operación que espera una decisión", () => {
+    expect(necesitaDecision({ confirmacion_pendiente: true })).toBe(true);
+    expect(necesitaDecision({ estado: "CONFIRMACION_PENDIENTE" })).toBe(true);
+    expect(necesitaDecision({ confirmacion_pendiente: false, estado: "COMPLETADO" })).toBe(false);
+    expect(necesitaDecision(null)).toBe(false);
+  });
+
+  it("distingue una carga cancelada o vencida de un fallo", () => {
+    expect(cierreDeCarga({ error: { code: "CONFIRMACION_RECHAZADA" } })).toBe("cancelada");
+    expect(cierreDeCarga({ error: { code: "CONFIRMACION_VENCIDA" } })).toBe("vencida");
+    expect(cierreDeCarga({ error: { code: "UNEXPECTED_ERROR" } })).toBeNull();
+    expect(cierreDeCarga({ error: null })).toBeNull();
+  });
+
+  it("resume el análisis en palabras con los contadores", () => {
+    const base = { motivos: [], advertencias: [], mensaje: "x" };
+    expect(textoResumenConfirmacion({ ...base, resultado: "CON_HALLAZGOS", referencias_gri: 3, sanciones: 1 })).toBe(
+      "Se detectaron 3 grupos GRI y 1 mención de sanciones.",
+    );
+    expect(textoResumenConfirmacion({ ...base, resultado: "OBSERVADO", referencias_gri: 0, sanciones: 0 })).toMatch(/^El documento no tiene referencias GRI/);
+    expect(textoResumenConfirmacion(null)).toMatch(/^El análisis terminó/);
+    expect(etiquetaHallazgos("OBSERVADO")).toBe("Sin hallazgos");
+    expect(etiquetaHallazgos("CON_HALLAZGOS")).toBe("Con hallazgos");
+  });
+
+  it("muestra los motivos sin códigos ni guiones bajos", () => {
+    expect(motivoLegible("sin_referencias_gri_catalogadas_ni_sanciones_economicas")).toBe("No tiene referencias GRI del catálogo ni sanciones económicas.");
+    expect(motivoLegible("monto_con_separador_ambiguo")).toBe("Monto con separador ambiguo");
+  });
+
+  it("nombra también los estados propios de la operación", () => {
+    expect(etiquetaEstadoOperacion("RECHAZADA")).toBe("Rechazada");
+    expect(etiquetaEstadoOperacion("CONFIRMACION_PENDIENTE")).toBe("Confirmación pendiente");
   });
 });

@@ -1,4 +1,6 @@
 import { test, expect, entrarComo, campo } from "./support/fixtures";
+import type { Page } from "@playwright/test";
+import type { ServicioSimulado } from "./support/servicio-simulado";
 
 const archivoMd = (name: string, contenido = "# Reporte de sostenibilidad\n\nGRI 305-1: emisiones directas.\n") => ({
   name,
@@ -294,5 +296,142 @@ test.describe("Paginación de los documentos ingestados", () => {
     await nav.getByRole("button", { name: "Página 3", exact: true }).click();
     await expect(nav.getByText("Página 3 de 3")).toBeVisible();
     await expect(page.locator("tbody tr")).toHaveCount(7);
+  });
+});
+
+test.describe("Doble check: la carga se pausa tras el análisis", () => {
+  // Andina 2025 tiene libre el Reporte GRI: la carga se pausa y espera que el SuperAdmin decida.
+  async function cargarEnPausa(page: Page, api: ServicioSimulado) {
+    api.pausarIngesta = true;
+    await page.getByRole("button", { name: "Nueva carga" }).click();
+    const dialogo = page.getByRole("dialog");
+    await campo(dialogo, "Empresa").selectOption({ label: "Minera Andina S.A.A." });
+    await campo(dialogo, "Año").selectOption("2025");
+    await campo(dialogo, "Tipo").selectOption({ label: "Reporte de Sostenibilidad GRI" });
+    await page.locator('input[type="file"]').setInputFiles(archivoMd("gri-andina-2025.md"));
+    await dialogo.getByRole("button", { name: "Realizar ingesta" }).click();
+    await expect(dialogo.getByRole("heading", { name: "Revisa el análisis antes de continuar" })).toBeVisible();
+    return dialogo;
+  }
+
+  test.beforeEach(async ({ page, api }) => {
+    await entrarComo(page, api, "superadmin", "/ingesta");
+    await expect(page.getByRole("heading", { name: "Ingesta de documentos" })).toBeVisible();
+  });
+
+  test("un 202 muestra el resumen para decidir y «Continuar» completa la carga", async ({ page, api }) => {
+    const dialogo = await cargarEnPausa(page, api);
+
+    // No es un error: se muestra el resumen, sin consultar en bucle ni decir que falló.
+    await expect(dialogo.getByText("Se detectaron 3 grupos GRI y 1 mención de sanciones.")).toBeVisible();
+    await expect(dialogo.getByText("Con hallazgos")).toBeVisible();
+    await expect(dialogo.getByText("Si nadie decide, la carga se cancelará sola a los 30 minutos", { exact: false })).toBeVisible();
+    await expect(page.getByText("La ingesta no se completó")).toHaveCount(0);
+    expect(api.llamadasA("GET", /^\/documentos\/operaciones\//)).toHaveLength(0);
+    await expect(dialogo.getByRole("button", { name: "Realizar ingesta" })).toBeDisabled();
+    await expect(dialogo.getByRole("button", { name: "Decidir después" })).toBeVisible();
+    // Los códigos técnicos no se muestran tal cual.
+    await dialogo.getByText("Detalle técnico").click();
+    await expect(dialogo.getByText("Tiene referencias GRI del catálogo.")).toBeVisible();
+    await expect(dialogo).not.toContainText("referencias_gri_catalogadas");
+
+    await dialogo.getByRole("button", { name: "Continuar con la ingesta" }).click();
+    await expect(page.getByText("Documento ingestado e indexado.")).toBeVisible();
+    await expect(dialogo.getByText("Ingesta completada")).toBeVisible();
+    await expect(dialogo.getByRole("heading", { name: "Revisa el análisis antes de continuar" })).toHaveCount(0);
+    expect(api.llamadasA("POST", /\/confirmar$/)).toHaveLength(1);
+    const fila = page.getByRole("row", { name: /gri-andina-2025\.md/ });
+    await expect(fila.getByText("Completado")).toBeVisible();
+  });
+
+  test("«Cancelar y eliminar» pide confirmación, informa la cancelación y libera el cupo", async ({ page, api }) => {
+    const dialogo = await cargarEnPausa(page, api);
+
+    await dialogo.getByRole("button", { name: "Cancelar y eliminar" }).click();
+    await expect(dialogo.getByText("¿Cancelar la carga?", { exact: false })).toBeVisible();
+    await dialogo.getByRole("button", { name: "Volver" }).click();
+    expect(api.llamadasA("POST", /\/cancelar$/)).toHaveLength(0);
+
+    await dialogo.getByRole("button", { name: "Cancelar y eliminar" }).click();
+    await dialogo.getByRole("button", { name: "Sí, cancelar y eliminar" }).click();
+    await expect(page.getByText("Carga cancelada. Ya puedes volver a cargar ese documento.")).toBeVisible();
+    await expect(dialogo.getByRole("heading", { name: "Carga cancelada" })).toBeVisible();
+    await expect(dialogo.getByText("Ingesta no completada")).toHaveCount(0);
+    await expect(dialogo.getByRole("button", { name: "Reintentar publicación" })).toHaveCount(0);
+
+    // El tipo vuelve a estar disponible para esa empresa y año.
+    await expect(campo(dialogo, "Tipo").locator("option", { hasText: "Reporte de Sostenibilidad GRI" })).toHaveJSProperty("disabled", false);
+    await expect(page.getByRole("row", { name: /gri-andina-2025\.md/ }).getByText("Fallido")).toBeVisible();
+  });
+
+  test("si otra persona ya decidió (409), se muestra cómo quedó sin bloquear la pantalla", async ({ page, api }) => {
+    const dialogo = await cargarEnPausa(page, api);
+    api.documentos[0].estado = "COMPLETADO"; // la resolvió otra persona
+
+    await dialogo.getByRole("button", { name: "Continuar con la ingesta" }).click();
+    await expect(page.getByText("Esta carga ya se había resuelto. Se muestra cómo quedó.")).toBeVisible();
+    await expect(dialogo.getByText("Ingesta completada")).toBeVisible();
+    await expect(dialogo.getByRole("button", { name: "Cerrar" })).toBeEnabled();
+    expect(api.llamadasA("GET", /^\/documentos\/operaciones\//)).toHaveLength(1);
+  });
+
+  test("si la publicación queda pendiente (502), ofrece reintentarla", async ({ page, api }) => {
+    const dialogo = await cargarEnPausa(page, api);
+    api.fallarPublicacionAlConfirmar = true;
+
+    await dialogo.getByRole("button", { name: "Continuar con la ingesta" }).click();
+    await expect(page.getByText("El documento se cargó, pero falta publicarlo.", { exact: false })).toBeVisible();
+    await expect(dialogo.getByRole("heading", { name: "Falta publicar el documento" })).toBeVisible();
+
+    await dialogo.getByRole("button", { name: "Reintentar publicación" }).click();
+    await expect(page.getByText("Publicación completada.")).toBeVisible();
+    await expect(dialogo.getByText("Ingesta completada")).toBeVisible();
+  });
+
+  test("sin conexión, el panel sigue abierto para volver a decidir", async ({ page, api }) => {
+    const dialogo = await cargarEnPausa(page, api);
+    await page.route("**/confirmar", (r) => r.abort());
+
+    await dialogo.getByRole("button", { name: "Continuar con la ingesta" }).click();
+    await expect(page.getByText("No se pudo conectar con el servidor.")).toBeVisible();
+    await expect(dialogo.getByRole("heading", { name: "Revisa el análisis antes de continuar" })).toBeVisible();
+    await expect(dialogo.getByRole("button", { name: "Continuar con la ingesta" })).toBeEnabled();
+
+    await page.unroute("**/confirmar");
+    await dialogo.getByRole("button", { name: "Continuar con la ingesta" }).click();
+    await expect(dialogo.getByText("Ingesta completada")).toBeVisible();
+  });
+
+  test("si se cierra sin decidir, se retoma desde la lista con «Revisar decisión»", async ({ page, api }) => {
+    const dialogo = await cargarEnPausa(page, api);
+    await dialogo.getByRole("button", { name: "Decidir después" }).click();
+    await expect(page.getByText("La carga quedó en pausa.", { exact: false })).toBeVisible();
+    expect(api.llamadasA("POST", /\/(confirmar|cancelar)$/)).toHaveLength(0);
+
+    // En la lista se ve como «En proceso», con la acción para decidir.
+    const fila = page.getByRole("row", { name: /gri-andina-2025\.md/ });
+    await expect(fila.getByText("En proceso")).toBeVisible();
+    await fila.getByRole("button", { name: "Revisar decisión" }).click();
+
+    const decision = page.getByRole("dialog");
+    await expect(decision.getByRole("heading", { name: "Decisión pendiente" })).toBeVisible();
+    await expect(decision.getByText("Minera Andina S.A.A. · 2025 · Reporte de Sostenibilidad GRI · gri-andina-2025.md")).toBeVisible();
+    await decision.getByRole("button", { name: "Continuar con la ingesta" }).click();
+    await expect(decision.getByText("Ingesta completada")).toBeVisible();
+    await decision.getByRole("button", { name: "Cerrar" }).click();
+    await expect(fila.getByText("Completado")).toBeVisible();
+    await expect(fila.getByRole("button", { name: "Revisar decisión" })).toHaveCount(0);
+  });
+
+  test("si al retomarla ya estaba resuelta, lo avisa y muestra cómo quedó", async ({ page, api }) => {
+    const dialogo = await cargarEnPausa(page, api);
+    await dialogo.getByRole("button", { name: "Decidir después" }).click();
+    const fila = page.getByRole("row", { name: /gri-andina-2025\.md/ });
+    await expect(fila.getByRole("button", { name: "Revisar decisión" })).toBeVisible();
+    api.documentos[0].estado = "FALLIDO"; // venció mientras tanto
+
+    await fila.getByRole("button", { name: "Revisar decisión" }).click();
+    await expect(page.getByText("Esta carga ya se había resuelto. Se muestra cómo quedó.")).toBeVisible();
+    await expect(page.getByRole("dialog").getByText("Ingesta no completada")).toBeVisible();
   });
 });

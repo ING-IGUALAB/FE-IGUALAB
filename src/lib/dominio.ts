@@ -11,6 +11,7 @@ import type {
   MotivoSinEvidencia,
   PuntajeEsg,
   ResultadoAnalisis,
+  ResumenConfirmacion,
   SectorApi,
   TipoDocumentoApi,
   TipoEventoAuditoria,
@@ -73,6 +74,18 @@ export function etiquetaEstado(e: EstadoProgreso): string {
   return ESTADO_PROGRESO_LABEL[e] ?? e;
 }
 
+const ESTADO_SOLO_OPERACION: Record<string, string> = {
+  CREADA: "Creada",
+  VALIDANDO: "Validando",
+  INTERRUMPIDA: "Interrumpida",
+  RECHAZADA: "Rechazada",
+};
+
+/** Estado de una operación de carga, que además de los del documento tiene los suyos propios. */
+export function etiquetaEstadoOperacion(e: string): string {
+  return ESTADO_SOLO_OPERACION[e] ?? etiquetaEstado(e as EstadoProgreso);
+}
+
 // En la lista de documentos el estado se resume en tres: el detalle conserva el estado exacto.
 export type EstadoBadge = "completado" | "en_proceso" | "fallido";
 
@@ -111,6 +124,47 @@ export const FILTROS_ESTADO: { valor: Exclude<FiltroEstado, "">; etiqueta: strin
 /** Estados del backend que pide un filtro; vacío para «Todos». */
 export function estadosDeFiltro(filtro: FiltroEstado): EstadoProgreso[] {
   return FILTROS_ESTADO.find((f) => f.valor === filtro)?.estados ?? [];
+}
+
+// ---- Doble check de la ingesta: la carga se pausa tras el análisis hasta que alguien decide ----
+export const MINUTOS_VIGENCIA_CONFIRMACION = 30;
+
+/** La operación espera que alguien decida continuar o cancelar la ingesta. */
+export function necesitaDecision(op: { confirmacion_pendiente?: boolean; estado?: string } | null | undefined): boolean {
+  return !!op && (op.confirmacion_pendiente === true || op.estado === "CONFIRMACION_PENDIENTE");
+}
+
+/** Cómo terminó una carga que no siguió: cancelada por una persona o vencida sin decisión. */
+export function cierreDeCarga(op: { error?: { code?: string | null } | null }): "cancelada" | "vencida" | null {
+  if (op.error?.code === "CONFIRMACION_RECHAZADA") return "cancelada";
+  if (op.error?.code === "CONFIRMACION_VENCIDA") return "vencida";
+  return null;
+}
+
+export function etiquetaHallazgos(r: ResultadoAnalisis): string {
+  return r === "OBSERVADO" ? "Sin hallazgos" : "Con hallazgos";
+}
+
+/** Frase para decidir, armada con los contadores (sin repetir la pregunta que ya hacen los botones). */
+export function textoResumenConfirmacion(r: ResumenConfirmacion | null | undefined): string {
+  if (!r) return "El análisis terminó. Revisa el resultado y decide si continuar con la ingesta.";
+  if (r.resultado === "OBSERVADO") {
+    return "El documento no tiene referencias GRI del catálogo ni sanciones económicas. Si continúas, quedará cargado sin hallazgos.";
+  }
+  return `Se detectaron ${plural(r.referencias_gri, "grupo GRI", "grupos GRI")} y ${plural(r.sanciones, "mención de sanciones", "menciones de sanciones")}.`;
+}
+
+const MOTIVO_LEGIBLE: Record<string, string> = {
+  referencias_gri_catalogadas: "Tiene referencias GRI del catálogo.",
+  sanciones_economicas: "Menciona sanciones económicas.",
+  sin_referencias_gri_catalogadas_ni_sanciones_economicas: "No tiene referencias GRI del catálogo ni sanciones económicas.",
+};
+
+/** Motivo del análisis en palabras: los conocidos con su frase; el resto, sin guiones bajos. */
+export function motivoLegible(codigo: string): string {
+  if (MOTIVO_LEGIBLE[codigo]) return MOTIVO_LEGIBLE[codigo];
+  const texto = codigo.replace(/_/g, " ").trim();
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
 export function etiquetaAnalisis(r: ResultadoAnalisis | null | undefined): string {

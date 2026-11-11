@@ -98,6 +98,24 @@ export interface OperacionCreada {
   progreso_url: string;
 }
 
+/** Advertencia que acompaña al resumen del doble check (mismo código que el catálogo de advertencias). */
+export interface AdvertenciaConfirmacion {
+  codigo?: string;
+  mensaje?: string;
+}
+
+/** Resumen del análisis con el que el SuperAdmin decide si continuar la ingesta (doble check). */
+export interface ResumenConfirmacion {
+  resultado: ResultadoAnalisis;
+  /** Grupos de estándares GRI detectados. */
+  referencias_gri: number;
+  /** Menciones de sanciones económicas detectadas. */
+  sanciones: number;
+  motivos?: string[];
+  advertencias?: AdvertenciaConfirmacion[];
+  mensaje: string;
+}
+
 export interface Operacion {
   operacion_id: string;
   estado: EstadoOperacion;
@@ -110,6 +128,9 @@ export interface Operacion {
   advertencias: unknown[];
   resultado_analisis?: ResultadoAnalisis | null;
   publicacion_reintentable: boolean;
+  /** true solo en CONFIRMACION_PENDIENTE: la ingesta espera que alguien decida continuar o cancelar. */
+  confirmacion_pendiente?: boolean;
+  resumen_confirmacion?: ResumenConfirmacion | null;
   error?: ErrorOperacion | null;
   creada_en: string;
   actualizada_en: string;
