@@ -99,8 +99,17 @@ export class ServicioSimulado {
   pausarIngesta = false;
   /** Doble check: al confirmar, la publicación falla (502) y el documento queda pendiente de publicar. */
   fallarPublicacionAlConfirmar = false;
+  /**
+   * Avance de la barra de progreso: mientras la carga (o la confirmación) sigue sin responder, cada
+   * consulta de la operación devuelve la siguiente etapa de esta lista. Úsese con `retrasar`.
+   */
+  etapasDuranteIngesta: string[] = [];
+  etapasDuranteConfirmacion: string[] = [];
+  private enCurso = new Map<string, { etapas: string[]; i: number }>();
+  private rechazadas = new Set<string>();
   private fallos: FalloForzado[] = [];
   private demoras: { metodo: string; ruta: RegExp; ms: number }[] = [];
+  private retenciones: { metodo: string; ruta: RegExp; espera: Promise<void> }[] = [];
   private sesionesExpiradas = false;
   private seq = 100;
   private readonly rutas: { metodo: string; patron: RegExp; fn: Manejador }[];
@@ -142,6 +151,19 @@ export class ServicioSimulado {
   /** Hace que las respuestas a `metodo ruta` tarden `ms` (para probar los indicadores de carga). */
   retrasar(metodo: string, ruta: RegExp, ms: number) {
     this.demoras.push({ metodo, ruta, ms });
+  }
+
+  /**
+   * La próxima respuesta a `metodo ruta` se procesa pero no se entrega hasta llamar a la función
+   * devuelta: así una prueba controla cuándo «termina» una petición sin depender del tiempo real.
+   */
+  retener(metodo: string, ruta: RegExp): () => void {
+    let soltar: () => void = () => undefined;
+    const espera = new Promise<void>((resolve) => {
+      soltar = resolve;
+    });
+    this.retenciones.push({ metodo, ruta, espera });
+    return () => soltar();
   }
 
   /** Agrega `n` documentos más (para probar la paginación con muchas páginas). */
@@ -226,6 +248,14 @@ export class ServicioSimulado {
     }
     const demora = this.demoras.find((d) => d.metodo === metodo && d.ruta.test(ruta));
     if (demora) await new Promise((resolve) => setTimeout(resolve, demora.ms));
+    const retenida = this.retenciones.findIndex((x) => x.metodo === metodo && x.ruta.test(ruta));
+    if (retenida >= 0) await this.retenciones.splice(retenida, 1)[0].espera;
+    // Al responder la carga o la confirmación, la operación deja de estar «en curso».
+    const carga = /^\/documentos\/operaciones\/([^/]+)\/(ingesta|confirmar)$/.exec(ruta);
+    if (carga) {
+      this.enCurso.delete(carga[1]);
+      if (carga[2] === "ingesta" && r.status >= 400) this.rechazadas.add(carga[1]);
+    }
     if (r.status === 204) return route.fulfill({ status: 204 });
     if (r.archivo) {
       const headers: Record<string, string> = {};
@@ -297,7 +327,7 @@ export class ServicioSimulado {
       // Documentos / ingesta
       { metodo: "POST", patron: /^\/documentos\/operaciones$/, fn: () => this.crearOperacion() },
       { metodo: "POST", patron: /^\/documentos\/operaciones\/([^/]+)\/ingesta$/, fn: (m, req) => this.ingerir(m[1], req) },
-      { metodo: "GET", patron: /^\/documentos\/operaciones\/([^/]+)$/, fn: (m) => this.conOperacion(m[1], (d) => ok(this.vistaOperacion(d))) },
+      { metodo: "GET", patron: /^\/documentos\/operaciones\/([^/]+)$/, fn: (m) => this.consultarOperacion(m[1]) },
       { metodo: "POST", patron: /^\/documentos\/operaciones\/([^/]+)\/confirmar$/, fn: (m) => this.conOperacion(m[1], (d) => this.confirmarIngesta(d)) },
       { metodo: "POST", patron: /^\/documentos\/operaciones\/([^/]+)\/cancelar$/, fn: (m) => this.conOperacion(m[1], (d) => this.cancelarIngesta(d)) },
       { metodo: "POST", patron: /^\/documentos\/operaciones\/([^/]+)\/reintentar-publicacion$/, fn: (m) => this.conOperacion(m[1], (d) => this.reintentarPublicacion(d)) },
@@ -447,6 +477,7 @@ export class ServicioSimulado {
       completado_en: this.pausarIngesta ? null : "2026-10-14T16:00:05Z",
     };
     this.documentos.unshift(doc);
+    if (this.etapasDuranteIngesta.length > 0) this.enCurso.set(operacionId, { etapas: [...this.etapasDuranteIngesta], i: 0 });
     // Doble check: el análisis terminó y la carga espera que alguien decida (202, no es un error).
     if (this.pausarIngesta) return ok(this.vistaOperacion(doc), 202);
     return ok(
@@ -470,6 +501,49 @@ export class ServicioSimulado {
       },
       201,
     );
+  }
+
+  /** Progreso de una operación: en curso según el guion de etapas, o según su documento. */
+  private consultarOperacion(operacionId: string): Respuesta {
+    const curso = this.enCurso.get(operacionId);
+    const doc = this.documentos.find((d) => d.operacion_id === operacionId);
+    if (curso && doc) {
+      const etapa = curso.etapas[Math.min(curso.i, curso.etapas.length - 1)];
+      curso.i += 1;
+      const indexando = etapa === "INDEXANDO";
+      return ok({
+        ...this.vistaOperacion(doc),
+        estado: "EN_PROCESO",
+        terminal: false,
+        exitosa: false,
+        etapa,
+        confirmacion_pendiente: false,
+        resumen_confirmacion: null,
+        fragmentos_procesados: indexando ? 2 : 0,
+        fragmentos_total: indexando ? 4 : null,
+      });
+    }
+    if (doc) return ok(this.vistaOperacion(doc));
+    // Sin documento: todavía no se reservó o la carga se rechazó antes de reservarlo.
+    const rechazada = this.rechazadas.has(operacionId);
+    return ok({
+      operacion_id: operacionId,
+      estado: rechazada ? "RECHAZADA" : "VALIDANDO",
+      terminal: rechazada,
+      exitosa: false,
+      etapa: null,
+      documento_id: null,
+      fragmentos_procesados: 0,
+      fragmentos_total: null,
+      advertencias: [],
+      resultado_analisis: null,
+      publicacion_reintentable: false,
+      confirmacion_pendiente: false,
+      resumen_confirmacion: null,
+      error: rechazada ? { code: "DOCUMENT_REJECTED", message: "La carga fue rechazada." } : null,
+      creada_en: AHORA,
+      actualizada_en: AHORA,
+    });
   }
 
   private conOperacion(operacionId: string, fn: (d: DocumentoResumen) => Respuesta): Respuesta {
@@ -524,6 +598,9 @@ export class ServicioSimulado {
     doc.estado = "COMPLETADO";
     doc.disponible_para_rag = true;
     doc.completado_en = "2026-10-14T16:01:00Z";
+    if (this.etapasDuranteConfirmacion.length > 0) {
+      this.enCurso.set(doc.operacion_id!, { etapas: [...this.etapasDuranteConfirmacion], i: 0 });
+    }
     return ok({ ...this.vistaOperacion(doc), motivos: [], fragmentos: 4 }, 201);
   }
 

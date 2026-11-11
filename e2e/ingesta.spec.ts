@@ -435,3 +435,115 @@ test.describe("Doble check: la carga se pausa tras el análisis", () => {
     await expect(page.getByRole("dialog").getByText("Ingesta no completada")).toBeVisible();
   });
 });
+
+test.describe("Barra de progreso de los 9 pasos de la ingesta", () => {
+  const estadoBarra = (page: Page) => page.getByRole("dialog").getByRole("region", { name: "Progreso de la ingesta" }).getByRole("status");
+  const paso = (page: Page, n: number) => page.getByRole("dialog").getByRole("listitem").nth(n - 1);
+
+  async function iniciarCarga(page: Page) {
+    await page.getByRole("button", { name: "Nueva carga" }).click();
+    const dialogo = page.getByRole("dialog");
+    await campo(dialogo, "Empresa").selectOption({ label: "Minera Andina S.A.A." });
+    await campo(dialogo, "Año").selectOption("2025");
+    await campo(dialogo, "Tipo").selectOption({ label: "Reporte de Sostenibilidad GRI" });
+    await page.locator('input[type="file"]').setInputFiles(archivoMd("gri-andina-2025.md"));
+    await dialogo.getByRole("button", { name: "Realizar ingesta" }).click();
+    return dialogo;
+  }
+
+  test.beforeEach(async ({ page, api }) => {
+    await entrarComo(page, api, "superadmin", "/ingesta");
+    await expect(page.getByRole("heading", { name: "Ingesta de documentos" })).toBeVisible();
+  });
+
+  test("avanza paso a paso MIENTRAS se procesa, se detiene en el 6 y termina al continuar", async ({ page, api }) => {
+    // Reloj simulado: cada consulta del avance (cada 1,5 s) ocurre cuando la prueba lo decide.
+    await page.clock.install();
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Ingesta de documentos" })).toBeVisible();
+    const tic = () => page.clock.runFor(1500);
+    api.pausarIngesta = true;
+    api.etapasDuranteIngesta = ["RESERVADO", "ALMACENANDO_ORIGINAL", "INDEXANDO", "ANALIZANDO"];
+    const soltarCarga = api.retener("POST", /\/ingesta$/);
+    const dialogo = await iniciarCarga(page);
+    const barra = dialogo.getByRole("progressbar", { name: "Avance de la ingesta" });
+
+    // Aparece al instante con el paso 1, antes de que responda el servidor.
+    await expect(estadoBarra(page)).toHaveText("Paso 1 de 9: Validar");
+    await expect(paso(page, 1)).toHaveAttribute("aria-current", "step");
+    await expect(dialogo.getByRole("listitem")).toHaveCount(9);
+    // Es el único indicador: el botón no muestra otro.
+    await expect(dialogo.getByRole("button", { name: "Procesando…" })).toBeDisabled();
+    await expect(dialogo.locator("button .animate-spin")).toHaveCount(0);
+
+    // Mientras la carga sigue sin responder, cada consulta trae la etapa real.
+    for (const texto of ["Paso 2 de 9: Reservar", "Paso 3 de 9: Guardar", "Paso 4 de 9: Fragmentar · 2 de 4 fragmentos", "Paso 5 de 9: Analizar"]) {
+      await tic();
+      await expect(estadoBarra(page)).toHaveText(texto);
+    }
+    await expect(paso(page, 3)).toContainText("completado");
+    await expect(paso(page, 5)).toHaveAttribute("aria-current", "step");
+    await expect(barra).toHaveAttribute("aria-valuenow", "50");
+
+    // El servidor responde 202: se detiene en el paso 6 a esperar la decisión.
+    soltarCarga();
+    await expect(estadoBarra(page)).toHaveText("Paso 6 de 9: esperando tu decisión");
+    await expect(paso(page, 6)).toContainText("en pausa");
+    await expect(dialogo.getByRole("heading", { name: "Revisa el análisis antes de continuar" })).toBeVisible();
+
+    // Al continuar, la barra sigue los pasos 7 y 8 hasta completar los 9.
+    api.etapasDuranteConfirmacion = ["COMPLETANDO", "PUBLICANDO"];
+    const soltarConfirmacion = api.retener("POST", /\/confirmar$/);
+    await dialogo.getByRole("button", { name: "Continuar con la ingesta" }).click();
+    await expect(estadoBarra(page)).toHaveText("Paso 6 de 9: Confirmar");
+    await tic();
+    await expect(estadoBarra(page)).toHaveText("Paso 7 de 9: Completar");
+    await tic();
+    await expect(estadoBarra(page)).toHaveText("Paso 8 de 9: Publicar");
+    soltarConfirmacion();
+    await expect(estadoBarra(page)).toHaveText("Completada: 9 de 9 pasos");
+    await expect(barra).toHaveAttribute("aria-valuenow", "100");
+    await expect(dialogo.getByText("Ingesta completada")).toBeVisible();
+  });
+
+  test("una carga sin pausa completa los 9 pasos", async ({ page }) => {
+    await iniciarCarga(page);
+    await expect(estadoBarra(page)).toHaveText("Completada: 9 de 9 pasos");
+    for (let n = 1; n <= 9; n++) await expect(paso(page, n)).toContainText("completado");
+  });
+
+  test("si la carga se rechaza, marca el paso 1 en rojo y deja de consultar", async ({ page, api }) => {
+    await page.clock.install();
+    await page.route("**/ingesta", (r) =>
+      r.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ error: { code: "DUPLICATE_DOCUMENT", message: "Ese documento ya fue cargado." } }) }),
+    );
+    await iniciarCarga(page);
+    await expect(page.getByText("Ese documento ya fue cargado.")).toBeVisible();
+    await expect(estadoBarra(page)).toHaveText("La ingesta se detuvo en el paso 1: Validar");
+    await expect(paso(page, 1)).toContainText("con error");
+    const consultas = api.llamadasA("GET", /^\/documentos\/operaciones\//).length;
+    await page.clock.runFor(5000); // varios intervalos de consulta
+    expect(api.llamadasA("GET", /^\/documentos\/operaciones\//)).toHaveLength(consultas);
+  });
+
+  test("al cancelar, el paso 6 queda como cancelado (no como error)", async ({ page, api }) => {
+    api.pausarIngesta = true;
+    const dialogo = await iniciarCarga(page);
+    await dialogo.getByRole("button", { name: "Cancelar y eliminar" }).click();
+    await dialogo.getByRole("button", { name: "Sí, cancelar y eliminar" }).click();
+    await expect(estadoBarra(page)).toHaveText("Cancelada en el paso 6");
+    await expect(paso(page, 6)).toContainText("cancelado");
+    for (let n = 7; n <= 9; n++) await expect(paso(page, n)).toContainText("pendiente");
+  });
+
+  test("con la publicación pendiente, el paso 8 queda en ámbar hasta reintentar", async ({ page, api }) => {
+    api.pausarIngesta = true;
+    api.fallarPublicacionAlConfirmar = true;
+    const dialogo = await iniciarCarga(page);
+    await dialogo.getByRole("button", { name: "Continuar con la ingesta" }).click();
+    await expect(estadoBarra(page)).toHaveText("Paso 8 de 9: falta publicar");
+    await expect(paso(page, 8)).toContainText("en pausa");
+    await dialogo.getByRole("button", { name: "Reintentar publicación" }).click();
+    await expect(estadoBarra(page)).toHaveText("Completada: 9 de 9 pasos");
+  });
+});

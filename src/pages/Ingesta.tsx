@@ -6,6 +6,9 @@ import PaginacionSalto from "../components/PaginacionSalto";
 import Badge from "../components/Badge";
 import Spinner from "../components/Spinner";
 import Modal from "../components/Modal";
+import TiraEtapasIngesta from "../components/TiraEtapasIngesta";
+import { useProgresoIngesta } from "../components/useProgresoIngesta";
+import { progresoDePasos } from "../lib/progresoIngesta";
 import { useToast } from "../components/ToastProvider";
 import * as empresasApi from "../api/empresas";
 import * as documentosApi from "../api/documentos";
@@ -233,14 +236,18 @@ function NuevaCargaModal({
   const [archivo, setArchivo] = useState<File | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [resultado, setResultado] = useState<ResultadoCarga | null>(null);
-  const reintentar = useReintentarPublicacion(setResultado, onIngestado);
+  // Barra de progreso de los 9 pasos: avanza con lo que informa el servidor mientras se procesa.
+  const progreso = useProgresoIngesta();
+  const [fallo, setFallo] = useState(false);
+  const reintentar = useReintentarPublicacion(setResultado, onIngestado, progreso.setOperacion);
   // Doble check: la carga se pausa tras el análisis hasta que se decide continuar o cancelar.
   const { pendiente, setPendiente, resolviendo, resolver } = useDobleCheck((op) => {
     if (op) setResultado(op);
     setArchivo(null);
     setVueltaDisponibilidad((v) => v + 1);
     onIngestado();
-  });
+  }, progreso);
+  const ocupado = enviando || !!pendiente || !!resolviendo;
   // Una empresa tiene como máximo un documento de cada tipo por año: los tipos ya ocupados se deshabilitan.
   const [noCargables, setNoCargables] = useState<Partial<Record<TipoDocumentoApi, string>>>({});
   const [consultando, setConsultando] = useState(false);
@@ -284,6 +291,9 @@ function NuevaCargaModal({
       setPendiente(null);
       onIngestado();
     }
+    progreso.detener();
+    progreso.setOperacion(null);
+    setFallo(false);
     setEmpresaId("");
     setArchivo(null);
     setResultado(null);
@@ -301,18 +311,6 @@ function NuevaCargaModal({
     setArchivo(f);
   }
 
-  // Se deja de consultar al terminar, al quedar en pausa esperando una decisión o al agotar los intentos.
-  async function esperarTerminal(opId: string, inicial: Operacion): Promise<Operacion> {
-    let actual = inicial;
-    let intentos = 0;
-    while (!actual.terminal && !necesitaDecision(actual) && intentos < 20) {
-      await new Promise((r) => setTimeout(r, 1500));
-      actual = await documentosApi.consultarOperacion(opId);
-      intentos += 1;
-    }
-    return actual;
-  }
-
   async function realizarIngesta() {
     if (!empresaId) {
       toast("Selecciona una empresa.", "warn");
@@ -325,15 +323,27 @@ function NuevaCargaModal({
     setEnviando(true);
     setResultado(null);
     setPendiente(null);
+    setFallo(false);
+    progreso.setOperacion(null);
+    let opId: string | null = null;
     try {
       const op = await documentosApi.crearOperacion();
-      const { status, data } = await documentosApi.ingerirDocumento(op.operacion_id, {
-        archivo,
-        empresaId,
-        anio,
-        tipoDocumento: tipo,
-      });
-      const final = status === 202 || data.terminal || necesitaDecision(data) ? data : await esperarTerminal(op.operacion_id, data);
+      opId = op.operacion_id;
+      // El backend procesa la carga de una vez y responde al final: el avance se consulta EN
+      // PARALELO, mientras la petición sigue en curso, para ver cada paso.
+      const ingesta = documentosApi.ingerirDocumento(op.operacion_id, { archivo, empresaId, anio, tipoDocumento: tipo });
+      progreso.seguir(op.operacion_id).catch(() => null);
+      let respuesta: Awaited<typeof ingesta>;
+      try {
+        respuesta = await ingesta;
+      } finally {
+        progreso.detener();
+      }
+      const { status, data } = respuesta;
+      progreso.setOperacion(data);
+      // Si respondió sin terminar ni pausarse, se sigue consultando un rato hasta que termine.
+      const enCurso = status !== 202 && !data.terminal && !necesitaDecision(data);
+      const final = enCurso ? ((await progreso.seguir(op.operacion_id, data, 20)) ?? data) : data;
       if (necesitaDecision(final)) {
         // No es un error: el análisis terminó y falta decidir.
         setPendiente(final);
@@ -350,6 +360,11 @@ function NuevaCargaModal({
         toast("La ingesta no se completó. Revisa el detalle.", "error");
       }
     } catch (err) {
+      progreso.detener();
+      setFallo(true);
+      // Se pregunta en qué paso quedó para marcarlo; sin respuesta, el fallo queda en el paso 1.
+      const actual = opId ? await documentosApi.consultarOperacion(opId).catch(() => null) : null;
+      progreso.setOperacion(actual);
       toast(mensajeError(err, "No se pudo realizar la ingesta."), tipoAviso(err));
     } finally {
       setEnviando(false);
@@ -364,7 +379,7 @@ function NuevaCargaModal({
         </h3>
         <div className="space-y-md">
           {/* Mientras se espera la decisión, el formulario queda bloqueado: la carga ya se hizo. */}
-          <fieldset disabled={!!pendiente} className="space-y-md disabled:opacity-60">
+          <fieldset disabled={ocupado} className="space-y-md disabled:opacity-60">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-md">
             <Campo label="Sector">
               <select value={sector} onChange={(e) => { setSector(e.target.value as SectorApi); setEmpresaId(""); }} className={CLS_FILTRO}>
@@ -409,7 +424,7 @@ function NuevaCargaModal({
             onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("dropzone-active"); }}
             onDragLeave={(e) => e.currentTarget.classList.remove("dropzone-active")}
             onDrop={(e) => { e.preventDefault(); e.currentTarget.classList.remove("dropzone-active"); elegirArchivo(e.dataTransfer.files); }}
-            className={`flex-col items-center justify-center gap-sm border-2 border-dashed border-outline-variant rounded-xl p-lg text-center cursor-pointer hover:border-primary-ink hover:bg-primary/5 transition-colors ${pendiente ? "hidden" : "flex"}`}
+            className={`flex-col items-center justify-center gap-sm border-2 border-dashed border-outline-variant rounded-xl p-lg text-center cursor-pointer hover:border-primary-ink hover:bg-primary/5 transition-colors ${ocupado || progreso.operacion || fallo ? "hidden" : "flex"}`}
           >
             <span className="material-symbols-outlined text-[36px] text-primary-ink">cloud_upload</span>
             <span className="text-body-md text-on-background font-medium">Arrastra el .md aquí o haz clic para seleccionar</span>
@@ -428,6 +443,9 @@ function NuevaCargaModal({
 
           </fieldset>
 
+          {(enviando || progreso.operacion || fallo) && (
+            <TiraEtapasIngesta progreso={progresoDePasos(progreso.operacion, enviando, fallo)} sinConexion={progreso.sinConexion} />
+          )}
           {pendiente && (
             <PanelDobleCheck
               operacion={pendiente}
@@ -448,7 +466,8 @@ function NuevaCargaModal({
               {textoBotonCerrar(!!pendiente, !!resultado)}
             </button>
             <button onClick={realizarIngesta} disabled={enviando || consultando || !!pendiente || !archivo || !empresaId || Boolean(noCargables[tipo])} className="px-lg py-sm rounded-lg bg-primary text-on-primary text-label-md font-semibold hover:bg-surface-tint disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-sm">
-              {enviando ? <><Spinner size={16} /> Procesando…</> : <><span className="material-symbols-outlined text-[18px]" aria-hidden="true">cloud_sync</span> Realizar ingesta</>}
+              {/* Mientras procesa, el único indicador es la barra de progreso. */}
+              {enviando ? "Procesando…" : <><span className="material-symbols-outlined text-[18px]" aria-hidden="true">cloud_sync</span> Realizar ingesta</>}
             </button>
           </div>
         </div>
@@ -469,7 +488,9 @@ type AccionDobleCheck = "confirmar" | "cancelar";
  * publicación quedó pendiente (502), se pregunta al servidor cómo quedó en lugar de reintentar a
  * ciegas. Ante un error de red el panel sigue abierto para volver a intentarlo. Nunca decide solo.
  */
-function useDobleCheck(onResuelto: (op: Operacion | null) => void) {
+type ProgresoCarga = Pick<ReturnType<typeof useProgresoIngesta>, "setOperacion" | "seguir" | "detener">;
+
+function useDobleCheck(onResuelto: (op: Operacion | null) => void, progreso: ProgresoCarga) {
   const toast = useToast();
   const [pendiente, setPendiente] = useState<Operacion | null>(null);
   const [resolviendo, setResolviendo] = useState<AccionDobleCheck | null>(null);
@@ -478,6 +499,7 @@ function useDobleCheck(onResuelto: (op: Operacion | null) => void) {
 
   async function reconciliar(opId: string) {
     const actual = await documentosApi.consultarOperacion(opId).catch(() => null);
+    if (actual) progreso.setOperacion(actual);
     if (actual && necesitaDecision(actual)) {
       setPendiente(actual);
       return;
@@ -488,16 +510,28 @@ function useDobleCheck(onResuelto: (op: Operacion | null) => void) {
 
   async function resolver(accion: AccionDobleCheck) {
     if (!pendiente || resolviendo) return;
+    const enPausa = pendiente;
     const opId = pendiente.operacion_id;
     setResolviendo(accion);
     try {
       if (accion === "confirmar") {
-        const op = await documentosApi.confirmarOperacion(opId);
+        // El paso 6 pasa de «en pausa» a «en curso» y la barra sigue los pasos 7 a 9 mientras responde.
+        const enMarcha: Operacion = { ...enPausa, confirmacion_pendiente: false, estado: "EN_PROCESO", etapa: "CONFIRMANDO" };
+        progreso.setOperacion(enMarcha);
+        progreso.seguir(opId, enMarcha).catch(() => null);
+        let op: ResultadoIngesta;
+        try {
+          op = await documentosApi.confirmarOperacion(opId);
+        } finally {
+          progreso.detener();
+        }
+        progreso.setOperacion(op);
         setPendiente(null);
         toast(op.exitosa ? "Documento ingestado e indexado." : "La ingesta no se completó. Revisa el detalle.", op.exitosa ? "success" : "error");
         resuelto.current(op);
       } else {
         const op = await documentosApi.cancelarOperacion(opId);
+        progreso.setOperacion(op);
         setPendiente(null);
         toast("Carga cancelada. Ya puedes volver a cargar ese documento.", "info");
         resuelto.current(op);
@@ -510,6 +544,7 @@ function useDobleCheck(onResuelto: (op: Operacion | null) => void) {
         toast("El documento se cargó, pero falta publicarlo. Usa «Reintentar publicación».", "warn");
         await reconciliar(opId);
       } else {
+        progreso.setOperacion(enPausa); // la carga sigue en pausa: se puede volver a decidir
         toast(mensajeError(err, "No se pudo completar la decisión. Inténtalo de nuevo."), tipoAviso(err));
       }
     } finally {
@@ -524,11 +559,13 @@ function useDobleCheck(onResuelto: (op: Operacion | null) => void) {
 function useReintentarPublicacion(
   setResultado: (f: (prev: ResultadoCarga | null) => ResultadoCarga | null) => void,
   onPublicado: () => void,
+  setOperacion: (op: Operacion) => void,
 ) {
   const toast = useToast();
   return async function reintentar(opId: string) {
     try {
       const op = await documentosApi.reintentarPublicacion(opId);
+      setOperacion(op);
       setResultado((prev) => (prev ? { ...prev, ...op } : op));
       toast(op.exitosa ? "Publicación completada." : "Aún no se pudo publicar.", op.exitosa ? "success" : "warn");
       if (op.exitosa) onPublicado();
@@ -623,7 +660,7 @@ function PanelDobleCheck({
           </button>
           <button type="button" onClick={onConfirmar} disabled={ocupado} className="px-md py-sm rounded-lg bg-primary text-on-primary text-label-md font-semibold hover:bg-surface-tint flex items-center gap-sm disabled:opacity-60">
             {resolviendo === "confirmar" ? (
-              <><Spinner size={16} /> Continuando…</>
+              "Continuando…"
             ) : (
               <><span className="material-symbols-outlined text-[18px]" aria-hidden="true">play_arrow</span> Continuar con la ingesta</>
             )}
@@ -654,11 +691,13 @@ function DecisionPendienteModal({
   const [resultado, setResultado] = useState<ResultadoCarga | null>(null);
   const resuelto = useRef(onResuelto);
   resuelto.current = onResuelto;
-  const reintentar = useReintentarPublicacion(setResultado, () => resuelto.current());
+  const progreso = useProgresoIngesta();
+  const { setOperacion, detener } = progreso;
+  const reintentar = useReintentarPublicacion(setResultado, () => resuelto.current(), setOperacion);
   const { pendiente, setPendiente, resolviendo, resolver } = useDobleCheck((op) => {
     setResultado(op);
     resuelto.current();
-  });
+  }, progreso);
   const opId = documento?.operacion_id ?? null;
 
   useEffect(() => {
@@ -667,10 +706,12 @@ function DecisionPendienteModal({
     setCargando(true);
     setResultado(null);
     setPendiente(null);
+    setOperacion(null);
     documentosApi
       .consultarOperacion(opId)
       .then((op) => {
         if (!vigente) return;
+        setOperacion(op);
         if (necesitaDecision(op)) {
           setPendiente(op);
         } else {
@@ -687,8 +728,9 @@ function DecisionPendienteModal({
       });
     return () => {
       vigente = false;
+      detener();
     };
-  }, [opId, setPendiente, toast]);
+  }, [opId, setPendiente, setOperacion, detener, toast]);
 
   function cerrar() {
     if (resolviendo) return;
@@ -711,6 +753,7 @@ function DecisionPendienteModal({
         {cargando && (
           <p className="flex items-center gap-sm text-body-md text-on-surface-variant"><Spinner size={16} /> Cargando…</p>
         )}
+        {progreso.operacion && <TiraEtapasIngesta progreso={progresoDePasos(progreso.operacion, false)} sinConexion={progreso.sinConexion} />}
         {pendiente && (
           <PanelDobleCheck operacion={pendiente} resolviendo={resolviendo} onConfirmar={() => resolver("confirmar")} onCancelar={() => resolver("cancelar")} />
         )}
