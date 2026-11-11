@@ -547,3 +547,82 @@ test.describe("Barra de progreso de los 9 pasos de la ingesta", () => {
     await expect(estadoBarra(page)).toHaveText("Completada: 9 de 9 pasos");
   });
 });
+
+test.describe("Deshabilitar un documento", () => {
+  test.beforeEach(async ({ page, api }) => {
+    await entrarComo(page, api, "superadmin", "/ingesta");
+    await expect(page.getByRole("heading", { name: "Ingesta de documentos" })).toBeVisible();
+  });
+
+  test("se confirma escribiendo «deshabilitar»; luego lo marca y libera su lugar", async ({ page, api }) => {
+    const fila = page.getByRole("row", { name: /memoria-andina-2024\.md/ });
+    // «Ver» primero y «Deshabilitar» a la derecha.
+    await expect(fila.locator("td").last()).toHaveText(/Ver.*Deshabilitar/);
+    await fila.getByRole("button", { name: "Deshabilitar memoria-andina-2024.md" }).click();
+    const dialogo = page.getByRole("dialog");
+    await expect(dialogo.getByRole("heading", { name: "Deshabilitar documento" })).toBeVisible();
+    await expect(dialogo.getByText("No se puede deshacer.")).toBeVisible();
+    await expect(dialogo.getByLabel("Motivo")).toHaveCount(0);
+    const boton = dialogo.getByRole("button", { name: "Deshabilitar este documento" });
+    const palabra = dialogo.getByLabel("Para confirmar, escribe «deshabilitar» abajo");
+
+    await expect(boton).toBeDisabled();
+    await palabra.fill("Deshabilitar");
+    await expect(boton).toBeDisabled();
+    await palabra.fill("deshabilitar");
+    await expect(boton).toBeEnabled();
+    await boton.click();
+
+    await expect(page.getByText("Documento deshabilitado. Ya puedes cargar un reemplazo para Minera Andina S.A.A. 2024.")).toBeVisible();
+    await expect(dialogo).toBeHidden();
+    // El backend exige un motivo: se envía uno fijo.
+    expect(api.llamadasA("POST", /\/deshabilitar$/)[0].cuerpo).toEqual({ motivo: "Deshabilitado por el SuperAdmin desde Ingesta de documentos." });
+    await expect(fila.getByText("Deshabilitado")).toBeVisible();
+    await expect(fila.getByRole("button", { name: /^Deshabilitar/ })).toHaveCount(0);
+
+    // El detalle explica cuándo, quién y por qué.
+    await fila.click();
+    const detalle = page.getByRole("dialog");
+    await expect(detalle.getByText("Documento deshabilitado")).toBeVisible();
+    await expect(detalle.getByText("Motivo: Deshabilitado por el SuperAdmin desde Ingesta de documentos.")).toBeVisible();
+    await expect(detalle).toContainText("por Oscar Baldeón");
+    await page.keyboard.press("Escape");
+
+    // Su lugar queda libre para cargar un reemplazo.
+    await page.getByRole("button", { name: "Nueva carga" }).click();
+    const carga = page.getByRole("dialog");
+    await campo(carga, "Empresa").selectOption({ label: "Minera Andina S.A.A." });
+    await campo(carga, "Año").selectOption("2024");
+    await expect(campo(carga, "Tipo").locator("option", { hasText: "Memoria Anual" })).toHaveJSProperty("disabled", false);
+  });
+
+  test("filtra por habilitados y deshabilitados", async ({ page, api }) => {
+    Object.assign(api.documentos[1], { deshabilitado: true, motivo_deshabilitacion: "Duplicado" });
+    await page.reload();
+    const filas = page.locator("tbody tr");
+    await expect(filas).toHaveCount(4);
+
+    await page.getByRole("button", { name: /^Filtros/ }).click();
+    const filtro = page.getByLabel("Filtrar por habilitación");
+    await expect(filtro.locator("option")).toHaveText(["Todos", "Habilitados", "Deshabilitados"]);
+    await filtro.selectOption({ label: "Deshabilitados" });
+    await expect(filas).toHaveCount(1);
+    await expect(filas.first()).toContainText("Petro Sur S.A.");
+    await expect(filas.first()).toContainText("Deshabilitado");
+    await filtro.selectOption({ label: "Habilitados" });
+    await expect(filas).toHaveCount(3);
+    await expect(page.locator("tbody")).not.toContainText("Petro Sur S.A.");
+  });
+
+  test("si el servidor no lo permite, lo explica sin cerrar la confirmación", async ({ page }) => {
+    await page.route("**/deshabilitar", (r) =>
+      r.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ error: { code: "DOCUMENT_NOT_DISABLEABLE", message: "Solo se puede deshabilitar un documento completado." } }) }),
+    );
+    await page.getByRole("button", { name: "Deshabilitar memoria-andina-2024.md" }).click();
+    const dialogo = page.getByRole("dialog");
+    await dialogo.getByLabel("Para confirmar, escribe «deshabilitar» abajo").fill("deshabilitar");
+    await dialogo.getByRole("button", { name: "Deshabilitar este documento" }).click();
+    await expect(dialogo.getByRole("alert")).toHaveText("Solo se puede deshabilitar un documento completado.");
+    await expect(dialogo).toBeVisible();
+  });
+});

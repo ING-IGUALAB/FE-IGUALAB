@@ -5,7 +5,7 @@ import Spinner from "../components/Spinner";
 import { useToast } from "../components/ToastProvider";
 import * as empresasApi from "../api/empresas";
 import { mensajeError, tipoAviso } from "../api/client";
-import { SECTORES_API, etiquetaSector, filtrarPorNombre } from "../lib/dominio";
+import { SECTORES_API, conRecientesPrimero, etiquetaSector, filtrarPorNombre } from "../lib/dominio";
 import type { EmpresaApi, SectorApi } from "../types";
 
 const SKELETON = ["s1", "s2", "s3", "s4"];
@@ -19,6 +19,8 @@ export default function Empresas() {
   const [busqueda, setBusqueda] = useState("");
   const [crearOpen, setCrearOpen] = useState(false);
   const [editando, setEditando] = useState<EmpresaApi | null>(null);
+  // Empresas registradas en esta visita, la más reciente primero: se muestran arriba de la lista.
+  const [recientes, setRecientes] = useState<string[]>([]);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -40,8 +42,21 @@ export default function Empresas() {
   }, [cargar]);
 
   // La búsqueda se hace sobre la lista ya cargada: escribir no dispara una petición por tecla.
-  const visibles = filtrarPorNombre(empresas, busqueda);
+  const visibles = conRecientesPrimero(filtrarPorNombre(empresas, busqueda), recientes);
   const buscando = busqueda.trim() !== "";
+
+  // La empresa recién registrada queda primera y a la vista: se quita la búsqueda y, si el filtro
+  // de sector la ocultaría, se vuelve a «Todos».
+  function mostrarArriba(creada?: EmpresaApi) {
+    if (!creada) {
+      cargar();
+      return;
+    }
+    setRecientes((prev) => [creada.id, ...prev.filter((id) => id !== creada.id)]);
+    setBusqueda("");
+    if (sector && sector !== creada.sector) setSector("");
+    else cargar();
+  }
 
   async function cambiarEstado(empresa: EmpresaApi) {
     try {
@@ -114,8 +129,13 @@ export default function Empresas() {
                 <tr><td colSpan={5} className="py-xl px-md text-center text-on-surface-variant">No hay empresas que coincidan con el filtro.</td></tr>
               )}
               {!cargando && visibles.map((e) => (
-                <tr key={e.id} className="border-b border-surface-variant hover:bg-surface/50 transition-colors">
-                  <td className="py-md px-md font-medium text-on-background">{e.nombre}</td>
+                <tr key={e.id} className={`border-b border-surface-variant hover:bg-surface/50 transition-colors ${recientes.includes(e.id) ? "bg-primary/5" : ""}`}>
+                  <td className="py-md px-md font-medium text-on-background">
+                    {e.nombre}
+                    {recientes.includes(e.id) && (
+                      <span className="ml-sm align-middle inline-flex items-center px-2 py-0.5 rounded-full bg-primary/15 text-primary-ink text-label-sm font-semibold">Nueva</span>
+                    )}
+                  </td>
                   <td className="py-md px-md text-on-surface-variant">{etiquetaSector(e.sector)}</td>
                   <td className="py-md px-md">
                     <span className={`inline-flex items-center px-2 py-0.5 text-label-sm uppercase tracking-[0.06em] ${e.activa ? "bg-success-container text-on-success-container" : "bg-surface-variant text-on-surface-variant"}`}>
@@ -156,7 +176,7 @@ export default function Empresas() {
         modo="crear"
         abierto={crearOpen}
         onClose={() => setCrearOpen(false)}
-        onGuardado={() => { setCrearOpen(false); cargar(); }}
+        onGuardado={(creada) => { setCrearOpen(false); mostrarArriba(creada); }}
       />
       <EmpresaModal
         modo="editar"
@@ -222,7 +242,7 @@ function EmpresaModal({
   empresa?: EmpresaApi | null;
   abierto: boolean;
   onClose: () => void;
-  onGuardado: () => void;
+  onGuardado: (creada?: EmpresaApi) => void;
 }>) {
   const toast = useToast();
   const [nombre, setNombre] = useState("");
@@ -247,9 +267,12 @@ function EmpresaModal({
     setCargando(true);
     try {
       if (modo === "crear") {
-        await empresasApi.crearEmpresa({ nombre: nombre.trim(), sector });
+        const creada = await empresasApi.crearEmpresa({ nombre: nombre.trim(), sector });
         toast(`Empresa '${nombre.trim()}' registrada.`, "success");
-      } else if (empresa) {
+        onGuardado(creada);
+        return;
+      }
+      if (empresa) {
         await empresasApi.editarEmpresa(empresa.id, { nombre: nombre.trim(), sector });
         toast("Empresa actualizada.", "success");
       }

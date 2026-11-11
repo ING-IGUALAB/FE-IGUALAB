@@ -1,6 +1,7 @@
 import { api, apiConEstado } from "./client";
 import type {
   DisponibilidadIngesta,
+  DocumentoDeshabilitado,
   DocumentoDetalle,
   DocumentoResumen,
   EstadoProgreso,
@@ -115,6 +116,14 @@ export async function listarPorEstados(
   // Sin repetidos: un documento puede cambiar de estado entre una consulta y otra.
   const porId = new Map(listas.flat().map((d) => [d.id, d]));
   return [...porId.values()].sort((a, b) => b.creado_en.localeCompare(a.creado_en));
+}
+
+/**
+ * Retira un documento completado: deja de usarse en el análisis, los reportes nuevos y el asistente,
+ * y libera su lugar para un reemplazo. No borra nada y no se puede revertir. El motivo es obligatorio.
+ */
+export function deshabilitarDocumento(id: string, motivo: string) {
+  return api<DocumentoDeshabilitado>(`/documentos/${id}/deshabilitar`, { method: "POST", body: { motivo } });
 }
 
 export function detalleDocumento(id: string) {

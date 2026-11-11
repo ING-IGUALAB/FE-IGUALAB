@@ -29,6 +29,11 @@ import {
   textoResumenConfirmacion,
   MINUTOS_VIGENCIA_CONFIRMACION,
   estadosDeFiltro,
+  puedeDeshabilitar,
+  confirmacionDeshabilitarValida,
+  PALABRA_DESHABILITAR,
+  MOTIVO_DESHABILITAR,
+  type FiltroHabilitacion,
   FILTROS_ESTADO,
   type FiltroEstado,
   etiquetaSector,
@@ -72,6 +77,8 @@ export default function Ingesta() {
   const [fEstado, setFEstado] = useState<FiltroEstado>("");
   const [fTipo, setFTipo] = useState<"" | TipoDocumentoApi>("");
   const [fSector, setFSector] = useState<"" | SectorApi>("");
+  const [fHabilitacion, setFHabilitacion] = useState<FiltroHabilitacion>("");
+  const [aDeshabilitar, setADeshabilitar] = useState<DocumentoResumen | null>(null);
   const [pagina, setPagina] = useState(1);
   const [detalleId, setDetalleId] = useState<string | null>(null);
   // Carga en pausa que se retoma desde la lista para decidir continuar o cancelar.
@@ -98,7 +105,7 @@ export default function Ingesta() {
   // El backend no busca por nombre de empresa, no filtra por sector y filtra un solo estado por
   // petición: en esos casos se traen todos los documentos una vez y se filtra y pagina aquí, así
   // escribir en la búsqueda no hace una petición por tecla.
-  const filtroLocal = !!fSector || !!busqueda.trim() || estadosDeFiltro(fEstado).length > 1;
+  const filtroLocal = !!fSector || !!busqueda.trim() || !!fHabilitacion || estadosDeFiltro(fEstado).length > 1;
   const paginaAPedir = filtroLocal ? 1 : pagina;
 
   const cargarDocs = useCallback(async () => {
@@ -126,7 +133,7 @@ export default function Ingesta() {
   }, [cargarDocs]);
 
   const listaVisible = filtroLocal
-    ? paginarLocal(filtrarDocumentos(todosDocs ?? [], { sector: fSector, busqueda }), pagina, TAM_PAGINA)
+    ? paginarLocal(filtrarDocumentos(todosDocs ?? [], { sector: fSector, busqueda, habilitacion: fHabilitacion }), pagina, TAM_PAGINA)
     : paginaServidor;
   const { items: docs, pagina: paginaActual, paginas: totalPaginas } = listaVisible;
   const mostrandoCarga = cargandoDocs || (filtroLocal && todosDocs === null);
@@ -152,6 +159,8 @@ export default function Ingesta() {
               onTipo={(v) => { setFTipo(v); setPagina(1); }}
               estado={fEstado}
               onEstado={(v) => { setFEstado(v); setPagina(1); }}
+              habilitacion={fHabilitacion}
+              onHabilitacion={(v) => { setFHabilitacion(v); setPagina(1); }}
             />
           </div>
           <div className="overflow-x-auto">
@@ -168,12 +177,13 @@ export default function Ingesta() {
                   <tr key={k} className="border-b border-surface-variant"><td colSpan={7} className="py-md px-md"><div className="h-5 bg-surface-variant rounded animate-pulse" /></td></tr>
                 ))}
                 {!mostrandoCarga && docs.length === 0 && (
-                  <tr><td colSpan={7} className="py-xl px-md text-center text-on-surface-variant">{filtroLocal || fTipo || fEstado ? "No hay documentos que coincidan con la búsqueda y los filtros." : "Aún no hay documentos ingestados."}</td></tr>
+                  <tr><td colSpan={7} className="py-xl px-md text-center text-on-surface-variant">{filtroLocal || fTipo || fEstado || fHabilitacion ? "No hay documentos que coincidan con la búsqueda y los filtros." : "Aún no hay documentos ingestados."}</td></tr>
                 )}
                 {!mostrandoCarga && docs.map((d) => {
                   const inactiva = empresasInactivas.has(d.empresa_id);
+                  const apagada = inactiva || !!d.deshabilitado;
                   return (
-                  <tr key={d.id} onClick={() => setDetalleId(d.id)} title={inactiva ? "La empresa está desactivada en el catálogo" : undefined} className={`border-b border-surface-variant hover:bg-surface/50 transition-colors cursor-pointer ${inactiva ? "opacity-60" : ""}`}>
+                  <tr key={d.id} onClick={() => setDetalleId(d.id)} title={tituloFila(d, inactiva)} className={`border-b border-surface-variant hover:bg-surface/50 transition-colors cursor-pointer ${apagada ? "opacity-60" : ""}`}>
                     <td className="py-md px-md">
                       <div className="flex items-center gap-sm">
                         <span className={`material-symbols-outlined ${d.tipo === "REPORTE_SOSTENIBILIDAD_GRI" ? "text-secondary" : "text-primary-ink"}`}>{d.tipo === "REPORTE_SOSTENIBILIDAD_GRI" ? "eco" : "description"}</span>
@@ -185,10 +195,11 @@ export default function Ingesta() {
                     </td>
                     <td className="py-md px-md text-on-surface-variant">{d.anio}</td>
                     <td className="py-md px-md">{etiquetaTipo(d.tipo)}</td>
-                    <td className="py-md px-md"><Badge estado={inactiva ? "Inactivo" : etiquetaEstadoResumida(d.estado)} /></td>
+                    <td className="py-md px-md"><Badge estado={badgeDeFila(d, inactiva)} /></td>
                     <td className="py-md px-md text-on-surface-variant">{etiquetaAnalisis(d.resultado_analisis)}</td>
                     <td className="py-md px-md text-on-surface-variant whitespace-nowrap">{fechaHora(d.creado_en)}</td>
                     <td className="py-md px-md text-right">
+                      <div className="flex items-center justify-end gap-md">
                       {necesitaDecision(d) && d.operacion_id ? (
                         <button
                           type="button"
@@ -200,6 +211,18 @@ export default function Ingesta() {
                       ) : (
                         <span className="inline-flex items-center gap-xs text-primary-ink text-label-md"><span className="material-symbols-outlined text-[18px]">visibility</span> Ver</span>
                       )}
+                      {puedeDeshabilitar(d) && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setADeshabilitar(d); }}
+                          aria-label={`Deshabilitar ${d.nombre_archivo}`}
+                          title="Deshabilitar documento"
+                          className="inline-flex items-center gap-xs text-error text-label-md hover:underline whitespace-nowrap"
+                        >
+                          <span className="material-symbols-outlined text-[18px]" aria-hidden="true">block</span> Deshabilitar
+                        </button>
+                      )}
+                      </div>
                     </td>
                   </tr>
                   );
@@ -214,6 +237,7 @@ export default function Ingesta() {
           )}
         </div>
       <NuevaCargaModal abierto={cargaAbierta} empresas={empresas} onClose={() => setCargaAbierta(false)} onIngestado={() => { setPagina(1); cargarDocs(); }} />
+      <DeshabilitarDocumentoModal documento={aDeshabilitar} onClose={() => setADeshabilitar(null)} onDeshabilitado={cargarDocs} />
       <DecisionPendienteModal documento={decisionDoc} onClose={() => setDecisionDoc(null)} onResuelto={cargarDocs} />
       <DetalleDocumentoModal id={detalleId} empresasInactivas={empresasInactivas} nombres={nombres} onClose={() => setDetalleId(null)} />
     </>
@@ -472,6 +496,112 @@ function NuevaCargaModal({
           </div>
         </div>
       </div>
+    </Modal>
+  );
+}
+
+/** Estado que se ve en la fila: retirado o empresa desactivada antes que el estado de la carga. */
+function badgeDeFila(d: DocumentoResumen, empresaInactiva: boolean): string {
+  if (d.deshabilitado) return "Deshabilitado";
+  if (empresaInactiva) return "Inactivo";
+  return etiquetaEstadoResumida(d.estado);
+}
+
+function tituloFila(d: DocumentoResumen, empresaInactiva: boolean): string | undefined {
+  if (d.deshabilitado) return d.motivo_deshabilitacion ? `Deshabilitado: ${d.motivo_deshabilitacion}` : "Deshabilitado";
+  return empresaInactiva ? "La empresa está desactivada en el catálogo" : undefined;
+}
+
+/** Confirmación para deshabilitar, como al borrar un repositorio: hay que escribir «deshabilitar». */
+function DeshabilitarDocumentoModal({
+  documento,
+  onClose,
+  onDeshabilitado,
+}: Readonly<{ documento: DocumentoResumen | null; onClose: () => void; onDeshabilitado: () => void }>) {
+  const toast = useToast();
+  const idPalabra = useId();
+  const [palabra, setPalabra] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!documento) return;
+    setPalabra("");
+    setError("");
+  }, [documento]);
+
+  const valido = confirmacionDeshabilitarValida(palabra);
+
+  function cerrar() {
+    if (!enviando) onClose();
+  }
+
+  async function deshabilitar() {
+    if (!documento || !valido || enviando) return;
+    setEnviando(true);
+    setError("");
+    try {
+      const r = await documentosApi.deshabilitarDocumento(documento.id, MOTIVO_DESHABILITAR);
+      if (r.ya_estaba_deshabilitado) toast("Ese documento ya estaba deshabilitado.", "info");
+      else toast(`Documento deshabilitado. Ya puedes cargar un reemplazo para ${documento.empresa_nombre} ${documento.anio}.`, "success");
+      onDeshabilitado();
+      onClose();
+    } catch (err) {
+      setError(mensajeError(err, "No se pudo deshabilitar el documento."));
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <Modal open={!!documento} onClose={cerrar} width="max-w-md">
+      {documento && (
+        <div className="overflow-y-auto">
+          <div className="flex items-center justify-between gap-md px-lg py-md border-b border-outline-variant">
+            <h3 className="text-title-md text-on-background">Deshabilitar documento</h3>
+            <button type="button" onClick={cerrar} disabled={enviando} aria-label="Cerrar" className="text-on-surface-variant hover:text-on-surface disabled:opacity-50">
+              <span className="material-symbols-outlined" aria-hidden="true">close</span>
+            </button>
+          </div>
+
+          <div className="px-lg py-lg text-center border-b border-outline-variant">
+            <span className="material-symbols-outlined text-[32px] text-on-surface-variant" aria-hidden="true">
+              {documento.tipo === "REPORTE_SOSTENIBILIDAD_GRI" ? "eco" : "description"}
+            </span>
+            <p className="mt-xs text-title-md text-on-background break-all">{documento.nombre_archivo}</p>
+            <p className="text-label-md text-on-surface-variant">
+              {documento.empresa_nombre} · {documento.anio} · {etiquetaTipo(documento.tipo)}
+            </p>
+          </div>
+
+          <div className="px-lg py-lg space-y-sm">
+            <label htmlFor={idPalabra} className="block text-label-md font-semibold text-on-surface">
+              Para confirmar, escribe «{PALABRA_DESHABILITAR}» abajo
+            </label>
+            <input
+              id={idPalabra}
+              type="text"
+              autoComplete="off"
+              spellCheck={false}
+              value={palabra}
+              onChange={(e) => setPalabra(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") deshabilitar(); }}
+              disabled={enviando}
+              className="w-full rounded-lg border border-error/60 bg-surface-container-low py-sm px-md text-body-md focus:border-error focus:ring-1 focus:ring-error outline-none"
+            />
+            {error && <p role="alert" className="text-body-md text-error">{error}</p>}
+            <button
+              type="button"
+              onClick={deshabilitar}
+              disabled={!valido || enviando}
+              className="w-full px-lg py-sm rounded-lg bg-error text-on-error text-label-md font-semibold flex items-center justify-center gap-sm disabled:bg-surface-container-low disabled:text-error/60 disabled:border disabled:border-outline-variant disabled:cursor-not-allowed"
+            >
+              {enviando ? <><Spinner size={16} /> Deshabilitando…</> : "Deshabilitar este documento"}
+            </button>
+            <p className="text-center text-label-sm text-on-surface-variant">No se puede deshacer.</p>
+          </div>
+        </div>
+      )}
     </Modal>
   );
 }
@@ -781,6 +911,8 @@ function BarraDocumentos({
   onTipo,
   estado,
   onEstado,
+  habilitacion,
+  onHabilitacion,
 }: Readonly<{
   busqueda: string;
   onBuscar: (v: string) => void;
@@ -790,15 +922,18 @@ function BarraDocumentos({
   onTipo: (v: "" | TipoDocumentoApi) => void;
   estado: FiltroEstado;
   onEstado: (v: FiltroEstado) => void;
+  habilitacion: FiltroHabilitacion;
+  onHabilitacion: (v: FiltroHabilitacion) => void;
 }>) {
   const [abierto, setAbierto] = useState(false);
   const idPanel = useId();
-  const activos = [sector, tipo, estado].filter(Boolean).length;
+  const activos = [sector, tipo, estado, habilitacion].filter(Boolean).length;
 
   function limpiarFiltros() {
     onSector("");
     onTipo("");
     onEstado("");
+    onHabilitacion("");
   }
 
   return (
@@ -848,7 +983,7 @@ function BarraDocumentos({
           transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
         >
         <div className="border border-outline-variant bg-surface-container-lowest p-md space-y-sm">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-sm">
             <Campo label="Sector">
               <select aria-label="Filtrar por sector" value={sector} onChange={(e) => onSector(e.target.value as "" | SectorApi)} className={CLS_FILTRO}>
                 <option value="">Todos</option>
@@ -865,6 +1000,13 @@ function BarraDocumentos({
               <select aria-label="Filtrar por estado" value={estado} onChange={(e) => onEstado(e.target.value as FiltroEstado)} className={CLS_FILTRO}>
                 <option value="">Todos</option>
                 {FILTROS_ESTADO.map((f) => <option key={f.valor} value={f.valor}>{f.etiqueta}</option>)}
+              </select>
+            </Campo>
+            <Campo label="Habilitación">
+              <select aria-label="Filtrar por habilitación" value={habilitacion} onChange={(e) => onHabilitacion(e.target.value as FiltroHabilitacion)} className={CLS_FILTRO}>
+                <option value="">Todos</option>
+                <option value="habilitados">Habilitados</option>
+                <option value="deshabilitados">Deshabilitados</option>
               </select>
             </Campo>
           </div>
@@ -941,6 +1083,19 @@ function DetalleDocumentoModal({
 
         {!cargando && doc && (
           <div className="space-y-lg">
+            {doc.deshabilitado && (
+              <div className="rounded-lg bg-surface-variant text-on-surface-variant px-md py-sm text-body-md space-y-xs">
+                <p className="flex items-center gap-sm font-semibold text-on-surface">
+                  <span className="material-symbols-outlined text-[18px]" aria-hidden="true">block</span> Documento deshabilitado
+                </p>
+                <p>
+                  {doc.deshabilitado_en ? fechaHora(doc.deshabilitado_en) : "—"}
+                  {doc.deshabilitado_por ? ` · por ${nombrePersona(doc.deshabilitado_por, nombres)}` : ""}
+                </p>
+                {doc.motivo_deshabilitacion && <p>Motivo: {doc.motivo_deshabilitacion}</p>}
+                <p className="text-label-sm">No se usa en el análisis GRI, en los reportes nuevos ni en el asistente de IA.</p>
+              </div>
+            )}
             {empresasInactivas.has(doc.empresa_id) && (
               <div className="flex items-start gap-sm rounded-lg bg-surface-variant text-on-surface-variant px-md py-sm text-body-md">
                 <span className="material-symbols-outlined text-[18px]">block</span>
@@ -952,7 +1107,7 @@ function DetalleDocumentoModal({
               <Dato label="Sector">{etiquetaSector(doc.sector)}</Dato>
               <Dato label="Año">{doc.anio}</Dato>
               <Dato label="Tipo">{etiquetaTipo(doc.tipo)}</Dato>
-              <Dato label="Estado"><Badge estado={etiquetaEstado(doc.estado)} /></Dato>
+              <Dato label="Estado"><Badge estado={doc.deshabilitado ? "Deshabilitado" : etiquetaEstado(doc.estado)} /></Dato>
               <Dato label="Análisis">{etiquetaAnalisis(doc.resultado_analisis)}</Dato>
               <Dato label="Disponible para el asistente de IA">{doc.disponible_para_rag ? "Sí" : "No"}</Dato>
               <Dato label="Fragmentos">{doc.fragmentos_total ?? doc.fragmentos_procesados}</Dato>

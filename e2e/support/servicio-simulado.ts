@@ -1,6 +1,9 @@
 import type { Page, Request, Route } from "@playwright/test";
 import type {
   AdvertenciaAnalisis,
+  ConsultaAsistente,
+  ConversacionDetalle,
+  MensajeGuardado,
   AnioDisponible,
   AnalisisGri,
   DocumentoResumen,
@@ -106,6 +109,9 @@ export class ServicioSimulado {
   etapasDuranteIngesta: string[] = [];
   etapasDuranteConfirmacion: string[] = [];
   private enCurso = new Map<string, { etapas: string[]; i: number }>();
+  /** Chats guardados del asistente (más reciente al final) y claves ya usadas al guardar. */
+  conversaciones: ConversacionDetalle[] = [];
+  private clavesGuardado = new Map<string, { id: string; contenido: string }>();
   private rechazadas = new Set<string>();
   private fallos: FalloForzado[] = [];
   private demoras: { metodo: string; ruta: RegExp; ms: number }[] = [];
@@ -334,8 +340,13 @@ export class ServicioSimulado {
       { metodo: "GET", patron: /^\/documentos$/, fn: (_m, _r, q) => ok(this.listarDocumentos(q)) },
       { metodo: "GET", patron: /^\/documentos\/disponibilidad$/, fn: (_m, _r, q) => this.disponibilidadIngesta(q) },
       { metodo: "GET", patron: /^\/documentos\/([^/]+)$/, fn: (m) => this.detalleDocumento(m[1]) },
+      { metodo: "POST", patron: /^\/documentos\/([^/]+)\/deshabilitar$/, fn: (m, req) => this.deshabilitarDocumento(m[1], req) },
       // Asistente de IA
       { metodo: "POST", patron: /^\/asistente\/consultas$/, fn: (_m, req) => this.consultarAsistente(req) },
+      { metodo: "POST", patron: /^\/asistente\/conversaciones$/, fn: (_m, req) => this.guardarConversacion(req) },
+      { metodo: "GET", patron: /^\/asistente\/conversaciones$/, fn: (_m, _r, q) => this.listarConversaciones(q) },
+      { metodo: "GET", patron: /^\/asistente\/conversaciones\/([^/]+)$/, fn: (m) => this.conConversacion(m[1], (c) => ok(c)) },
+      { metodo: "POST", patron: /^\/asistente\/conversaciones\/([^/]+)\/consultas$/, fn: (m, req) => this.conConversacion(m[1], (c) => this.continuarConversacion(c, req)) },
       // Reportes de prospección
       { metodo: "GET", patron: /^\/reportes$/, fn: () => ok(this.reportes) },
       { metodo: "GET", patron: /^\/reportes\/disponibilidad$/, fn: (_m, _r, q) => this.disponibilidad(q) },
@@ -630,7 +641,7 @@ export class ServicioSimulado {
       anio,
       tipos: tipos.map((tipo) => {
         const doc = this.documentos.find(
-          (d) => d.empresa_id === empresa.id && d.anio === anio && d.tipo === tipo && d.estado !== "FALLIDO",
+          (d) => d.empresa_id === empresa.id && d.anio === anio && d.tipo === tipo && d.estado !== "FALLIDO" && !d.deshabilitado,
         );
         return {
           tipo,
@@ -661,6 +672,31 @@ export class ServicioSimulado {
       tamano,
       paginas: Math.max(1, Math.ceil(xs.length / tamano)),
     };
+  }
+
+  /** Como el backend: solo un documento completado; idempotente; libera su lugar; no se revierte. */
+  private deshabilitarDocumento(id: string, req: Request): Respuesta {
+    const d = this.documentos.find((x) => x.id === id);
+    if (!d) return error(404, "DOCUMENT_NOT_FOUND", "Documento inexistente.");
+    const { motivo } = req.postDataJSON() as { motivo?: string };
+    if (!motivo?.trim()) return error(422, "REQUEST_VALIDATION_ERROR", "El motivo es obligatorio.");
+    if (d.estado !== "COMPLETADO") return error(409, "DOCUMENT_NOT_DISABLEABLE", "Solo se puede deshabilitar un documento completado.");
+    const ya = !!d.deshabilitado;
+    if (!ya) {
+      Object.assign(d, { deshabilitado: true, deshabilitado_en: "2026-11-11T15:00:00Z", deshabilitado_por: "u-super", motivo_deshabilitacion: motivo.trim(), disponible_para_rag: false });
+    }
+    return ok({
+      documento_id: d.id,
+      empresa_id: d.empresa_id,
+      anio: d.anio,
+      tipo: d.tipo,
+      estado: d.estado,
+      deshabilitado: true,
+      deshabilitado_en: d.deshabilitado_en,
+      deshabilitado_por: d.deshabilitado_por,
+      motivo_deshabilitacion: d.motivo_deshabilitacion,
+      ya_estaba_deshabilitado: ya,
+    });
   }
 
   private detalleDocumento(id: string): Respuesta {
@@ -834,7 +870,106 @@ export class ServicioSimulado {
 
   // ---------------------------------------------------------------- asistente de IA
   private consultarAsistente(req: Request): Respuesta {
-    const cuerpo = req.postDataJSON() as { pregunta?: string; sector?: SectorApi; empresa_id?: string; anio?: number };
+    return this.responderAsistente(req.postDataJSON() as { pregunta?: string; sector?: SectorApi; empresa_id?: string; anio?: number });
+  }
+
+  // ---------------------------------------------------------------- conversaciones guardadas
+  private contextoDe(empresa: EmpresaApi, anio: number) {
+    return { empresa_id: empresa.id, empresa_nombre: empresa.nombre, empresa_activa: empresa.activa, sector: empresa.sector, anio };
+  }
+
+  private mensajeGuardado(orden: number, m: { rol: "usuario"; contenido: string } | { rol: "asistente"; respuesta: ConsultaAsistente }, procedencia: string): MensajeGuardado {
+    return {
+      id: this.nuevoId("msg"),
+      orden,
+      rol: m.rol,
+      contenido: m.rol === "usuario" ? m.contenido : m.respuesta.respuesta || "Sin evidencia suficiente.",
+      respuesta: m.rol === "asistente" ? m.respuesta : null,
+      procedencia: procedencia as MensajeGuardado["procedencia"],
+      creado_en: AHORA,
+    };
+  }
+
+  /** Guarda un chat tal como lo aporta el cliente; la misma clave con el mismo contenido no duplica. */
+  guardarConversacion(req: Request | { postDataJSON: () => unknown }): Respuesta {
+    const b = req.postDataJSON() as {
+      clave_idempotencia: string;
+      empresa_id: string;
+      sector: SectorApi;
+      anio: number;
+      mensajes: ({ rol: "usuario"; contenido: string } | { rol: "asistente"; respuesta: ConsultaAsistente })[];
+    };
+    const empresa = this.empresas.find((e) => e.id === b.empresa_id);
+    if (!empresa) return error(404, "COMPANY_NOT_FOUND", "La empresa no existe.");
+    if (b.mensajes.length < 2 || b.mensajes.length > 40) return error(422, "REQUEST_VALIDATION_ERROR", "La conversación debe tener entre 2 y 40 mensajes.");
+    const contenido = JSON.stringify(b.mensajes);
+    const previa = this.clavesGuardado.get(b.clave_idempotencia);
+    if (previa) {
+      if (previa.contenido !== contenido) return error(409, "CONVERSATION_IDEMPOTENCY_CONFLICT", "Esa clave ya se usó con otro contenido.");
+      return ok({ ...this.conversaciones.find((c) => c.id === previa.id), reutilizada: true });
+    }
+    const primera = b.mensajes[0];
+    const c: ConversacionDetalle = {
+      id: this.nuevoId("conv"),
+      titulo: (primera.rol === "usuario" ? primera.contenido : "").slice(0, 80),
+      contexto: this.contextoDe(empresa, b.anio),
+      total_mensajes: b.mensajes.length,
+      creada_en: AHORA,
+      actualizada_en: `2026-11-11T16:${String(this.conversaciones.length).padStart(2, "0")}:00Z`,
+      mensajes: b.mensajes.map((m, i) => this.mensajeGuardado(i + 1, m, "APORTADO_POR_CLIENTE")),
+    };
+    this.conversaciones.push(c);
+    this.clavesGuardado.set(b.clave_idempotencia, { id: c.id, contenido });
+    return ok({ ...c, reutilizada: false }, 201);
+  }
+
+  private listarConversaciones(q: URLSearchParams) {
+    const pagina = Number(q.get("pagina") ?? 1);
+    const tamano = Number(q.get("tamano") ?? 20);
+    const todas = [...this.conversaciones]
+      .sort((a, b) => b.actualizada_en.localeCompare(a.actualizada_en))
+      .map(({ mensajes: _m, ...resumen }) => ({ ...resumen, contexto: this.contextoActual(resumen.contexto) }));
+    return ok({ items: todas.slice((pagina - 1) * tamano, pagina * tamano), pagina, tamano, total: todas.length });
+  }
+
+  /** El nombre y el estado de la empresa son los actuales, no los del momento de guardar. */
+  private contextoActual(ctx: ConversacionDetalle["contexto"]) {
+    const e = this.empresas.find((x) => x.id === ctx.empresa_id);
+    return e ? { ...ctx, empresa_nombre: e.nombre, empresa_activa: e.activa } : ctx;
+  }
+
+  private conConversacion(id: string, fn: (c: ConversacionDetalle) => Respuesta): Respuesta {
+    const c = this.conversaciones.find((x) => x.id === id);
+    return c ? fn({ ...c, contexto: this.contextoActual(c.contexto) }) : error(404, "CONVERSATION_NOT_FOUND", "La conversación no existe.");
+  }
+
+  private continuarConversacion(c: ConversacionDetalle, req: Request): Respuesta {
+    const { clave_idempotencia, pregunta } = req.postDataJSON() as { clave_idempotencia: string; pregunta: string };
+    if (!c.contexto.empresa_activa) return error(409, "COMPANY_INACTIVE", "La empresa está desactivada.");
+    if (c.total_mensajes + 2 > 40) return error(409, "CONVERSATION_MESSAGE_LIMIT_REACHED", "Este chat llegó a su límite de 20 preguntas. Empieza uno nuevo.");
+    const r = this.responderAsistente({ pregunta, sector: c.contexto.sector, empresa_id: c.contexto.empresa_id, anio: c.contexto.anio });
+    if (r.status !== 200) return r;
+    const guardada = this.conversaciones.find((x) => x.id === c.id)!;
+    const preguntaG = this.mensajeGuardado(guardada.mensajes.length + 1, { rol: "usuario", contenido: pregunta }, "ENVIADO_POR_USUARIO");
+    const respuestaG = this.mensajeGuardado(guardada.mensajes.length + 2, { rol: "asistente", respuesta: r.body as ConsultaAsistente }, "GENERADO_POR_SERVIDOR");
+    guardada.mensajes.push(preguntaG, respuestaG);
+    guardada.total_mensajes = guardada.mensajes.length;
+    guardada.actualizada_en = "2026-11-11T17:00:00Z";
+    return ok(
+      {
+        conversacion_id: c.id,
+        clave_idempotencia,
+        pregunta: preguntaG,
+        respuesta: respuestaG,
+        total_mensajes: guardada.total_mensajes,
+        actualizada_en: guardada.actualizada_en,
+        reutilizado: false,
+      },
+      201,
+    );
+  }
+
+  private responderAsistente(cuerpo: { pregunta?: string; sector?: SectorApi; empresa_id?: string; anio?: number }): Respuesta {
     // Igual que el backend: sector, empresa y año son obligatorios (422 "Field required").
     const faltan = (["pregunta", "sector", "empresa_id", "anio"] as const).filter((k) => cuerpo[k] === undefined || cuerpo[k] === null);
     if (faltan.length > 0) {
@@ -1105,6 +1240,42 @@ export class ServicioSimulado {
       doc("d-psur-2024", psur, 2024, "REPORTE_SOSTENIBILIDAD_GRI", "gri-petro-sur-2024.md"),
       doc("d-pnorte-2025", pnorte, 2025, "MEMORIA_ANUAL", "memoria-petro-norte-2025.md"),
       doc("d-utec-2025", utec, 2025, "MEMORIA_ANUAL", "memoria-utec-2025.md"),
+    ];
+
+    // Un chat ya guardado del Administrador (Minera Andina 2024), para el historial.
+    const respuestaGuardada: ConsultaAsistente = {
+      respuesta: "Se identifica una multa del OEFA de 59.078 UIT [1].",
+      afirmaciones: [{ texto: "Se identifica una multa del OEFA de 59.078 UIT.", referencias: [1], cita_textual: "OEFA impuso una multa de 59.078 UIT." }],
+      citas: [
+        {
+          referencia: 1,
+          documento_id: "d-andina-2024",
+          documento_nombre: "memoria-andina-2024.md",
+          empresa_id: andina.id,
+          empresa_nombre: andina.nombre,
+          anio: 2024,
+          seccion: "Memoria Anual > Contingencias",
+          extracto: "En el ejercicio, OEFA impuso una multa de 59.078 UIT.",
+        },
+      ],
+      sin_evidencia: false,
+      motivo: null,
+      mensaje: null,
+      afirmaciones_descartadas: 0,
+    };
+    this.conversaciones = [
+      {
+        id: "conv-andina",
+        titulo: "¿Qué multas recibió en 2024?",
+        contexto: { empresa_id: andina.id, empresa_nombre: andina.nombre, empresa_activa: true, sector: andina.sector, anio: 2024 },
+        total_mensajes: 2,
+        creada_en: "2026-11-10T09:00:00Z",
+        actualizada_en: "2026-11-10T09:00:00Z",
+        mensajes: [
+          { id: "msg-1", orden: 1, rol: "usuario", contenido: "¿Qué multas recibió en 2024?", respuesta: null, procedencia: "APORTADO_POR_CLIENTE", creado_en: "2026-11-10T09:00:00Z" },
+          { id: "msg-2", orden: 2, rol: "asistente", contenido: respuestaGuardada.respuesta, respuesta: respuestaGuardada, procedencia: "APORTADO_POR_CLIENTE", creado_en: "2026-11-10T09:00:00Z" },
+        ],
+      },
     ];
 
     // Minera Andina 2024: dos códigos GRI sin estado y una sanción.

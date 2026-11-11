@@ -160,6 +160,26 @@ export interface DocumentoResumen {
   cargado_por: string;
   creado_en: string;
   completado_en?: string | null;
+  /** Retirado por un SuperAdmin: queda fuera del análisis, de los reportes nuevos y del asistente. */
+  deshabilitado?: boolean;
+  deshabilitado_en?: string | null;
+  deshabilitado_por?: string | null;
+  motivo_deshabilitacion?: string | null;
+}
+
+/** Resultado de deshabilitar un documento (idempotente: repetirlo devuelve el registro original). */
+export interface DocumentoDeshabilitado {
+  documento_id: string;
+  empresa_id: string;
+  anio: number;
+  tipo: TipoDocumentoApi;
+  estado: EstadoProgreso;
+  deshabilitado: boolean;
+  deshabilitado_en: string;
+  deshabilitado_por: string;
+  motivo_deshabilitacion: string;
+  ya_estaba_deshabilitado: boolean;
+  aviso?: string;
 }
 
 export interface PaginaDocumentos {
@@ -423,6 +443,66 @@ export interface ConsultaAsistente {
   motivo?: MotivoSinEvidencia | null;
   mensaje?: string | null;
   afirmaciones_descartadas?: number;
+}
+
+// ---- Conversaciones guardadas del asistente ----
+/** Empresa, sector y año fijos de una conversación (la empresa con su nombre y estado ACTUALES). */
+export interface ContextoConversacion {
+  empresa_id: string;
+  empresa_nombre: string;
+  /** Una conversación de una empresa desactivada se puede leer, pero no admite preguntas nuevas. */
+  empresa_activa: boolean;
+  sector: SectorApi;
+  anio: number;
+}
+
+export interface ConversacionResumen {
+  id: string;
+  /** Primera pregunta, recortada a 80 caracteres. */
+  titulo: string;
+  contexto: ContextoConversacion;
+  total_mensajes: number;
+  creada_en: string;
+  actualizada_en: string;
+}
+
+export interface MensajeGuardado {
+  id: string;
+  orden: number;
+  rol: "usuario" | "asistente";
+  contenido: string;
+  /** Solo en respuestas del asistente: la respuesta completa, con citas. */
+  respuesta?: ConsultaAsistente | null;
+  procedencia: "APORTADO_POR_CLIENTE" | "ENVIADO_POR_USUARIO" | "GENERADO_POR_SERVIDOR";
+  creado_en: string;
+}
+
+export interface ConversacionDetalle extends ConversacionResumen {
+  mensajes: MensajeGuardado[];
+}
+
+export interface ConversacionGuardada extends ConversacionDetalle {
+  reutilizada?: boolean;
+}
+
+export interface PaginaConversaciones {
+  items: ConversacionResumen[];
+  pagina: number;
+  tamano: number;
+  total: number;
+}
+
+/** Mensajes que se envían al guardar: pares pregunta / respuesta exacta del asistente. */
+export type MensajeParaGuardar = { rol: "usuario"; contenido: string } | { rol: "asistente"; respuesta: ConsultaAsistente };
+
+export interface IntercambioGuardado {
+  conversacion_id: string;
+  clave_idempotencia: string;
+  pregunta: MensajeGuardado;
+  respuesta: MensajeGuardado;
+  total_mensajes: number;
+  actualizada_en: string;
+  reutilizado: boolean;
 }
 
 // ---- Reportes de prospección ----

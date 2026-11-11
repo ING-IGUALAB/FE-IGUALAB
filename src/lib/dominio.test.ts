@@ -27,7 +27,10 @@ import {
   tablaMarkdown,
   textoLegible,
   filtrarDocumentos,
+  puedeDeshabilitar,
+  confirmacionDeshabilitarValida,
   filtrarPorNombre,
+  conRecientesPrimero,
   textoFragmentos,
   accionesReporte,
   etapaReporte,
@@ -676,5 +679,44 @@ describe("doble check de la ingesta", () => {
   it("nombra también los estados propios de la operación", () => {
     expect(etiquetaEstadoOperacion("RECHAZADA")).toBe("Rechazada");
     expect(etiquetaEstadoOperacion("CONFIRMACION_PENDIENTE")).toBe("Confirmación pendiente");
+  });
+});
+
+describe("conRecientesPrimero", () => {
+  const items = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }];
+  it("pone arriba lo recién creado (lo último primero) y deja el resto en su orden", () => {
+    expect(conRecientesPrimero(items, ["d", "b"]).map((x) => x.id)).toEqual(["d", "b", "a", "c"]);
+  });
+  it("sin recientes o con recientes que no están en la lista, no cambia nada", () => {
+    expect(conRecientesPrimero(items, []).map((x) => x.id)).toEqual(["a", "b", "c", "d"]);
+    expect(conRecientesPrimero(items, ["z"]).map((x) => x.id)).toEqual(["a", "b", "c", "d"]);
+  });
+});
+
+describe("deshabilitar documentos", () => {
+  const docs = [
+    { sector: "MINERIA", empresa_nombre: "Andina", deshabilitado: false },
+    { sector: "MINERIA", empresa_nombre: "Andina", deshabilitado: true },
+    { sector: "ENERGIA", empresa_nombre: "Luz" },
+  ];
+  it("filtra por habilitados o deshabilitados, y combina con los demás filtros", () => {
+    expect(filtrarDocumentos(docs, { habilitacion: "habilitados" })).toHaveLength(2);
+    expect(filtrarDocumentos(docs, { habilitacion: "deshabilitados" })).toEqual([docs[1]]);
+    expect(filtrarDocumentos(docs, { habilitacion: "habilitados", sector: "MINERIA" })).toEqual([docs[0]]);
+    expect(filtrarDocumentos(docs, {})).toHaveLength(3);
+  });
+
+  it("solo se deshabilita un documento completado que sigue habilitado", () => {
+    expect(puedeDeshabilitar({ estado: "COMPLETADO" })).toBe(true);
+    expect(puedeDeshabilitar({ estado: "COMPLETADO", deshabilitado: true })).toBe(false);
+    expect(puedeDeshabilitar({ estado: "EN_PROCESO" })).toBe(false);
+  });
+
+  it("solo confirma al escribir exactamente «deshabilitar»", () => {
+    expect(confirmacionDeshabilitarValida("deshabilitar")).toBe(true);
+    expect(confirmacionDeshabilitarValida("  deshabilitar ")).toBe(true);
+    expect(confirmacionDeshabilitarValida("Deshabilitar")).toBe(false);
+    expect(confirmacionDeshabilitarValida("deshabilita")).toBe(false);
+    expect(confirmacionDeshabilitarValida("")).toBe(false);
   });
 });

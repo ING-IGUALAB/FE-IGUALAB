@@ -369,14 +369,52 @@ function normalizarTexto(texto: string): string {
 }
 
 /** Documentos del sector elegido cuya empresa contiene el texto buscado (basta una parte del nombre). */
-export function filtrarDocumentos<T extends { sector: string; empresa_nombre: string }>(
+export function filtrarDocumentos<T extends { sector: string; empresa_nombre: string; deshabilitado?: boolean }>(
   documentos: T[],
-  filtros: { sector?: string; busqueda?: string },
+  filtros: { sector?: string; busqueda?: string; habilitacion?: FiltroHabilitacion },
 ): T[] {
   const buscado = normalizarTexto(filtros.busqueda ?? "");
   return documentos.filter(
-    (d) => (!filtros.sector || d.sector === filtros.sector) && normalizarTexto(d.empresa_nombre).includes(buscado),
+    (d) =>
+      (!filtros.sector || d.sector === filtros.sector) &&
+      normalizarTexto(d.empresa_nombre).includes(buscado) &&
+      coincideHabilitacion(d, filtros.habilitacion ?? ""),
   );
+}
+
+// ---- Deshabilitar documentos ----
+/** Filtro de la lista: todos, solo los que se usan (habilitados) o solo los retirados. */
+export type FiltroHabilitacion = "" | "habilitados" | "deshabilitados";
+
+function coincideHabilitacion(d: { deshabilitado?: boolean }, filtro: FiltroHabilitacion): boolean {
+  if (filtro === "habilitados") return !d.deshabilitado;
+  if (filtro === "deshabilitados") return !!d.deshabilitado;
+  return true;
+}
+
+/** Solo un documento completado y aún habilitado se puede deshabilitar. */
+export function puedeDeshabilitar(d: { estado: string; deshabilitado?: boolean }): boolean {
+  return d.estado === "COMPLETADO" && !d.deshabilitado;
+}
+
+/** Palabra que hay que escribir para confirmar, como al borrar un repositorio. */
+export const PALABRA_DESHABILITAR = "deshabilitar";
+
+/** El backend exige un motivo; la pantalla solo pide confirmar, así que se envía este. */
+export const MOTIVO_DESHABILITAR = "Deshabilitado por el SuperAdmin desde Ingesta de documentos.";
+
+export function confirmacionDeshabilitarValida(palabra: string): boolean {
+  return palabra.trim() === PALABRA_DESHABILITAR;
+}
+
+/**
+ * Pone primero los elementos recién creados (en el orden dado: el más reciente primero) y deja el
+ * resto en su orden original. Así lo que se acaba de registrar se ve arriba sin buscarlo.
+ */
+export function conRecientesPrimero<T extends { id: string }>(items: T[], recientes: string[]): T[] {
+  const posicion = new Map(recientes.map((id, i) => [id, i]));
+  const nuevos = items.filter((x) => posicion.has(x.id)).sort((a, b) => posicion.get(a.id)! - posicion.get(b.id)!);
+  return [...nuevos, ...items.filter((x) => !posicion.has(x.id))];
 }
 
 /** Elementos cuyo nombre contiene el texto buscado (basta una parte, sin distinguir mayúsculas ni tildes). */

@@ -59,6 +59,28 @@ test.describe("Caso de uso: Gestionar catálogo de empresas", () => {
     expect(api.llamadasA("POST", "/empresas")[0].cuerpo).toEqual({ nombre: "Cobre del Sur S.A.", sector: "MINERIA" });
   });
 
+  test("la empresa recién registrada aparece primera, sin buscarla, aunque hubiera un filtro", async ({ page }) => {
+    const filas = page.locator("tbody tr");
+    await page.getByRole("searchbox", { name: "Buscar empresa" }).fill("petro");
+    await campo(page, "Sector").selectOption({ label: "Petróleo y Gas" });
+
+    for (const [nombre, sector] of [["Zinc Andino S.A.", "Minería"], ["Agua Clara S.A.", "Energía"]] as const) {
+      await page.getByRole("button", { name: "Agregar empresa" }).click();
+      const dialogo = page.getByRole("dialog");
+      await dialogo.getByLabel("Nombre de la empresa").fill(nombre);
+      await campo(dialogo, "Sector").selectOption({ label: sector });
+      await dialogo.getByRole("button", { name: "Registrar" }).click();
+      await expect(dialogo).toBeHidden();
+    }
+
+    // La más reciente primero, luego la anterior, marcadas como nuevas; sin búsqueda ni filtro que las oculte.
+    await expect(filas.nth(0)).toContainText("Agua Clara S.A.Nueva");
+    await expect(filas.nth(1)).toContainText("Zinc Andino S.A.Nueva");
+    await expect(page.getByRole("searchbox", { name: "Buscar empresa" })).toHaveValue("");
+    await expect(campo(page, "Sector")).toHaveValue("");
+    await expect(filas.nth(2)).not.toContainText("Nueva");
+  });
+
   test("registra una empresa en el sector «Otros» y la filtra por ese sector", async ({ page, api }) => {
     await page.getByRole("button", { name: "Agregar empresa" }).click();
     const dialogo = page.getByRole("dialog");
