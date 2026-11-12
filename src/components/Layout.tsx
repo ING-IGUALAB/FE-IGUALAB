@@ -4,7 +4,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "../auth/AuthContext";
 import { useToast } from "./ToastProvider";
 import { iniciales } from "../lib/format";
-import { MENUS, TITULO_MENU, numeral } from "./navegacion";
+import { MENUS, TITULO_MENU, migasDePan } from "./navegacion";
+import MigasDePan from "./MigasDePan";
 import BotonTema from "./BotonTema";
 
 // Preferencia de esta persona en este navegador: si no se puede leer o guardar, el menú queda visible.
@@ -143,7 +144,7 @@ export default function Layout() {
               {TITULO_MENU[rol]}
             </p>
           )}
-          {items.map((m, i) => (
+          {items.map((m) => (
             <NavLink key={m.to} to={m.to} className={({ isActive }) => `nav-item group ${isActive ? "active" : ""} ${menuColapsado ? "md:!justify-center md:!gap-0 md:!px-0" : ""}`}>
               {({ isActive }) => (
                 <>
@@ -156,9 +157,8 @@ export default function Layout() {
                       transition={{ type: "spring", stiffness: 520, damping: 42 }}
                     />
                   )}
-                  {/* Expandida: numeral de sección. Colapsada (escritorio): solo el ícono. */}
-                  <span aria-hidden="true" className={`nav-numeral relative w-6 shrink-0 text-label-md font-semibold ${menuColapsado ? "md:hidden" : ""}`}>{numeral(i)}</span>
-                  <span className={`material-symbols-outlined relative ${isActive ? "filled text-primary" : ""} ${menuColapsado ? "!hidden md:!inline-block" : "!hidden"}`}>{m.icon}</span>
+                  {/* Cada sección se reconoce por su ícono; colapsada (escritorio) queda solo el ícono. */}
+                  <span aria-hidden="true" className={`nav-icono material-symbols-outlined relative shrink-0 ${isActive ? "filled" : ""}`}>{m.icon}</span>
                   <span className={`relative text-body-md ${rotulo}`}>{m.label}</span>
                 </>
               )}
@@ -179,7 +179,7 @@ export default function Layout() {
 
       <div className={`ml-0 min-h-screen flex flex-col transition-[margin] duration-200 ease-out ${menuColapsado ? "md:ml-[72px]" : "md:ml-[260px]"}`}>
         <header className="flex justify-between items-center w-full px-lg md:px-xl py-sm bg-surface-bright h-16 sticky top-0 z-10 border-b border-outline-variant">
-          <div className="flex items-center gap-sm -ml-sm md:-ml-md">
+          <div className="flex items-center gap-sm -ml-sm md:-ml-md min-w-0">
             <button
               type="button"
               onClick={alternarMenu}
@@ -190,10 +190,8 @@ export default function Layout() {
             >
               <span className="material-symbols-outlined" aria-hidden="true">menu</span>
             </button>
-            {/* Con la barra colapsada (o en móvil) el logo de la barra no se ve: se muestra aquí. */}
-            <Link to={inicio} aria-label="Igualab: ir al inicio" title="Ir al inicio" className={menuColapsado ? "" : "md:hidden"}>
-              <img src="/logo.webp" alt="Igualab" className="h-7 object-contain logo-adaptativo" />
-            </Link>
+            {/* Sin logo en la cabecera: para volver al inicio están las migas de pan. */}
+            <MigasDePan migas={migasDePan(rol, location.pathname)} />
           </div>
           <div className="flex items-center gap-sm md:gap-md">
             <span className="hidden lg:inline text-label-md text-on-surface-variant">Sesión activa · {reloj}</span>

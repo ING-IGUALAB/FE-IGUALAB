@@ -6,7 +6,7 @@ export interface ItemMenu {
   icon: string;
 }
 
-// Secciones de cada rol, en el orden en que se trabaja. Su posición da el numeral de sección.
+// Secciones de cada rol, en el orden en que se trabaja. Cada una se reconoce por su ícono.
 export const MENUS: Record<Rol, ItemMenu[]> = {
   superadmin: [
     { to: "/usuarios", label: "Usuarios y roles", icon: "group" },
@@ -27,13 +27,31 @@ export const TITULO_MENU: Record<Rol, string> = {
   administrador: "Flujo de trabajo",
 };
 
-export const numeral = (indice: number) => String(indice + 1).padStart(2, "0");
-
-/** Numeral de la sección de una ruta («01», «02»…), o null si la ruta no es una sección del menú. */
-export function numeralDeRuta(ruta: string): string | null {
+/** Ícono de la sección de una ruta, o null si la ruta no es una sección del menú. */
+export function iconoDeRuta(ruta: string): string | null {
   for (const items of Object.values(MENUS)) {
-    const i = items.findIndex((m) => m.to === ruta);
-    if (i >= 0) return numeral(i);
+    const item = items.find((m) => m.to === ruta);
+    if (item) return item.icon;
   }
   return null;
+}
+
+/** Un paso de las migas de pan: con `to` es un enlace; sin él, solo texto (la sección o la página actual). */
+export interface Miga {
+  etiqueta: string;
+  to?: string;
+  icono?: string;
+}
+
+/**
+ * Migas de pan de una ruta: Inicio (la opción 01 del rol) › sección del menú › página actual.
+ * La sección no es una página, por eso va como texto.
+ */
+export function migasDePan(rol: Rol | null, ruta: string): Miga[] {
+  const items = rol ? MENUS[rol] : [];
+  const inicio: Miga = { etiqueta: "Inicio", to: items[0]?.to ?? "/" };
+  const i = items.findIndex((m) => m.to === ruta);
+  if (rol && i >= 0) return [inicio, { etiqueta: TITULO_MENU[rol] }, { etiqueta: items[i].label, icono: items[i].icon }];
+  if (ruta === "/mi-cuenta") return [inicio, { etiqueta: "Mi cuenta" }, { etiqueta: "Cambiar contraseña", icono: "key" }];
+  return [inicio];
 }

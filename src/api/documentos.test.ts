@@ -5,6 +5,13 @@ function ok(data: unknown, status = 200): Response {
   return { status, ok: status >= 200 && status < 300, json: async () => data } as unknown as Response;
 }
 
+const archivoMd = () => new File(["# hola"], "memoria.md", { type: "text/markdown" });
+const datosCarga = () => ({ archivo: archivoMd(), empresaId: "e1", anio: 2024, tipoDocumento: "MEMORIA_ANUAL" as const });
+/** Respuesta de una sola página con estos documentos. */
+const unaPagina = (items: unknown[]) => ok({ items, total: items.length, pagina: 1, tamano: 100, paginas: 1 });
+/** Página `n` de dos, con un documento cada una. */
+const paginaN = (n: number) => ({ items: [{ id: `d${n}` }], total: 2, pagina: n, tamano: 100, paginas: 2 });
+
 describe("api/documentos", () => {
   beforeEach(() => localStorage.clear());
   afterEach(() => vi.unstubAllGlobals());
@@ -39,8 +46,6 @@ describe("api/documentos", () => {
     expect(opts.headers["Content-Type"]).toBeUndefined();
   });
 
-  const archivoMd = () => new File(["# hola"], "memoria.md", { type: "text/markdown" });
-  const datosCarga = () => ({ archivo: archivoMd(), empresaId: "e1", anio: 2024, tipoDocumento: "MEMORIA_ANUAL" as const });
 
   it("ingerirDocumento con 201 devuelve el resultado de la carga terminada", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok({ operacion_id: "op1", terminal: true, exitosa: true }, 201)));
@@ -73,9 +78,8 @@ describe("api/documentos", () => {
   });
 
   it("listarPorEstados no repite un documento que aparece en dos estados", async () => {
-    const pagina = (items: unknown[]) => ok({ items, total: items.length, pagina: 1, tamano: 100, paginas: 1 });
     const doc = { id: "d1", creado_en: "2026-10-01T00:00:00Z" };
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(pagina([doc])).mockResolvedValueOnce(pagina([doc])));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(unaPagina([doc])).mockResolvedValueOnce(unaPagina([doc])));
     const docs = await documentosApi.listarPorEstados(["EN_PROCESO", "CONFIRMACION_PENDIENTE"]);
     expect(docs.map((d) => d.id)).toEqual(["d1"]);
   });
@@ -139,11 +143,10 @@ describe("api/documentos", () => {
   });
 
   it("listarPorEstados pide cada estado por separado y los une del más reciente al más antiguo", async () => {
-    const pagina = (items: unknown[]) => ok({ items, total: items.length, pagina: 1, tamano: 100, paginas: 1 });
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(pagina([{ id: "a", creado_en: "2026-10-01T00:00:00Z" }]))
-      .mockResolvedValueOnce(pagina([{ id: "b", creado_en: "2026-10-03T00:00:00Z" }, { id: "c", creado_en: "2026-09-01T00:00:00Z" }]));
+      .mockResolvedValueOnce(unaPagina([{ id: "a", creado_en: "2026-10-01T00:00:00Z" }]))
+      .mockResolvedValueOnce(unaPagina([{ id: "b", creado_en: "2026-10-03T00:00:00Z" }, { id: "c", creado_en: "2026-09-01T00:00:00Z" }]));
     vi.stubGlobal("fetch", fetchMock);
     const docs = await documentosApi.listarPorEstados(["FALLIDO", "FALLIDO_LIMPIEZA_PENDIENTE"], { tipo: "MEMORIA_ANUAL" });
     expect(docs.map((d) => d.id)).toEqual(["b", "a", "c"]);
@@ -164,8 +167,7 @@ describe("api/documentos", () => {
   });
 
   it("listarTodosDocumentos recorre todas las páginas de 100 en 100", async () => {
-    const pagina = (n: number) => ({ items: [{ id: `d${n}` }], total: 2, pagina: n, tamano: 100, paginas: 2 });
-    const fetchMock = vi.fn().mockResolvedValueOnce(ok(pagina(1))).mockResolvedValueOnce(ok(pagina(2)));
+    const fetchMock = vi.fn().mockResolvedValueOnce(ok(paginaN(1))).mockResolvedValueOnce(ok(paginaN(2)));
     vi.stubGlobal("fetch", fetchMock);
     const todos = await documentosApi.listarTodosDocumentos({ tipo: "MEMORIA_ANUAL" });
     expect(todos.map((d) => d.id)).toEqual(["d1", "d2"]);

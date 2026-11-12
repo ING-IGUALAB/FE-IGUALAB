@@ -17,7 +17,7 @@ const ENFOCABLE = 'input:not([disabled]), select:not([disabled]), textarea:not([
  * fondo, enfoca el primer campo al abrir, devuelve el foco al cerrar y se cierra con Escape.
  */
 export default function Modal({ open, onClose, children, width = "max-w-lg" }: Readonly<Props>) {
-  const panelRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDialogElement>(null);
   // Se guarda en una ref: las pantallas pasan una función nueva en cada render y, si el efecto
   // dependiera de ella, se reiniciaría (y movería el foco) mientras el usuario escribe.
   const cerrar = useRef(onClose);
@@ -53,18 +53,19 @@ export default function Modal({ open, onClose, children, width = "max-w-lg" }: R
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
           />
-          <motion.div
+          {/* <dialog open> nativo (no modal): el fondo, el foco y Escape los maneja este componente. */}
+          <motion.dialog
             ref={panelRef}
-            role="dialog"
+            open
             aria-modal="true"
-            className={`relative bg-surface-container-lowest rounded-2xl border border-surface-variant shadow-[0_24px_48px_-12px_rgba(0,0,0,0.28)] w-full ${width} max-h-[92vh] flex flex-col overflow-hidden`}
+            className={`relative m-0 p-0 text-on-surface bg-surface-container-lowest rounded-2xl border border-surface-variant shadow-[0_24px_48px_-12px_rgba(0,0,0,0.28)] w-full ${width} max-h-[92vh] flex flex-col overflow-hidden`}
             initial={{ opacity: 0, scale: 0.97, y: 6 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.98, y: 4 }}
             transition={{ duration: 0.16, ease: "easeOut" }}
           >
             {children}
-          </motion.div>
+          </motion.dialog>
         </div>
       )}
     </AnimatePresence>,

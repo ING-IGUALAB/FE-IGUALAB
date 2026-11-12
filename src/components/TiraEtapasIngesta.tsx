@@ -44,21 +44,15 @@ export default function TiraEtapasIngesta({ progreso, sinConexion = false }: Rea
     <section aria-label="Progreso de la ingesta" className="rounded-xl border border-outline-variant bg-surface-container-lowest p-md space-y-sm">
       <div className="flex flex-wrap items-baseline justify-between gap-xs">
         <h4 className="text-label-md font-semibold text-on-surface">Progreso de la ingesta</h4>
-        <p role="status" aria-live="polite" className="text-label-sm text-on-surface-variant">
+        <output className="block text-label-sm text-on-surface-variant">
           {progreso.titulo}
           {progreso.fragmentos && ` · ${progreso.fragmentos.procesados} de ${progreso.fragmentos.total} fragmentos`}
-        </p>
+        </output>
       </div>
 
-      <div
-        role="progressbar"
-        aria-label="Avance de la ingesta"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={porcentaje}
-        aria-valuetext={progreso.titulo}
-        className="flex gap-[3px]"
-      >
+      {/* La barra nativa es la que leen los lectores de pantalla; los segmentos son solo visuales. */}
+      <progress className="sr-only" aria-label="Avance de la ingesta" aria-valuetext={progreso.titulo} value={porcentaje} max={100} />
+      <div aria-hidden="true" className="flex gap-[3px]">
         {progreso.pasos.map(({ paso, estado }) => (
           <span key={paso.numero} className={`h-2 flex-1 first:rounded-l-full last:rounded-r-full transition-colors duration-300 ${SEGMENTO[estado]}`} />
         ))}
@@ -91,7 +85,7 @@ export default function TiraEtapasIngesta({ progreso, sinConexion = false }: Rea
       {sinConexion && (
         <p className="flex items-center gap-xs text-label-sm text-on-surface-variant">
           <span className="material-symbols-outlined text-[16px]" aria-hidden="true">wifi_off</span>
-          No se pudo consultar el avance. Se vuelve a intentar; la carga sigue en curso.
+          <span>No se pudo consultar el avance. Se vuelve a intentar; la carga sigue en curso.</span>
         </p>
       )}
     </section>
