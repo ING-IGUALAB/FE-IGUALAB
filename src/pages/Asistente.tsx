@@ -34,6 +34,9 @@ interface Mensaje {
   motivo?: MotivoSinEvidencia | null;
   aviso?: string | null;
   descartadas?: number;
+  interpretacion?: string | null;
+  interpretacionDescartada?: boolean;
+  estadoRegistrado?: string | null;
   error?: boolean;
   typing?: boolean;
 }
@@ -75,6 +78,9 @@ function mensajeDeRespuesta(r: ConsultaAsistente): Mensaje {
     motivo: r.motivo,
     aviso: r.mensaje,
     descartadas: r.afirmaciones_descartadas ?? 0,
+    interpretacion: r.interpretacion?.trim() || null,
+    interpretacionDescartada: !!r.interpretacion_descartada,
+    estadoRegistrado: r.estado_registrado?.texto ?? null,
   };
 }
 
@@ -689,12 +695,20 @@ function CuerpoRespuesta({ m }: Readonly<{ m: Mensaje }>) {
   const descartadas = m.descartadas ?? 0;
   return (
     <>
-      {afirmaciones.length > 0 ? (
-        <ul className="space-y-md">
+      {m.estadoRegistrado && <EstadoRegistrado texto={m.estadoRegistrado} />}
+      {afirmaciones.length > 0 && (
+        <ul className={`space-y-md ${m.estadoRegistrado ? "mt-md" : ""}`}>
           {afirmaciones.map((a) => <AfirmacionItem key={a.cita_textual + a.texto} afirmacion={a} />)}
         </ul>
-      ) : (
-        m.texto && <p className="text-body-md text-on-surface whitespace-pre-line">{m.texto}</p>
+      )}
+      {/* Sin afirmaciones ni estado registrado: el texto de la respuesta tal cual. */}
+      {afirmaciones.length === 0 && !m.estadoRegistrado && m.texto && <p className="text-body-md text-on-surface whitespace-pre-line">{m.texto}</p>}
+      {m.interpretacion && <Interpretacion texto={m.interpretacion} />}
+      {m.interpretacionDescartada && !m.interpretacion && (
+        <p className="mt-md text-label-sm text-outline flex items-center gap-xs">
+          <span className="material-symbols-outlined text-[14px]" aria-hidden="true">filter_list</span>
+          <span>Se omitió la interpretación del asistente porque no pudo apoyarse en los hechos citados.</span>
+        </p>
       )}
       {m.sinEvidencia && (
         <div className="mt-md first:mt-0 flex items-start gap-sm rounded-xl bg-tertiary-fixed/40 text-on-tertiary-fixed px-md py-sm text-body-md">
@@ -717,6 +731,38 @@ function CuerpoRespuesta({ m }: Readonly<{ m: Mensaje }>) {
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * Análisis del asistente a partir de los hechos citados (por ejemplo, expectativas o conclusiones).
+ * Va aparte y con su etiqueta: no es contenido del documento ni lleva citas.
+ */
+function Interpretacion({ texto }: Readonly<{ texto: string }>) {
+  return (
+    <section aria-label="Interpretación del asistente" className="mt-md rounded-xl border border-secondary/30 bg-secondary-fixed/25 px-md py-sm">
+      <p className="flex items-center gap-xs text-label-md font-semibold text-on-surface">
+        <span className="material-symbols-outlined text-[18px] text-secondary" aria-hidden="true">lightbulb</span>
+        <span>Interpretación del asistente</span>
+      </p>
+      <p className="mt-xs text-body-md text-on-surface whitespace-pre-line">{texto}</p>
+      <p className="mt-xs text-label-sm text-on-surface-variant">
+        Análisis a partir de los hechos citados arriba. No es contenido del documento: revísalo con criterio propio.
+      </p>
+    </section>
+  );
+}
+
+/** Estado que una persona asignó en Análisis GRI: otra fuente distinta del documento, nunca una cita. */
+function EstadoRegistrado({ texto }: Readonly<{ texto: string }>) {
+  return (
+    <section aria-label="Estado registrado en Análisis GRI" className="rounded-xl border border-outline-variant bg-surface-container-low px-md py-sm">
+      <p className="flex items-center gap-xs text-label-md font-semibold text-on-surface">
+        <span className="material-symbols-outlined text-[18px] text-primary-ink" aria-hidden="true">fact_check</span>
+        <span>Desde Análisis GRI</span>
+      </p>
+      <p className="mt-xs text-body-md text-on-surface whitespace-pre-line">{texto}</p>
+    </section>
   );
 }
 

@@ -989,7 +989,37 @@ export class ServicioSimulado {
     if (!empresa) return error(404, "COMPANY_NOT_FOUND", "La empresa no existe.");
     if (empresa.sector !== cuerpo.sector) return error(400, "COMPANY_SECTOR_MISMATCH", "La empresa no pertenece al sector indicado.");
     const doc = this.documentos.find((d) => d.empresa_id === empresa.id && d.anio === cuerpo.anio);
-    if (/f[uú]tbol/i.test(cuerpo.pregunta ?? "")) {
+    const pregunta = cuerpo.pregunta ?? "";
+    // Pregunta de solo estado de un código GRI: se responde desde Análisis GRI, sin buscar en los documentos.
+    const codigo = /estado[^?]*GRI\s*(\d+)/i.exec(pregunta)?.[1];
+    if (codigo) {
+      const texto = [
+        `Estado registrado en Análisis GRI (${empresa.nombre}, ${cuerpo.anio}):`,
+        `- GRI ${codigo} (2016): OK. No cuenta con validación vigente: el análisis aún no se ha validado.`,
+        "El estado lo asigna una persona en Análisis GRI; detectar un código en el documento no demuestra cumplimiento ni una brecha.",
+      ].join("\n");
+      return ok({
+        respuesta: texto,
+        afirmaciones: [],
+        citas: [],
+        sin_evidencia: false,
+        motivo: null,
+        mensaje: null,
+        afirmaciones_descartadas: 0,
+        interpretacion: null,
+        interpretacion_descartada: false,
+        estado_registrado: {
+          fuente: "ANALISIS_GRI",
+          texto,
+          codigos_solicitados: [`GRI ${codigo}`],
+          filas: [{ identidad: `${codigo}:2016`, codigo, edicion: "2016", estandar: `GRI ${codigo} (2016)`, estado: "OK", estado_etiqueta: "OK" }],
+          validacion_vigente: false,
+          validacion: null,
+        },
+        busqueda_documental: "NO_REALIZADA",
+      });
+    }
+    if (/f[uú]tbol/i.test(pregunta)) {
       return ok({
         respuesta: "",
         afirmaciones: [],
@@ -1023,6 +1053,13 @@ export class ServicioSimulado {
       motivo: null,
       mensaje: null,
       afirmaciones_descartadas: 1,
+      // Si la pregunta pide analizar o proyectar, el asistente agrega su interpretación (aparte de los hechos citados).
+      interpretacion: /expectativ|analiz|interpret|conclu|implic|evalú|riesgo/i.test(pregunta)
+        ? "La multa sugiere un riesgo regulatorio ambiental relevante; podría indicar que la empresa necesita reforzar sus controles. La evidencia es parcial: solo consta una sanción."
+        : null,
+      interpretacion_descartada: false,
+      estado_registrado: null,
+      busqueda_documental: "REALIZADA",
     });
   }
 
