@@ -102,6 +102,19 @@ export async function api<T>(path: string, opts: Opts = {}): Promise<T> {
   return data as T;
 }
 
+export interface RespuestaHttp<T> {
+  status: number;
+  data: T;
+}
+
+/** Igual que api(), pero conserva el status HTTP (p. ej. para distinguir un 201 de un 202). */
+export async function apiConEstado<T>(path: string, opts: Opts = {}): Promise<RespuestaHttp<T>> {
+  const res = await ejecutar(path, opts);
+  const data = res.status === 204 ? null : await res.json().catch(() => null);
+  if (!res.ok) lanzarErrorApi(res.status, data);
+  return { status: res.status, data: data as T };
+}
+
 /** Petición que devuelve un archivo (p. ej. el PDF de un reporte). Los errores llegan igual en JSON. */
 export async function apiArchivo(path: string, opts: Opts = {}): Promise<ArchivoApi> {
   const res = await ejecutar(path, opts);

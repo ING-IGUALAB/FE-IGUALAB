@@ -54,7 +54,7 @@ export default function TablaReportes({
               <td className="py-md px-md text-on-surface-variant">{r.anio}</td>
               <td className="py-md px-md whitespace-nowrap">
                 <span className="block font-medium">v{r.version}</span>
-                <span className={`inline-block mt-xs rounded-full px-sm py-[2px] text-label-sm ${r.es_ultima_version ? "bg-primary/10 text-primary" : "bg-surface-container-low text-on-surface-variant"}`}>
+                <span className={`inline-block mt-xs px-sm py-[2px] text-label-sm uppercase tracking-[0.06em] ${r.es_ultima_version ? "bg-primary-container text-on-primary-container" : "bg-surface-container-low text-on-surface-variant"}`}>
                   {r.es_ultima_version ? "Última emisión" : "Histórica"}
                 </span>
               </td>
@@ -68,7 +68,7 @@ export default function TablaReportes({
                   onClick={() => onDescargar(r)}
                   disabled={descargando === r.id}
                   aria-label={`Descargar versión ${r.version}`}
-                  className="inline-flex items-center gap-xs px-md py-sm rounded-lg bg-primary text-on-primary text-label-md font-semibold hover:bg-surface-tint transition-colors disabled:opacity-60"
+                  className="inline-flex items-center gap-xs px-md h-9 border border-on-surface text-on-surface text-label-md font-semibold hover:bg-primary hover:border-primary transition-colors disabled:opacity-60"
                 >
                   {descargando === r.id ? <Spinner size={14} /> : <span className="material-symbols-outlined text-[16px]">download</span>} Descargar
                 </button>

@@ -1,5 +1,7 @@
 import type {
   AnioDisponible,
+  DisponibilidadTipo,
+  EstadoEspacio,
   EstadoAnioReporte,
   EstadoFlujo,
   EstadoGriApi,
@@ -9,17 +11,20 @@ import type {
   MotivoSinEvidencia,
   PuntajeEsg,
   ResultadoAnalisis,
+  ResumenConfirmacion,
   SectorApi,
   TipoDocumentoApi,
   TipoEventoAuditoria,
 } from "../types";
 
 // ---- Sector ----
-export const SECTORES_API: SectorApi[] = ["MINERIA", "PETROLEO", "ENERGIA"];
+/** «Otros» va al final: es para las empresas que no caen en los sectores anteriores. */
+export const SECTORES_API: SectorApi[] = ["MINERIA", "PETROLEO", "ENERGIA", "OTROS"];
 export const SECTOR_LABEL: Record<SectorApi, string> = {
   MINERIA: "Minería",
   PETROLEO: "Petróleo y Gas",
   ENERGIA: "Energía",
+  OTROS: "Otros",
 };
 
 export function etiquetaSector(s: SectorApi): string {
@@ -37,9 +42,28 @@ export function etiquetaTipo(t: TipoDocumentoApi): string {
   return TIPO_LABEL[t] ?? t;
 }
 
+// ---- Un documento de cada tipo por empresa y año ----
+const MOTIVO_ESPACIO: Record<EstadoEspacio, string | null> = {
+  DISPONIBLE: null,
+  OCUPADO: "ya cargado",
+  EN_PROCESO: "en proceso",
+  PUBLICACION_PENDIENTE: "en proceso",
+  LIMPIEZA_PENDIENTE: "no disponible por ahora",
+};
+
+/** Tipos que ya no se pueden cargar para la empresa y el año, con el motivo que acompaña a la opción. */
+export function tiposNoCargables(tipos: DisponibilidadTipo[] | null | undefined): Partial<Record<TipoDocumentoApi, string>> {
+  const r: Partial<Record<TipoDocumentoApi, string>> = {};
+  for (const t of tipos ?? []) {
+    if (!t.cargable) r[t.tipo] = MOTIVO_ESPACIO[t.estado] ?? "no disponible";
+  }
+  return r;
+}
+
 // ---- Estado de progreso del documento (RF-024) ----
 export const ESTADO_PROGRESO_LABEL: Record<EstadoProgreso, string> = {
   EN_PROCESO: "En proceso",
+  CONFIRMACION_PENDIENTE: "Confirmación pendiente",
   PUBLICACION_PENDIENTE: "Publicación pendiente",
   COMPLETADO: "Completado",
   FALLIDO: "Fallido",
@@ -48,6 +72,99 @@ export const ESTADO_PROGRESO_LABEL: Record<EstadoProgreso, string> = {
 
 export function etiquetaEstado(e: EstadoProgreso): string {
   return ESTADO_PROGRESO_LABEL[e] ?? e;
+}
+
+const ESTADO_SOLO_OPERACION: Record<string, string> = {
+  CREADA: "Creada",
+  VALIDANDO: "Validando",
+  INTERRUMPIDA: "Interrumpida",
+  RECHAZADA: "Rechazada",
+};
+
+/** Estado de una operación de carga, que además de los del documento tiene los suyos propios. */
+export function etiquetaEstadoOperacion(e: string): string {
+  return ESTADO_SOLO_OPERACION[e] ?? etiquetaEstado(e as EstadoProgreso);
+}
+
+// En la lista de documentos el estado se resume en tres: el detalle conserva el estado exacto.
+export type EstadoBadge = "completado" | "en_proceso" | "fallido";
+
+const ETIQUETA_BADGE: Record<EstadoBadge, string> = {
+  completado: "Completado",
+  en_proceso: "En proceso",
+  fallido: "Fallido",
+};
+
+export function badgeDeEstado(estado: string): EstadoBadge {
+  switch (estado) {
+    case "COMPLETADO":
+      return "completado";
+    case "FALLIDO":
+    case "FALLIDO_LIMPIEZA_PENDIENTE":
+      return "fallido";
+    default:
+      // EN_PROCESO, CONFIRMACION_PENDIENTE, PUBLICACION_PENDIENTE y cualquier estado nuevo: sigue su curso.
+      return "en_proceso";
+  }
+}
+
+export function etiquetaEstadoResumida(estado: string): string {
+  return ETIQUETA_BADGE[badgeDeEstado(estado)];
+}
+
+/** Filtro de estado de la lista: «Todos» más tres opciones, cada una con los estados del backend que reúne. */
+export type FiltroEstado = "" | "completados" | "en_curso" | "fallidos";
+
+export const FILTROS_ESTADO: { valor: Exclude<FiltroEstado, "">; etiqueta: string; estados: EstadoProgreso[] }[] = [
+  { valor: "completados", etiqueta: "Completados", estados: ["COMPLETADO"] },
+  { valor: "en_curso", etiqueta: "En curso", estados: ["EN_PROCESO", "CONFIRMACION_PENDIENTE", "PUBLICACION_PENDIENTE"] },
+  { valor: "fallidos", etiqueta: "Fallidos", estados: ["FALLIDO", "FALLIDO_LIMPIEZA_PENDIENTE"] },
+];
+
+/** Estados del backend que pide un filtro; vacío para «Todos». */
+export function estadosDeFiltro(filtro: FiltroEstado): EstadoProgreso[] {
+  return FILTROS_ESTADO.find((f) => f.valor === filtro)?.estados ?? [];
+}
+
+// ---- Doble check de la ingesta: la carga se pausa tras el análisis hasta que alguien decide ----
+export const MINUTOS_VIGENCIA_CONFIRMACION = 30;
+
+/** La operación espera que alguien decida continuar o cancelar la ingesta. */
+export function necesitaDecision(op: { confirmacion_pendiente?: boolean; estado?: string } | null | undefined): boolean {
+  return !!op && (op.confirmacion_pendiente === true || op.estado === "CONFIRMACION_PENDIENTE");
+}
+
+/** Cómo terminó una carga que no siguió: cancelada por una persona o vencida sin decisión. */
+export function cierreDeCarga(op: { error?: { code?: string | null } | null }): "cancelada" | "vencida" | null {
+  if (op.error?.code === "CONFIRMACION_RECHAZADA") return "cancelada";
+  if (op.error?.code === "CONFIRMACION_VENCIDA") return "vencida";
+  return null;
+}
+
+export function etiquetaHallazgos(r: ResultadoAnalisis): string {
+  return r === "OBSERVADO" ? "Sin hallazgos" : "Con hallazgos";
+}
+
+/** Frase para decidir, armada con los contadores (sin repetir la pregunta que ya hacen los botones). */
+export function textoResumenConfirmacion(r: ResumenConfirmacion | null | undefined): string {
+  if (!r) return "El análisis terminó. Revisa el resultado y decide si continuar con la ingesta.";
+  if (r.resultado === "OBSERVADO") {
+    return "El documento no tiene referencias GRI del catálogo ni sanciones económicas. Si continúas, quedará cargado sin hallazgos.";
+  }
+  return `Se detectaron ${plural(r.referencias_gri, "grupo GRI", "grupos GRI")} y ${plural(r.sanciones, "mención de sanciones", "menciones de sanciones")}.`;
+}
+
+const MOTIVO_LEGIBLE: Record<string, string> = {
+  referencias_gri_catalogadas: "Tiene referencias GRI del catálogo.",
+  sanciones_economicas: "Menciona sanciones económicas.",
+  sin_referencias_gri_catalogadas_ni_sanciones_economicas: "No tiene referencias GRI del catálogo ni sanciones económicas.",
+};
+
+/** Motivo del análisis en palabras: los conocidos con su frase; el resto, sin guiones bajos. */
+export function motivoLegible(codigo: string): string {
+  if (MOTIVO_LEGIBLE[codigo]) return MOTIVO_LEGIBLE[codigo];
+  const texto = codigo.replace(/_/g, " ").trim();
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
 export function etiquetaAnalisis(r: ResultadoAnalisis | null | undefined): string {
@@ -125,6 +242,12 @@ export function puedeValidar(estado: EstadoFlujo): boolean {
 export function valorPuntaje(p: PuntajeEsg): string {
   if (p.valor_presentacion == null) return "—";
   return p.valor_presentacion.toFixed(p.decimales_presentacion);
+}
+
+/** «217 fragmentos» al completarse; solo si quedó a medias se muestra cuántos se procesaron de cuántos. */
+export function textoFragmentos(procesados: number | null | undefined, total: number): string {
+  if (typeof procesados !== "number" || procesados === total) return plural(total, "fragmento", "fragmentos");
+  return `${procesados} de ${plural(total, "fragmento", "fragmentos")}`;
 }
 
 /** "1 código GRI" / "3 códigos GRI". */
@@ -246,14 +369,70 @@ function normalizarTexto(texto: string): string {
 }
 
 /** Documentos del sector elegido cuya empresa contiene el texto buscado (basta una parte del nombre). */
-export function filtrarDocumentos<T extends { sector: string; empresa_nombre: string }>(
+export function filtrarDocumentos<T extends { sector: string; empresa_nombre: string; deshabilitado?: boolean }>(
   documentos: T[],
-  filtros: { sector?: string; busqueda?: string },
+  filtros: { sector?: string; busqueda?: string; habilitacion?: FiltroHabilitacion },
 ): T[] {
   const buscado = normalizarTexto(filtros.busqueda ?? "");
   return documentos.filter(
-    (d) => (!filtros.sector || d.sector === filtros.sector) && normalizarTexto(d.empresa_nombre).includes(buscado),
+    (d) =>
+      (!filtros.sector || d.sector === filtros.sector) &&
+      normalizarTexto(d.empresa_nombre).includes(buscado) &&
+      coincideHabilitacion(d, filtros.habilitacion ?? ""),
   );
+}
+
+// ---- Deshabilitar documentos ----
+/** Filtro de la lista: todos, solo los que se usan (habilitados) o solo los retirados. */
+export type FiltroHabilitacion = "" | "habilitados" | "deshabilitados";
+
+function coincideHabilitacion(d: { deshabilitado?: boolean }, filtro: FiltroHabilitacion): boolean {
+  if (filtro === "habilitados") return !d.deshabilitado;
+  if (filtro === "deshabilitados") return !!d.deshabilitado;
+  return true;
+}
+
+/** Solo un documento completado y aún habilitado se puede deshabilitar. */
+export function puedeDeshabilitar(d: { estado: string; deshabilitado?: boolean }): boolean {
+  return d.estado === "COMPLETADO" && !d.deshabilitado;
+}
+
+/** Palabra que hay que escribir para confirmar, como al borrar un repositorio. */
+export const PALABRA_DESHABILITAR = "deshabilitar";
+
+/** El backend exige un motivo; la pantalla solo pide confirmar, así que se envía este. */
+export const MOTIVO_DESHABILITAR = "Deshabilitado por el SuperAdmin desde Ingesta de documentos.";
+
+export function confirmacionDeshabilitarValida(palabra: string): boolean {
+  return palabra.trim() === PALABRA_DESHABILITAR;
+}
+
+/** De la más reciente a la más antigua por fecha de registro; con la misma fecha se respeta el orden recibido. */
+export function porFechaReciente<T extends { creada_en: string }>(items: T[]): T[] {
+  return [...items].sort((a, b) => milisegundos(b.creada_en) - milisegundos(a.creada_en));
+}
+
+/** Fecha ISO en milisegundos; una fecha inválida cuenta como la más antigua. */
+function milisegundos(iso: string): number {
+  const t = Date.parse(iso);
+  return Number.isNaN(t) ? 0 : t;
+}
+
+/**
+ * Pone primero los elementos recién creados (en el orden dado: el más reciente primero) y deja el
+ * resto en su orden original. Así lo que se acaba de registrar se ve arriba sin buscarlo.
+ */
+export function conRecientesPrimero<T extends { id: string }>(items: T[], recientes: string[]): T[] {
+  const posicion = new Map(recientes.map((id, i) => [id, i]));
+  const nuevos = items.filter((x) => posicion.has(x.id)).sort((a, b) => posicion.get(a.id)! - posicion.get(b.id)!);
+  return [...nuevos, ...items.filter((x) => !posicion.has(x.id))];
+}
+
+/** Elementos cuyo nombre contiene el texto buscado (basta una parte, sin distinguir mayúsculas ni tildes). */
+export function filtrarPorNombre<T extends { nombre: string }>(items: T[], busqueda: string): T[] {
+  const buscado = normalizarTexto(busqueda);
+  if (!buscado) return items;
+  return items.filter((i) => normalizarTexto(i.nombre).includes(buscado));
 }
 
 export function paginarLocal<T>(items: T[], pagina: number, tamano: number): { items: T[]; pagina: number; paginas: number } {
@@ -311,6 +490,34 @@ export function situacionAnioReporte(a: AnioDisponible): { mensaje: string; tono
       ? "El análisis cambió después de la última validación: revísalo y valídalo de nuevo."
       : info.mensaje;
   return { mensaje, tono: info.tono, irAAnalisis: !!info.irAAnalisis };
+}
+
+/** Etapas del recorrido de un reporte, en orden. */
+export const ETAPAS_REPORTE = ["Revisión", "Validación", "Emisión", "Al día"] as const;
+
+// Cuántas etapas quedan cumplidas en cada estado. Los estados sin recorrido (sin códigos GRI o sin
+// documentación) no tienen tira: lo explica el aviso de la pantalla.
+const ETAPAS_CUMPLIDAS: Partial<Record<EstadoAnioReporte, number>> = {
+  PENDIENTE_REVISION: 0,
+  PENDIENTE_VALIDACION: 1,
+  VALIDACION_VIGENTE: 2,
+  ACTUALIZACION_PENDIENTE: 2,
+  REPORTE_GENERADO: 4,
+};
+
+/**
+ * Dónde está un año en el recorrido del reporte, según el estado que entrega el servidor.
+ * `actual` es la etapa en curso (null si ya está todo al día); `nuevaVersion` indica que la emisión
+ * pendiente es una versión nueva de un reporte que ya existe.
+ */
+export function etapaReporte(a?: AnioDisponible): { cumplidas: number; actual: number | null; nuevaVersion: boolean } | null {
+  const cumplidas = a ? ETAPAS_CUMPLIDAS[a.estado] : undefined;
+  if (cumplidas === undefined || !a) return null;
+  return {
+    cumplidas,
+    actual: cumplidas < ETAPAS_REPORTE.length ? cumplidas : null,
+    nuevaVersion: a.estado === "ACTUALIZACION_PENDIENTE",
+  };
 }
 
 // En estos estados hay una validación vigente, requisito de la vista previa.

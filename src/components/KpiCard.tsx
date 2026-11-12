@@ -14,7 +14,7 @@ const BAR_CLS = {
 } as const;
 
 const ICON_CLS = {
-  primary: "text-primary bg-primary/10",
+  primary: "text-primary-ink bg-primary/10",
   secondary: "text-secondary bg-secondary/10",
   tertiary: "text-tertiary bg-tertiary/10",
 } as const;

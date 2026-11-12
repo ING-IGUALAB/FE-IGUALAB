@@ -18,7 +18,7 @@ export function BotonVerContrasena({
       aria-label={accion}
       aria-pressed={visible}
       title={accion}
-      className="absolute inset-y-0 right-0 w-11 flex items-center justify-center rounded-r-xl text-on-surface-variant enabled:hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+      className="absolute inset-y-0 right-0 w-11 flex items-center justify-center rounded-r-xl text-on-surface-variant enabled:hover:text-primary-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
     >
       <span className="material-symbols-outlined text-[22px]" aria-hidden="true">{visible ? "visibility_off" : "visibility"}</span>
     </button>

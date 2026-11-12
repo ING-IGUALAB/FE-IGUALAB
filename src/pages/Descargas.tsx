@@ -13,7 +13,7 @@ import type { EmpresaApi, ReporteResumen, SectorApi } from "../types";
 
 const TAM_PAGINA = 10;
 const CLS_FILTRO =
-  "rounded-lg border border-outline-variant bg-surface-container-low py-xs px-sm text-label-md focus:border-primary outline-none";
+  "rounded-lg border border-outline-variant bg-surface-container-low py-xs px-sm text-label-md focus:border-primary-ink outline-none";
 
 /** Reportes que cumplen los filtros de sector y año. */
 function filtrar(reportes: ReporteResumen[], empresas: EmpresaApi[], sector: "" | SectorApi, anio: string) {

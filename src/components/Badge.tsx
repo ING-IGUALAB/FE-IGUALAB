@@ -1,33 +1,34 @@
 const MAPA: Record<string, string> = {
   // Cuentas
-  Activo: "bg-primary-container text-on-primary-container",
+  Activo: "bg-success-container text-on-success-container",
   Inactivo: "bg-surface-variant text-on-surface-variant",
-  Habilitado: "bg-primary-container text-on-primary-container",
+  Habilitado: "bg-success-container text-on-success-container",
   Deshabilitado: "bg-surface-variant text-on-surface-variant",
   // Ingesta de documentos (RF-024)
-  "Éxito": "bg-primary-container text-on-primary-container",
+  "Éxito": "bg-success-container text-on-success-container",
   "En proceso": "bg-tertiary-fixed text-on-tertiary-fixed",
   Rechazado: "bg-error-container text-on-error-container",
   // Estados de progreso del backend (EstadoProgreso)
-  Completado: "bg-primary-container text-on-primary-container",
+  Completado: "bg-success-container text-on-success-container",
+  "Confirmación pendiente": "bg-tertiary-fixed text-on-tertiary-fixed",
   "Publicación pendiente": "bg-tertiary-fixed text-on-tertiary-fixed",
   Fallido: "bg-error-container text-on-error-container",
   "Fallido (limpieza pendiente)": "bg-error-container text-on-error-container",
   // Flujo del análisis GRI y vigencia de la validación
-  Validado: "bg-primary-container text-on-primary-container",
+  Validado: "bg-success-container text-on-success-container",
   "Listo para validar": "bg-secondary-fixed text-on-secondary-fixed",
   "Pendiente de estados": "bg-tertiary-fixed text-on-tertiary-fixed",
   "Sin códigos GRI": "bg-surface-variant text-on-surface-variant",
   "Sin documentos analizados": "bg-surface-variant text-on-surface-variant",
-  Vigente: "bg-primary-container text-on-primary-container",
+  Vigente: "bg-success-container text-on-success-container",
   "Sin vigencia": "bg-error-container text-on-error-container",
   // Riesgo derivado del ESG
   Alto: "bg-error-container text-on-error-container",
   Medio: "bg-tertiary-fixed text-on-tertiary-fixed",
-  Bajo: "bg-primary-container text-on-primary-container",
+  Bajo: "bg-success-container text-on-success-container",
   "Sin datos": "bg-surface-variant text-on-surface-variant",
   // Estados GRI (RN-016)
-  OK: "bg-primary-container text-on-primary-container",
+  OK: "bg-success-container text-on-success-container",
   "Sub-reportado": "bg-error-container text-on-error-container",
   "Baja sustancia": "bg-tertiary-fixed text-on-tertiary-fixed",
 };
@@ -35,6 +36,6 @@ const MAPA: Record<string, string> = {
 export default function Badge({ estado }: Readonly<{ estado: string }>) {
   const cls = MAPA[estado] || "bg-surface-variant text-on-surface-variant";
   return (
-    <span className={`inline-flex items-center px-2 py-1 rounded-full text-label-sm ${cls}`}>{estado}</span>
+    <span className={`inline-flex items-center px-2 py-0.5 text-label-sm uppercase tracking-[0.06em] whitespace-nowrap ${cls}`}>{estado}</span>
   );
 }

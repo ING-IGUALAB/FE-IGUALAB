@@ -71,7 +71,7 @@ export default function Paginacion({
             disabled={deshabilitado}
             aria-label="Ir a la página"
             placeholder="N.º"
-            className="w-16 h-9 rounded-lg border border-outline-variant bg-surface-container-lowest px-sm text-label-md text-center focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+            className="w-16 h-9 rounded-lg border border-outline-variant bg-surface-container-lowest px-sm text-label-md text-center focus:border-primary-ink focus:ring-1 focus:ring-primary-ink outline-none"
           />
         </label>
         <button type="submit" disabled={deshabilitado || !ir} className={`${CLS_BOTON} px-md`}>

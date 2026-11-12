@@ -9,6 +9,14 @@ import { BotonVerContrasena } from "../components/CampoContrasena";
 import { mensajeError } from "../api/client";
 import { recuperarContrasena } from "../api/auth";
 import { esCorreoValido } from "../lib/validacion";
+import PortadaLogin from "../components/PortadaLogin";
+import BotonTema from "../components/BotonTema";
+
+// Entrada escalonada del formulario: cada bloque sube apenas y aparece, uno tras otro.
+const ENTRADA = {
+  oculto: { opacity: 0, y: 8 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.32, ease: [0.23, 1, 0.32, 1] } },
+};
 
 export default function Login() {
   const { iniciarSesion } = useAuth();
@@ -59,24 +67,25 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-md sm:p-lg relative overflow-hidden">
-      <div className="absolute -top-24 -right-24 w-96 h-96 bg-primary-fixed/20 rounded-full blur-3xl" />
-      <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-secondary-fixed/20 rounded-full blur-3xl" />
+    <div className="min-h-screen grid md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] bg-background">
+      <PortadaLogin />
+      <div className="relative flex items-center justify-center p-md sm:p-xl">
+      <BotonTema className="absolute top-md right-md" />
       <motion.div
-        initial={{ opacity: 0, y: 16, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ type: "spring", stiffness: 260, damping: 24 }}
-        className="w-full max-w-[440px] bg-surface-container-lowest rounded-[16px] border border-surface-variant p-xl shadow-[0_12px_32px_rgba(0,0,0,0.08)] flex flex-col items-center relative z-10"
+        initial="oculto"
+        animate="visible"
+        variants={{ visible: { transition: { staggerChildren: 0.06, delayChildren: 0.1 } } }}
+        className="w-full max-w-[400px] flex flex-col"
       >
-        <img src="/logo.webp" alt="Igualab" className="h-12 object-contain mb-lg" />
-        <h1 className="text-headline-md text-on-background mb-xs text-center">Bienvenido a Igualab</h1>
-        <p className="text-body-md text-on-surface-variant mb-xl text-center">Inteligencia de sostenibilidad y prospección</p>
+        <motion.img variants={ENTRADA} src="/logo.webp" alt="Igualab" className="h-10 w-fit object-contain mb-xl md:hidden logo-adaptativo" />
+        <motion.h1 variants={ENTRADA} className="text-headline-lg text-on-background mb-xs">Bienvenido a Igualab</motion.h1>
+        <motion.p variants={ENTRADA} className="text-body-md text-on-surface-variant mb-lg pb-lg border-b-2 border-on-surface">Inteligencia de sostenibilidad y prospección</motion.p>
 
         <form onSubmit={onSubmit} className="w-full flex flex-col gap-md" noValidate>
-          <div className="flex flex-col gap-xs">
-            <label className="text-label-md text-on-surface-variant" htmlFor="correo">Correo electrónico</label>
+          <motion.div variants={ENTRADA} className="flex flex-col gap-xs">
+            <label className="text-label-md font-semibold text-on-surface" htmlFor="correo">Correo electrónico</label>
             <div className="relative flex items-center">
-              <span className="material-symbols-outlined absolute left-[12px] text-outline-variant text-[20px]">mail</span>
+              <span className="material-symbols-outlined absolute left-[12px] text-outline text-[20px]">mail</span>
               <input
                 id="correo"
                 type="email"
@@ -84,14 +93,14 @@ export default function Login() {
                 value={correo}
                 onChange={(e) => setCorreo(e.target.value)}
                 placeholder="tu@igualab.com"
-                className="w-full h-[48px] pl-[44px] pr-[12px] rounded-xl border border-outline-variant bg-surface-container-lowest text-on-background text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                className="w-full h-[48px] pl-[44px] pr-[12px] border border-outline bg-surface-container-lowest text-on-background text-body-md focus:border-primary-ink focus:ring-1 focus:ring-primary-ink outline-none transition-all"
               />
             </div>
-          </div>
-          <div className="flex flex-col gap-xs">
-            <label className="text-label-md text-on-surface-variant" htmlFor="pass">Contraseña</label>
+          </motion.div>
+          <motion.div variants={ENTRADA} className="flex flex-col gap-xs">
+            <label className="text-label-md font-semibold text-on-surface" htmlFor="pass">Contraseña</label>
             <div className="relative flex items-center">
-              <span className="material-symbols-outlined absolute left-[12px] text-outline-variant text-[20px]">lock</span>
+              <span className="material-symbols-outlined absolute left-[12px] text-outline text-[20px]">lock</span>
               <input
                 id="pass"
                 type={verPass ? "text" : "password"}
@@ -99,16 +108,16 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full h-[48px] pl-[44px] pr-[44px] rounded-xl border border-outline-variant bg-surface-container-lowest text-on-background text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                className="w-full h-[48px] pl-[44px] pr-[44px] border border-outline bg-surface-container-lowest text-on-background text-body-md focus:border-primary-ink focus:ring-1 focus:ring-primary-ink outline-none transition-all"
               />
               <BotonVerContrasena visible={verPass} onAlternar={() => setVerPass((v) => !v)} deshabilitado={!password} />
             </div>
             <div className="flex justify-end mt-sm">
-              <button type="button" onClick={() => setRecOpen(true)} className="text-label-md text-primary hover:text-surface-tint hover:underline">
+              <button type="button" onClick={() => setRecOpen(true)} className="text-label-md text-primary-ink underline-offset-4 hover:underline">
                 ¿Olvidó su contraseña?
               </button>
             </div>
-          </div>
+          </motion.div>
 
           {error && (
             <div className="shake flex items-center gap-sm rounded-lg bg-error-container text-on-error-container px-md py-sm text-body-md">
@@ -117,10 +126,12 @@ export default function Login() {
             </div>
           )}
 
-          <button
+          <motion.button
+            variants={ENTRADA}
             type="submit"
             disabled={cargando || !correo.trim() || !password}
-            className="w-full h-[48px] mt-sm bg-primary text-on-primary rounded-xl text-label-md font-semibold hover:bg-surface-tint transition-colors shadow-sm flex items-center justify-center gap-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary"
+            aria-busy={cargando}
+            className="w-full h-[48px] mt-sm bg-primary text-on-primary group text-body-md font-semibold hover:bg-surface-tint transition-colors flex items-center justify-center gap-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary"
           >
             {cargando ? (
               <>
@@ -129,16 +140,17 @@ export default function Login() {
             ) : (
               <>
                 Iniciar sesión{" "}
-                <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                <span className="material-symbols-outlined text-[18px] transition-transform duration-200 ease-out group-enabled:group-hover:translate-x-1">arrow_forward</span>
               </>
             )}
-          </button>
+          </motion.button>
         </form>
       </motion.div>
+      </div>
 
       <Modal open={recOpen} onClose={() => setRecOpen(false)}>
         <div className="p-xl text-center">
-          <span className="material-symbols-outlined text-[48px] text-primary">lock_reset</span>
+          <span className="material-symbols-outlined text-[48px] text-primary-ink">lock_reset</span>
           <h3 className="text-title-lg text-on-background mt-md">Recuperar contraseña</h3>
           <p className="text-body-md text-on-surface-variant mt-sm">
             Ingresa tu correo. Si está registrado, te enviaremos un enlace de recuperación con vigencia de 30 minutos.
@@ -146,7 +158,7 @@ export default function Login() {
           <input
             value={recMail}
             onChange={(e) => setRecMail(e.target.value)}
-            className="w-full mt-lg rounded-xl border border-outline-variant py-sm px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+            className="w-full mt-lg rounded-xl border border-outline-variant py-sm px-md text-body-md focus:border-primary-ink focus:ring-1 focus:ring-primary-ink outline-none"
             placeholder="tu@igualab.com"
           />
           <div className="flex justify-center gap-sm mt-lg">

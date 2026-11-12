@@ -7,7 +7,7 @@ import { useToast } from "../components/ToastProvider";
 import Spinner from "../components/Spinner";
 import CampoContrasena from "../components/CampoContrasena";
 
-const CLS_CAMPO = "h-[48px] rounded-xl border border-outline-variant px-md text-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none";
+const CLS_CAMPO = "h-[48px] rounded-xl border border-outline-variant px-md text-body-md focus:border-primary-ink focus:ring-1 focus:ring-primary-ink outline-none";
 
 export default function Restablecer() {
   const [params] = useSearchParams();
@@ -67,7 +67,7 @@ export default function Restablecer() {
 
           <ul className="grid grid-cols-2 gap-xs text-label-sm">
             {reglas.map((r) => (
-              <li key={r.msg} className={`flex items-center gap-xs ${r.ok ? "text-primary" : "text-on-surface-variant"}`}>
+              <li key={r.msg} className={`flex items-center gap-xs ${r.ok ? "text-primary-ink" : "text-on-surface-variant"}`}>
                 <span className="material-symbols-outlined text-[16px]">{r.ok ? "check_circle" : "radio_button_unchecked"}</span>
                 {r.msg}
               </li>

@@ -19,7 +19,7 @@ describe("api/auditoria", () => {
       pagina: 2,
       tamano: 10,
     });
-    const url = new URL(fetchMock.mock.calls[0][0] as string, "http://x");
+    const url = new URL(fetchMock.mock.calls[0][0] as string, "https://x");
     expect(url.pathname).toMatch(/\/auditoria$/);
     expect(url.searchParams.get("tipo_evento")).toBe("Inicio de sesión");
     expect(url.searchParams.get("usuario_id")).toBe("u1");

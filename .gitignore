@@ -224,3 +224,6 @@ zap-reports
 
 # Reportes de Trivy
 trivy-reports
+
+# Herramienta de diseño (bocetos y notas locales)
+.impeccable/

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api, apiArchivo, ApiError, AUTH_401_EVENT, LOADING_START, mensajeError, nombreArchivoDe, tipoAviso } from "./client";
+import { api, apiArchivo, apiConEstado, ApiError, AUTH_401_EVENT, LOADING_START, mensajeError, nombreArchivoDe, tipoAviso } from "./client";
 
 function resp(status: number, data: unknown): Response {
   return {
@@ -174,5 +174,20 @@ describe("nombreArchivoDe", () => {
     expect(nombreArchivoDe(null)).toBeNull();
     expect(nombreArchivoDe("inline")).toBeNull();
     expect(nombreArchivoDe("attachment; filename=")).toBeNull();
+  });
+});
+
+describe("apiConEstado", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("devuelve el status junto con el cuerpo (p. ej. 202 frente a 201)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(resp(202, { estado: "CONFIRMACION_PENDIENTE" })));
+    await expect(apiConEstado("/x")).resolves.toEqual({ status: 202, data: { estado: "CONFIRMACION_PENDIENTE" } });
+  });
+
+  it("un 204 llega sin cuerpo y un error se lanza como ApiError", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(resp(204, null)).mockResolvedValueOnce(resp(409, { error: { code: "X", message: "No." } })));
+    await expect(apiConEstado("/x")).resolves.toEqual({ status: 204, data: null });
+    await expect(apiConEstado("/x")).rejects.toBeInstanceOf(ApiError);
   });
 });

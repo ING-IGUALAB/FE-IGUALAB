@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { consultarAsistente } from "./asistente";
+import { consultarAsistente, continuarConversacion, guardarConversacion, listarConversaciones, obtenerConversacion } from "./asistente";
 import { LOADING_START } from "./client";
 
 const ok = (data: unknown) => ({ status: 200, ok: true, json: async () => data }) as unknown as Response;
@@ -38,5 +38,35 @@ describe("api/asistente", () => {
     await consultarAsistente(consulta);
     globalThis.removeEventListener(LOADING_START, handler);
     expect(handler).not.toHaveBeenCalled();
+  });
+});
+
+describe("api/asistente: conversaciones guardadas", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("guarda el chat con su clave, contexto y mensajes", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(ok({ id: "c1" }));
+    vi.stubGlobal("fetch", fetchMock);
+    const mensajes = [{ rol: "usuario" as const, contenido: "¿Sanciones?" }, { rol: "asistente" as const, respuesta: { respuesta: "r", sin_evidencia: false } }];
+    await guardarConversacion({ clave: "k1", sector: "MINERIA", empresaId: "e1", anio: 2024, mensajes });
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url).toMatch(/\/asistente\/conversaciones$/);
+    expect(opts.method).toBe("POST");
+    expect(JSON.parse(opts.body)).toEqual({ clave_idempotencia: "k1", empresa_id: "e1", sector: "MINERIA", anio: 2024, mensajes });
+  });
+
+  it("lista por páginas, abre una conversación y continúa con una clave por pregunta", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(ok({}));
+    vi.stubGlobal("fetch", fetchMock);
+    await listarConversaciones(2, 10);
+    await listarConversaciones();
+    await obtenerConversacion("c1");
+    await continuarConversacion("c1", "k2", "¿Y el año?");
+    expect(fetchMock.mock.calls[0][0]).toMatch(/\/asistente\/conversaciones\?pagina=2&tamano=10$/);
+    expect(fetchMock.mock.calls[1][0]).toMatch(/pagina=1&tamano=20$/);
+    expect(fetchMock.mock.calls[2][0]).toMatch(/\/asistente\/conversaciones\/c1$/);
+    const [url, opts] = fetchMock.mock.calls[3];
+    expect(url).toMatch(/\/asistente\/conversaciones\/c1\/consultas$/);
+    expect(JSON.parse(opts.body)).toEqual({ clave_idempotencia: "k2", pregunta: "¿Y el año?" });
   });
 });
