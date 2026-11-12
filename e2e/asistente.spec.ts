@@ -285,3 +285,67 @@ test.describe("Guardar el chat e historial", () => {
     await expect(campo(page, "Empresa")).toHaveValue("e-andina");
   });
 });
+
+test.describe("Respuestas con interpretación y estado registrado", () => {
+  const preguntar = async (page: Page, texto: string) => {
+    await page.getByRole("textbox", { name: "Pregunta para el asistente" }).fill(texto);
+    await page.getByRole("button", { name: "Consultar" }).click();
+  };
+
+  test.beforeEach(async ({ page, api }) => {
+    await entrarComo(page, api, "administrador", "/ia");
+    await elegirContexto(page, "Minería", "Minera Andina S.A.A.", 2024);
+  });
+
+  test("al pedir expectativas, muestra los hechos citados y aparte la interpretación del asistente", async ({ page, api }) => {
+    await preguntar(page, "¿Qué expectativas hay sobre su riesgo ambiental?");
+    await expect(page.getByText("Se identifica una multa del OEFA de 59.078 UIT por incumplimiento ambiental.")).toBeVisible();
+    const interpretacion = page.getByRole("region", { name: "Interpretación del asistente" });
+    await expect(interpretacion).toContainText("La multa sugiere un riesgo regulatorio ambiental relevante");
+    await expect(interpretacion).toContainText("No es contenido del documento");
+    await expect(page.getByText("Fuentes citadas")).toBeVisible();
+
+    // Al guardar el chat, la respuesta va completa, con su interpretación.
+    await page.getByRole("button", { name: "Guardar chat" }).click();
+    await expect(page.getByText("Chat guardado en tu historial.")).toBeVisible();
+    const mensajes = (api.llamadasA("POST", "/asistente/conversaciones")[0].cuerpo as { mensajes: { respuesta?: { interpretacion?: string } }[] }).mensajes;
+    expect(mensajes[1].respuesta?.interpretacion).toMatch(/^La multa sugiere/);
+  });
+
+  test("una pregunta factual no muestra interpretación", async ({ page }) => {
+    await preguntar(page, "¿Qué sanciones tiene?");
+    await expect(page.getByText("Se identifica una multa del OEFA de 59.078 UIT por incumplimiento ambiental.")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Interpretación del asistente" })).toHaveCount(0);
+  });
+
+  test("si se descartó la interpretación, lo avisa sin mostrarla", async ({ page }) => {
+    await page.route("**/asistente/consultas", (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          respuesta: "Se identifica una multa [1].",
+          afirmaciones: [{ texto: "Se identifica una multa del OEFA.", referencias: [1], cita_textual: "OEFA impuso una multa de 59.078 UIT." }],
+          citas: [{ referencia: 1, documento_id: "d-andina-2024", documento_nombre: "memoria-andina-2024.md", empresa_id: "e-andina", empresa_nombre: "Minera Andina S.A.A.", anio: 2024, seccion: "Contingencias", extracto: "OEFA impuso una multa de 59.078 UIT." }],
+          sin_evidencia: false,
+          interpretacion: null,
+          interpretacion_descartada: true,
+        }),
+      }),
+    );
+    await preguntar(page, "¿Qué implicancias tiene?");
+    await expect(page.getByText("Se omitió la interpretación del asistente porque no pudo apoyarse en los hechos citados.")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Interpretación del asistente" })).toHaveCount(0);
+  });
+
+  test("al preguntar el estado de un código GRI, responde desde Análisis GRI y sin fuentes del documento", async ({ page }) => {
+    await preguntar(page, "¿Qué estado tiene GRI 305?");
+    const estado = page.getByRole("region", { name: "Estado registrado en Análisis GRI" });
+    await expect(estado).toContainText("Desde Análisis GRI");
+    await expect(estado).toContainText("GRI 305 (2016): OK.");
+    await expect(estado).toContainText("detectar un código en el documento no demuestra cumplimiento");
+    await expect(page.getByText("Fuentes citadas")).toHaveCount(0);
+    // El texto no se repite fuera del bloque.
+    await expect(page.getByText("GRI 305 (2016): OK.", { exact: false })).toHaveCount(1);
+  });
+});
