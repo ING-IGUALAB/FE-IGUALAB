@@ -443,6 +443,27 @@ export interface ConsultaAsistente {
   motivo?: MotivoSinEvidencia | null;
   mensaje?: string | null;
   afirmaciones_descartadas?: number;
+  /**
+   * Análisis del asistente a partir de las afirmaciones verificadas (p. ej. al pedir expectativas o
+   * conclusiones). NO es una cita ni contenido del documento: se muestra aparte y etiquetado.
+   */
+  interpretacion?: string | null;
+  /** El modelo envió una interpretación que no se muestra (cifra sin respaldo o formato inválido). */
+  interpretacion_descartada?: boolean;
+  /** Estado que una persona asignó en Análisis GRI a los códigos que pidió la pregunta (nunca una cita). */
+  estado_registrado?: EstadoRegistradoAsistente | null;
+  /** NO_REALIZADA: la pregunta era solo por el estado registrado y no se buscó en los documentos. */
+  busqueda_documental?: "REALIZADA" | "NO_REALIZADA";
+}
+
+export interface EstadoRegistradoAsistente {
+  fuente?: "ANALISIS_GRI";
+  /** Texto listo para mostrar (incluye la vigencia de la validación). */
+  texto: string;
+  codigos_solicitados: string[];
+  filas: { identidad: string; codigo: string; edicion: string | null; estandar: string; estado: string | null; estado_etiqueta: string | null }[];
+  validacion_vigente: boolean;
+  validacion: { numero: number; validado_en: string; motivos_no_vigente: string[] } | null;
 }
 
 // ---- Conversaciones guardadas del asistente ----
