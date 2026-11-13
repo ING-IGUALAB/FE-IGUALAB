@@ -2,13 +2,15 @@ import { useCallback, useEffect, useId, useState, type ReactNode } from "react";
 import SectionHeader from "../components/SectionHeader";
 import Modal from "../components/Modal";
 import Spinner from "../components/Spinner";
+import Paginacion from "../components/Paginacion";
 import { useToast } from "../components/ToastProvider";
 import * as empresasApi from "../api/empresas";
 import { mensajeError, tipoAviso } from "../api/client";
-import { SECTORES_API, conRecientesPrimero, etiquetaSector, filtrarPorNombre, porFechaReciente } from "../lib/dominio";
+import { SECTORES_API, conRecientesPrimero, etiquetaSector, filtrarPorNombre, paginarLocal, porFechaReciente } from "../lib/dominio";
 import type { EmpresaApi, SectorApi } from "../types";
 
 const SKELETON = ["s1", "s2", "s3", "s4"];
+const TAM_PAGINA = 5;
 
 export default function Empresas() {
   const toast = useToast();
@@ -17,6 +19,7 @@ export default function Empresas() {
   const [sector, setSector] = useState<"" | SectorApi>("");
   const [soloActivas, setSoloActivas] = useState(false);
   const [busqueda, setBusqueda] = useState("");
+  const [pagina, setPagina] = useState(1);
   const [crearOpen, setCrearOpen] = useState(false);
   const [editando, setEditando] = useState<EmpresaApi | null>(null);
   // Empresas registradas en esta visita, la más reciente primero: se muestran arriba de la lista.
@@ -45,6 +48,12 @@ export default function Empresas() {
   // Apiladas por fecha de registro: la más reciente arriba (no por orden alfabético).
   const visibles = conRecientesPrimero(porFechaReciente(filtrarPorNombre(empresas, busqueda)), recientes);
   const buscando = busqueda.trim() !== "";
+  const pag = paginarLocal(visibles, pagina, TAM_PAGINA);
+
+  // Al cambiar la búsqueda o los filtros se vuelve a la primera página.
+  useEffect(() => {
+    setPagina(1);
+  }, [busqueda, sector, soloActivas]);
 
   // La empresa recién registrada queda primera y a la vista: se quita la búsqueda y, si el filtro
   // de sector la ocultaría, se vuelve a «Todos».
@@ -55,6 +64,7 @@ export default function Empresas() {
     }
     setRecientes((prev) => [creada.id, ...prev.filter((id) => id !== creada.id)]);
     setBusqueda("");
+    setPagina(1);
     if (sector && sector !== creada.sector) setSector("");
     else cargar();
   }
@@ -129,7 +139,7 @@ export default function Empresas() {
               {!cargando && empresas.length === 0 && (
                 <tr><td colSpan={5} className="py-xl px-md text-center text-on-surface-variant">No hay empresas que coincidan con el filtro.</td></tr>
               )}
-              {!cargando && visibles.map((e) => (
+              {!cargando && pag.items.map((e) => (
                 <tr key={e.id} className={`border-b border-surface-variant hover:bg-surface/50 transition-colors ${recientes.includes(e.id) ? "bg-primary/5" : ""}`}>
                   <td className="py-md px-md font-medium text-on-background">
                     {e.nombre}
@@ -160,6 +170,11 @@ export default function Empresas() {
             </tbody>
           </table>
         </div>
+        {!cargando && pag.paginas > 1 && (
+          <div className="p-md border-t border-outline-variant">
+            <Paginacion pagina={pag.pagina} totalPaginas={pag.paginas} onCambiar={setPagina} />
+          </div>
+        )}
         {/* Fuera de la tabla: en móvil la tabla se desplaza a lo ancho y el aviso quedaría cortado. */}
         {!cargando && empresas.length > 0 && visibles.length === 0 && (
           <p className="py-xl px-md text-center text-body-md text-on-surface-variant">

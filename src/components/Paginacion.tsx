@@ -58,7 +58,8 @@ export default function Paginacion({
         </button>
       </div>
 
-      <form onSubmit={irDirecto} className="flex items-center gap-xs">
+      {/* Sin validación del navegador: un número fuera de rango lleva a la primera o a la última página. */}
+      <form onSubmit={irDirecto} noValidate className="flex items-center gap-xs">
         <label className="flex items-center gap-xs text-label-md text-on-surface-variant">
           <span>Ir a</span>
           <input

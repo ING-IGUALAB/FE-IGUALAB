@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import SectionHeader from "../components/SectionHeader";
-import PaginacionSalto from "../components/PaginacionSalto";
+import Paginacion from "../components/Paginacion";
 import Badge from "../components/Badge";
 import Spinner from "../components/Spinner";
 import Modal from "../components/Modal";
@@ -232,7 +232,7 @@ export default function Ingesta() {
           </div>
           {totalPaginas > 1 && (
             <div className="p-md border-t border-outline-variant">
-              <PaginacionSalto pagina={paginaActual} totalPaginas={totalPaginas} onCambiar={setPagina} deshabilitado={mostrandoCarga} />
+              <Paginacion pagina={paginaActual} totalPaginas={totalPaginas} onCambiar={setPagina} deshabilitado={mostrandoCarga} />
             </div>
           )}
         </div>
