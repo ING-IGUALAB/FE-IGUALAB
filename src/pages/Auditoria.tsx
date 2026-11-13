@@ -102,7 +102,7 @@ export default function Auditoria() {
         }
       />
 
-      <div className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
+      <div data-lista className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
         <div className="p-lg border-b border-outline-variant bg-surface-bright flex flex-wrap gap-md items-end">
           <Filtro label="Tipo de evento">
             <select value={tipo} onChange={(e) => { setTipo(e.target.value as "" | TipoEventoAuditoria); setPagina(1); }} className={CLS_CONTROL}>

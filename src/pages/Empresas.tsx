@@ -120,7 +120,7 @@ export default function Empresas() {
         </button>
       </div>
 
-      <div className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
+      <div data-lista className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>

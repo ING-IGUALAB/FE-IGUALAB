@@ -68,7 +68,7 @@ export default function Usuarios() {
         }
       />
 
-      <div className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
+      <div data-lista className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
         {errorCarga && (
           <div className="p-md bg-error-container text-on-error-container text-body-md flex items-center justify-between gap-md">
             <span className="flex items-center gap-sm"><span className="material-symbols-outlined text-[18px]">error</span>{errorCarga}</span>
@@ -147,13 +147,10 @@ export default function Usuarios() {
             </tbody>
           </table>
         </div>
-        {!cargando && pag.paginas > 1 && (
-          <div className="p-md border-t border-outline-variant">
-            <Paginacion pagina={pag.pagina} totalPaginas={pag.paginas} onCambiar={setPagina} />
-          </div>
-        )}
-        <div className="p-sm border-t border-outline-variant bg-surface-container-lowest">
-          <span className="text-label-sm text-on-surface-variant">{usuarios.length} cuentas · Exactamente una es SuperAdmin · Deshabilitar cierra sus sesiones y preserva el historial.</span>
+        {/* Como en Auditoría: primero el total y debajo la paginación. */}
+        <div className="p-md border-t border-outline-variant bg-surface-container-lowest space-y-md">
+          <p className="text-label-sm text-on-surface-variant">{usuarios.length} cuentas · Exactamente una es SuperAdmin · Deshabilitar cierra sus sesiones y preserva el historial.</p>
+          {!cargando && <Paginacion pagina={pag.pagina} totalPaginas={pag.paginas} onCambiar={setPagina} />}
         </div>
       </div>
 

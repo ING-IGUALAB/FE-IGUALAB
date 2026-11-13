@@ -142,7 +142,7 @@ export default function Ingesta() {
     <>
       <SectionHeader titulo="Ingesta de documentos" />
 
-        <div className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
+        <div data-lista className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
           <div className="p-lg border-b border-outline-variant bg-surface-bright space-y-md">
             <div className="flex flex-wrap items-center justify-between gap-sm">
               <h3 className="text-title-lg text-on-surface">Documentos ingestados</h3>

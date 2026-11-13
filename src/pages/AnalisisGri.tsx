@@ -344,7 +344,7 @@ function TablaFilas({
   const [pagina, setPagina] = useState(1);
   const pag = paginarLocal(filas, pagina, TAM_PAGINA_CODIGOS);
   return (
-    <div className={CLS_CARD}>
+    <div data-lista className={CLS_CARD}>
       <div className="p-lg border-b border-outline-variant bg-surface-bright flex flex-wrap justify-between items-center gap-sm">
         <h3 className="text-title-lg text-on-surface">Códigos GRI</h3>
         <span className="text-label-sm text-on-surface-variant">

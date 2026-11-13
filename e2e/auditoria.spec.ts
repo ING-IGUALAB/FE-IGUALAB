@@ -78,4 +78,31 @@ test.describe("Paginación de la auditoría", () => {
     await nav.getByRole("button", { name: "Página 1", exact: true }).click();
     await expect(nav.getByText("Página 1 de 16")).toBeVisible();
   });
+
+  test("al cambiar de página desde abajo vuelve al inicio de la lista", async ({ page, api }) => {
+    api.agregarEventos(295);
+    await entrarComo(page, api, "superadmin", "/auditoria");
+    const nav = page.getByRole("navigation", { name: "Paginación" });
+    await nav.scrollIntoViewIfNeeded();
+    const primeraFila = page.locator("tbody tr").first();
+    await expect(primeraFila).not.toBeInViewport();
+
+    await nav.getByRole("button", { name: "Siguiente" }).click();
+    await expect(nav.getByText("Página 2 de 16")).toBeVisible();
+    await expect(primeraFila).toBeInViewport();
+  });
+
+  test("en pantallas angostas los botones de páginas caben en una sola línea", async ({ page, api }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    api.agregarEventos(295);
+    await entrarComo(page, api, "superadmin", "/auditoria");
+    const nav = page.getByRole("navigation", { name: "Paginación" });
+    // Peor caso: una página en medio, con vecinas y «…» a ambos lados.
+    await nav.getByRole("spinbutton", { name: "Ir a la página" }).fill("7");
+    await page.keyboard.press("Enter");
+    await expect(nav.getByText("Página 7 de 16")).toBeVisible();
+    const anterior = await nav.getByRole("button", { name: "Anterior" }).boundingBox();
+    const siguiente = await nav.getByRole("button", { name: "Siguiente" }).boundingBox();
+    expect(anterior!.y).toBe(siguiente!.y);
+  });
 });
