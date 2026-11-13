@@ -40,7 +40,6 @@ import {
   situacionAnioReporte,
   situacionEmision,
   textoSinAnios,
-  bloquesPaginacion,
   plural,
   puedeValidar,
   textoMotivosNoVigente,
@@ -540,27 +539,6 @@ describe("filtrarPorNombre", () => {
   it("sin texto devuelve la misma lista", () => {
     expect(filtrarPorNombre(empresas, "")).toBe(empresas);
     expect(ids("   ")).toEqual(["1", "2", "3"]);
-  });
-});
-
-describe("bloquesPaginacion", () => {
-  it("con 7 páginas o menos las muestra todas, sin campo de salto", () => {
-    expect(bloquesPaginacion(1, 5)).toEqual({ inicio: [1, 2, 3, 4, 5], fin: [] });
-    expect(bloquesPaginacion(4, 7)).toEqual({ inicio: [1, 2, 3, 4, 5, 6, 7], fin: [] });
-  });
-  it("al inicio: 3 primeras y 3 últimas", () => {
-    expect(bloquesPaginacion(1, 16)).toEqual({ inicio: [1, 2, 3], fin: [14, 15, 16] });
-    expect(bloquesPaginacion(2, 16)).toEqual({ inicio: [1, 2, 3], fin: [14, 15, 16] });
-  });
-  it("en medio, el primer grupo sigue a la página actual", () => {
-    expect(bloquesPaginacion(7, 16)).toEqual({ inicio: [6, 7, 8], fin: [14, 15, 16] });
-  });
-  it("cerca del final no repite páginas del último grupo", () => {
-    expect(bloquesPaginacion(13, 16)).toEqual({ inicio: [11, 12, 13], fin: [14, 15, 16] });
-    expect(bloquesPaginacion(5, 8)).toEqual({ inicio: [3, 4, 5], fin: [6, 7, 8] });
-  });
-  it("en las últimas páginas, el primer grupo vuelve a las 3 primeras", () => {
-    expect(bloquesPaginacion(15, 16)).toEqual({ inicio: [1, 2, 3], fin: [14, 15, 16] });
   });
 });
 

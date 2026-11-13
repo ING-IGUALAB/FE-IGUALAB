@@ -267,21 +267,21 @@ test.describe("Caso de uso: Ingestar documentos", () => {
 });
 
 test.describe("Paginación de los documentos ingestados", () => {
-  test("usa la misma paginación que Auditoría: primeras y últimas páginas, «Ir a» e indicador", async ({ page, api }) => {
+  test("usa la misma paginación que el resto: primera y última, números, «Ir a» e indicador", async ({ page, api }) => {
     api.agregarDocumentos(196); // 4 + 196 = 200 documentos → 20 páginas de 10
     await entrarComo(page, api, "superadmin", "/ingesta");
     const nav = page.getByRole("navigation", { name: "Paginación" });
     await expect(nav.getByText("Página 1 de 20")).toBeVisible();
-    for (const n of [1, 2, 3, 18, 19, 20]) await expect(nav.getByRole("button", { name: `Página ${n}`, exact: true })).toBeVisible();
-    await expect(nav.getByRole("button", { name: "Página anterior" })).toBeDisabled();
+    for (const n of [1, 2, 20]) await expect(nav.getByRole("button", { name: `Página ${n}`, exact: true })).toBeVisible();
+    await expect(nav.getByRole("button", { name: "Anterior" })).toBeDisabled();
 
     await nav.getByRole("spinbutton", { name: "Ir a la página" }).fill("7");
-    await nav.getByRole("button", { name: "Ir a la página escrita" }).click();
+    await nav.getByRole("button", { name: "Ir", exact: true }).click();
     await expect(nav.getByText("Página 7 de 20")).toBeVisible();
     await expect(nav.getByRole("button", { name: "Página 7", exact: true })).toHaveAttribute("aria-current", "page");
     expect(api.llamadasA("GET", "/documentos").at(-1)!.query.get("pagina")).toBe("7");
 
-    await nav.getByRole("button", { name: "Página siguiente" }).click();
+    await nav.getByRole("button", { name: "Siguiente" }).click();
     await expect(nav.getByText("Página 8 de 20")).toBeVisible();
     await expect(page.locator("tbody tr")).toHaveCount(10);
   });

@@ -13,7 +13,7 @@ test.describe("Caso de uso: Consultar la auditoría", () => {
     await expect(filas.first()).toContainText("Oscar Baldeón");
     await expect(page.getByText("Página 1 de 2")).toBeVisible();
 
-    await page.getByRole("button", { name: "Página siguiente" }).click();
+    await page.getByRole("button", { name: "Siguiente" }).click();
     await expect(page.getByText("Página 2 de 2")).toBeVisible();
     await expect(filas).toHaveCount(5);
   });
@@ -50,18 +50,18 @@ test.describe("Caso de uso: Consultar la auditoría", () => {
 });
 
 test.describe("Paginación de la auditoría", () => {
-  test("muestra las 3 primeras, el campo «Ir a» y las 3 últimas; permite saltar directo", async ({ page, api }) => {
+  test("muestra la primera, la última y las vecinas de la actual; permite saltar directo", async ({ page, api }) => {
     api.agregarEventos(295); // 25 + 295 = 320 eventos → 16 páginas de 20
     await entrarComo(page, api, "superadmin", "/auditoria");
     const nav = page.getByRole("navigation", { name: "Paginación" });
     await expect(nav.getByText("Página 1 de 16")).toBeVisible();
-    for (const n of [1, 2, 3, 14, 15, 16]) await expect(nav.getByRole("button", { name: `Página ${n}`, exact: true })).toBeVisible();
+    for (const n of [1, 2, 16]) await expect(nav.getByRole("button", { name: `Página ${n}`, exact: true })).toBeVisible();
     await expect(nav.getByRole("button", { name: "Página 7", exact: true })).toHaveCount(0);
-    await expect(nav.getByRole("button", { name: "Página anterior" })).toBeDisabled();
+    await expect(nav.getByRole("button", { name: "Anterior" })).toBeDisabled();
 
-    // Escribiendo la página en «Ir a» y pulsando la lupa.
+    // Escribiendo la página en «Ir a» y pulsando «Ir».
     await nav.getByRole("spinbutton", { name: "Ir a la página" }).fill("7");
-    await nav.getByRole("button", { name: "Ir a la página escrita" }).click();
+    await nav.getByRole("button", { name: "Ir", exact: true }).click();
     await expect(nav.getByText("Página 7 de 16")).toBeVisible();
     await expect(nav.getByRole("button", { name: "Página 7", exact: true })).toHaveAttribute("aria-current", "page");
     expect(api.llamadasA("GET", "/auditoria").at(-1)!.query.get("pagina")).toBe("7");
@@ -71,11 +71,38 @@ test.describe("Paginación de la auditoría", () => {
     await nav.getByRole("spinbutton", { name: "Ir a la página" }).fill("99");
     await page.keyboard.press("Enter");
     await expect(nav.getByText("Página 16 de 16")).toBeVisible();
-    await expect(nav.getByRole("button", { name: "Página siguiente" })).toBeDisabled();
+    await expect(nav.getByRole("button", { name: "Siguiente" })).toBeDisabled();
 
-    await nav.getByRole("button", { name: "Página anterior" }).click();
+    await nav.getByRole("button", { name: "Anterior" }).click();
     await expect(nav.getByText("Página 15 de 16")).toBeVisible();
     await nav.getByRole("button", { name: "Página 1", exact: true }).click();
     await expect(nav.getByText("Página 1 de 16")).toBeVisible();
+  });
+
+  test("al cambiar de página desde abajo vuelve al inicio de la lista", async ({ page, api }) => {
+    api.agregarEventos(295);
+    await entrarComo(page, api, "superadmin", "/auditoria");
+    const nav = page.getByRole("navigation", { name: "Paginación" });
+    await nav.scrollIntoViewIfNeeded();
+    const primeraFila = page.locator("tbody tr").first();
+    await expect(primeraFila).not.toBeInViewport();
+
+    await nav.getByRole("button", { name: "Siguiente" }).click();
+    await expect(nav.getByText("Página 2 de 16")).toBeVisible();
+    await expect(primeraFila).toBeInViewport();
+  });
+
+  test("en pantallas angostas los botones de páginas caben en una sola línea", async ({ page, api }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    api.agregarEventos(295);
+    await entrarComo(page, api, "superadmin", "/auditoria");
+    const nav = page.getByRole("navigation", { name: "Paginación" });
+    // Peor caso: una página en medio, con vecinas y «…» a ambos lados.
+    await nav.getByRole("spinbutton", { name: "Ir a la página" }).fill("7");
+    await page.keyboard.press("Enter");
+    await expect(nav.getByText("Página 7 de 16")).toBeVisible();
+    const anterior = await nav.getByRole("button", { name: "Anterior" }).boundingBox();
+    const siguiente = await nav.getByRole("button", { name: "Siguiente" }).boundingBox();
+    expect(anterior!.y).toBe(siguiente!.y);
   });
 });

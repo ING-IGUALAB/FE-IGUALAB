@@ -147,6 +147,30 @@ test.describe("Caso de uso: Gestionar catálogo de empresas", () => {
     await expect(fila).toContainText("Activa");
   });
 
+  test("pagina el catálogo de 5 en 5 y vuelve a la primera página al buscar", async ({ page }) => {
+    const filas = page.locator("tbody tr");
+    const paginacion = page.getByRole("navigation", { name: "Paginación" });
+    await expect(filas).toHaveCount(5);
+    await expect(paginacion).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Agregar empresa" }).click();
+    const dialogo = page.getByRole("dialog");
+    await dialogo.getByLabel("Nombre de la empresa").fill("Cobre del Sur S.A.");
+    await campo(dialogo, "Sector").selectOption({ label: "Minería" });
+    await dialogo.getByRole("button", { name: "Registrar" }).click();
+    await expect(dialogo).toBeHidden();
+
+    await expect(paginacion).toContainText("Página 1 de 2");
+    await expect(filas.first()).toContainText("Cobre del Sur S.A.");
+    await paginacion.getByRole("button", { name: "Siguiente" }).click();
+    await expect(paginacion).toContainText("Página 2 de 2");
+    await expect(filas).toHaveCount(1);
+
+    await page.getByLabel("Buscar empresa").fill("petro");
+    await expect(filas).toHaveCount(2);
+    await expect(paginacion).toHaveCount(0);
+  });
+
   test("al filtrar se ve solo el esqueleto de la tabla, no el indicador central", async ({ page, api }) => {
     api.retrasar("GET", /^\/empresas$/, 2000);
     await campo(page, "Sector").selectOption({ label: "Minería" });

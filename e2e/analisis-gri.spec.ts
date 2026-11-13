@@ -39,6 +39,27 @@ test.describe("Caso de uso: Analizar y validar códigos GRI", () => {
     await expect(page.getByRole("button", { name: "Consultar análisis" })).toBeDisabled();
   });
 
+  test("la lista de códigos GRI se pagina de 10 en 10", async ({ page, api }) => {
+    const estado = api.analisis.get("e-andina:2024")!;
+    const base = estado.filas[0];
+    const total = 12;
+    estado.filas = Array.from({ length: total }, (_, i) => ({
+      ...base,
+      identidad: `${400 + i}:2016`,
+      codigo: String(400 + i),
+      estandar: `GRI ${400 + i} (2016)`,
+    }));
+    await consultar(page, "Minería", "Minera Andina S.A.A.", 2024);
+
+    const selects = page.getByRole("combobox", { name: /^Estado de GRI/ });
+    const paginacion = page.getByRole("navigation", { name: "Paginación" });
+    await expect(selects).toHaveCount(10);
+    await expect(paginacion).toContainText("Página 1 de 2");
+    await paginacion.getByRole("button", { name: "Siguiente" }).click();
+    await expect(selects).toHaveCount(2);
+    await expect(page.getByRole("combobox", { name: "Estado de GRI 411 (2016)" })).toBeVisible();
+  });
+
   test("las evidencias y sanciones se leen limpias aunque el documento traiga Markdown o HTML", async ({ page, api }) => {
     const estado = api.analisis.get("e-andina:2024")!;
     estado.filas[0].evidencias[0] = { ...estado.filas[0].evidencias[0], cita: "### Residuos GRI 306-3: se generaron **86** toneladas.<br />De ellas, 61", seccion: "**Gestión** ambiental<br>2025" };

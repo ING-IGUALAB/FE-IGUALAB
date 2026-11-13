@@ -137,6 +137,15 @@ body {
   color: rgb(var(--c-on-primary));
 }
 
+/*
+ * Listas paginadas: el navegador no las toma como referencia de desplazamiento. Así, al cambiar de
+ * página y volver al inicio de la lista, la vista no salta de nuevo abajo cuando llegan las filas.
+ */
+[data-lista] {
+  overflow-anchor: none;
+  scroll-margin-top: 5rem; /* al volver al inicio, que no quede bajo la cabecera fija */
+}
+
 /* Foco visible y uniforme en todo control: anillo en tinta, separado del borde. */
 :focus-visible {
   outline: 2px solid rgb(var(--c-on-surface));
