@@ -20,6 +20,29 @@ test.describe("Caso de uso: Descargar reportes", () => {
     await expect(filas.first()).toContainText("Minera Andina S.A.A.");
   });
 
+  test("busca por empresa, sin tildes ni mayúsculas, junto con los filtros", async ({ page }) => {
+    const filas = page.locator("tbody tr");
+    const buscador = page.getByRole("searchbox", { name: "Buscar por empresa" });
+    await expect(filas).toHaveCount(2);
+
+    await buscador.fill("PETRO");
+    await expect(filas).toHaveCount(1);
+    await expect(filas.first()).toContainText("Petro Sur S.A.");
+
+    await buscador.fill("andína");
+    await expect(filas).toHaveCount(1);
+    await expect(filas.first()).toContainText("Minera Andina S.A.A.");
+    await page.getByLabel("Filtrar por sector").selectOption({ label: "Petróleo y Gas" });
+    await expect(page.getByText("Ningún reporte coincide con «andína».")).toBeVisible();
+
+    await page.getByRole("button", { name: "Borrar búsqueda" }).click();
+    await expect(buscador).toHaveValue("");
+    await expect(filas).toHaveCount(1);
+    await buscador.fill("sur");
+    await buscador.press("Escape");
+    await expect(buscador).toHaveValue("");
+  });
+
   test("descarga el PDF de un reporte", async ({ page }) => {
     const descarga = page.waitForEvent("download");
     await page.getByRole("row", { name: /Minera Andina S.A.A./ }).getByRole("button", { name: /Descargar/ }).click();

@@ -430,9 +430,14 @@ export function conRecientesPrimero<T extends { id: string }>(items: T[], recien
 
 /** Elementos cuyo nombre contiene el texto buscado (basta una parte, sin distinguir mayúsculas ni tildes). */
 export function filtrarPorNombre<T extends { nombre: string }>(items: T[], busqueda: string): T[] {
+  return filtrarPorTexto(items, busqueda, (i) => i.nombre);
+}
+
+/** Elementos cuyo texto (el que indica `texto`) contiene lo buscado; sin búsqueda, la misma lista. */
+export function filtrarPorTexto<T>(items: T[], busqueda: string, texto: (item: T) => string): T[] {
   const buscado = normalizarTexto(busqueda);
   if (!buscado) return items;
-  return items.filter((i) => normalizarTexto(i.nombre).includes(buscado));
+  return items.filter((i) => normalizarTexto(texto(i)).includes(buscado));
 }
 
 export function paginarLocal<T>(items: T[], pagina: number, tamano: number): { items: T[]; pagina: number; paginas: number } {
