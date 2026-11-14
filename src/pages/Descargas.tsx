@@ -8,7 +8,7 @@ import { useDescargarReporte } from "../components/useDescargarReporte";
 import * as empresasApi from "../api/empresas";
 import * as reportesApi from "../api/reportes";
 import { mensajeError, tipoAviso } from "../api/client";
-import { SECTORES_API, etiquetaSector, paginarLocal } from "../lib/dominio";
+import { SECTORES_API, etiquetaSector, filtrarPorTexto, paginarLocal } from "../lib/dominio";
 import type { EmpresaApi, ReporteResumen, SectorApi } from "../types";
 
 const TAM_PAGINA = 10;
@@ -31,6 +31,7 @@ export default function Descargas() {
   const [cargando, setCargando] = useState(true);
   const [fSector, setFSector] = useState<"" | SectorApi>("");
   const [fAnio, setFAnio] = useState("");
+  const [busqueda, setBusqueda] = useState("");
   const [pagina, setPagina] = useState(1);
 
   const empresaDe = (id: string) => empresas.find((e) => e.id === id);
@@ -59,10 +60,20 @@ export default function Descargas() {
       .finally(() => setCargando(false));
   }, [toast, resaltar]);
 
-  const filtrados = filtrar(reportes, empresas, fSector, fAnio);
+  // La búsqueda por empresa se suma a los filtros de sector y año, sobre la lista ya cargada.
+  const filtrados = filtrarPorTexto(filtrar(reportes, empresas, fSector, fAnio), busqueda, (r) => r.empresa_nombre);
   const pag = paginarLocal(filtrados, pagina, TAM_PAGINA);
   const anios = [...new Set(reportes.map((r) => r.anio))].sort((a, b) => b - a);
   const hayFiltros = !!(fSector || fAnio);
+  const buscando = busqueda.trim() !== "";
+  let vacio = "Aún no se han generado reportes.";
+  if (buscando) vacio = `Ningún reporte coincide con «${busqueda.trim()}».`;
+  else if (hayFiltros) vacio = "No hay reportes con estos filtros.";
+
+  function buscar(texto: string) {
+    setBusqueda(texto);
+    setPagina(1);
+  }
 
   return (
     <>
@@ -74,6 +85,24 @@ export default function Descargas() {
         <div className="p-lg border-b border-outline-variant bg-surface-bright flex flex-col sm:flex-row sm:justify-between sm:items-center gap-md">
           <h3 className="text-title-lg text-on-surface">Versiones emitidas</h3>
           <div className="flex flex-wrap items-center gap-sm">
+            <div className="relative w-full sm:w-[260px]">
+              <span className="material-symbols-outlined absolute left-sm top-1/2 -translate-y-1/2 text-[20px] text-outline pointer-events-none" aria-hidden="true">search</span>
+              <input
+                type="search"
+                value={busqueda}
+                onChange={(e) => buscar(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Escape" && busqueda) { e.preventDefault(); buscar(""); } }}
+                aria-label="Buscar por empresa"
+                placeholder="Buscar por empresa…"
+                autoComplete="off"
+                className="w-full rounded-lg border border-outline-variant bg-surface-container-low py-xs pl-[40px] pr-[40px] text-label-md focus:border-primary-ink focus:ring-1 focus:ring-primary-ink outline-none [&::-webkit-search-cancel-button]:appearance-none"
+              />
+              {busqueda && (
+                <button type="button" onClick={() => buscar("")} aria-label="Borrar búsqueda" title="Borrar búsqueda" className="absolute inset-y-0 right-0 w-10 flex items-center justify-center text-on-surface-variant hover:text-primary-ink">
+                  <span className="material-symbols-outlined text-[20px]" aria-hidden="true">close</span>
+                </button>
+              )}
+            </div>
             <select aria-label="Filtrar por sector" value={fSector} onChange={(e) => { setFSector(e.target.value as "" | SectorApi); setPagina(1); }} className={CLS_FILTRO}>
               <option value="">Todo sector</option>
               {SECTORES_API.map((s) => <option key={s} value={s}>{etiquetaSector(s)}</option>)}
@@ -95,7 +124,7 @@ export default function Descargas() {
             sectorDe={sectorDe}
             descargando={descargando}
             onDescargar={descargar}
-            vacio={hayFiltros ? "No hay reportes con estos filtros." : "Aún no se han generado reportes."}
+            vacio={vacio}
             resaltado={resaltar}
           />
         )}

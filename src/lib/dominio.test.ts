@@ -30,6 +30,7 @@ import {
   puedeDeshabilitar,
   confirmacionDeshabilitarValida,
   filtrarPorNombre,
+  filtrarPorTexto,
   conRecientesPrimero,
   porFechaReciente,
   textoFragmentos,
@@ -520,6 +521,20 @@ describe("filtrarDocumentos", () => {
   it("sin criterios devuelve todos", () => {
     expect(ids({})).toEqual(["1", "2", "3"]);
     expect(ids({ busqueda: "   " })).toEqual(["1", "2", "3"]);
+  });
+});
+
+const empresaDe = (r: { empresa: string }) => r.empresa;
+
+describe("filtrarPorTexto", () => {
+  const reportes = [{ empresa: "Cerro Blanco S.A." }, { empresa: "Gas Altiplano" }, { empresa: "Minera Ñuñoa" }];
+  const de = empresaDe;
+  it("busca una parte del texto indicado, sin mayúsculas ni tildes", () => {
+    expect(filtrarPorTexto(reportes, "  CERRO ", de)).toEqual([reportes[0]]);
+    expect(filtrarPorTexto(reportes, "nunoa", de)).toEqual([reportes[2]]);
+  });
+  it("sin búsqueda devuelve la misma lista", () => {
+    expect(filtrarPorTexto(reportes, " ", de)).toBe(reportes);
   });
 });
 
