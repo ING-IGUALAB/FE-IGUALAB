@@ -5,15 +5,19 @@ import Badge from "../components/Badge";
 import Modal from "../components/Modal";
 import { useToast } from "../components/ToastProvider";
 import Spinner from "../components/Spinner";
+import Paginacion from "../components/Paginacion";
 import { useAuth } from "../auth/AuthContext";
 import { mensajeError, tipoAviso } from "../api/client";
 import * as usuariosApi from "../api/usuarios";
 import { REGLAS_PASSWORD } from "../lib/password";
 import { fechaCorta } from "../lib/format";
+import { paginarLocal } from "../lib/dominio";
 import { esCorreoValido } from "../lib/validacion";
 import type { Usuario } from "../types";
 import CampoContrasena from "../components/CampoContrasena";
 import { useCuentaRegresiva } from "../components/useCuentaRegresiva";
+
+const TAM_PAGINA = 5;
 
 const SKELETON_ROWS = ["r1", "r2", "r3", "r4"];
 const SKELETON_CELLS = [
@@ -29,6 +33,7 @@ export default function Usuarios() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [cargando, setCargando] = useState(true);
   const [errorCarga, setErrorCarga] = useState("");
+  const [pagina, setPagina] = useState(1);
 
   const [crearOpen, setCrearOpen] = useState(false);
   const [transferir, setTransferir] = useState<Usuario | null>(null);
@@ -50,6 +55,8 @@ export default function Usuarios() {
     cargar();
   }, []);
 
+  const pag = paginarLocal(usuarios, pagina, TAM_PAGINA);
+
   return (
     <>
       <SectionHeader
@@ -61,7 +68,7 @@ export default function Usuarios() {
         }
       />
 
-      <div className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
+      <div data-lista className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
         {errorCarga && (
           <div className="p-md bg-error-container text-on-error-container text-body-md flex items-center justify-between gap-md">
             <span className="flex items-center gap-sm"><span className="material-symbols-outlined text-[18px]">error</span>{errorCarga}</span>
@@ -90,7 +97,7 @@ export default function Usuarios() {
               {!cargando && usuarios.length === 0 && (
                 <tr><td colSpan={6} className="py-xl text-center text-on-surface-variant">Sin usuarios.</td></tr>
               )}
-              {!cargando && usuarios.map((u) => {
+              {!cargando && pag.items.map((u) => {
                 const esSuper = u.rol === "superadmin";
                 const transferDisabled = esSuper || !u.habilitado;
                 const disabledCls = "text-outline-variant cursor-not-allowed";
@@ -140,8 +147,10 @@ export default function Usuarios() {
             </tbody>
           </table>
         </div>
-        <div className="p-sm border-t border-outline-variant bg-surface-container-lowest">
-          <span className="text-label-sm text-on-surface-variant">{usuarios.length} cuentas · Exactamente una es SuperAdmin · Deshabilitar cierra sus sesiones y preserva el historial.</span>
+        {/* Como en Auditoría: primero el total y debajo la paginación. */}
+        <div className="p-md border-t border-outline-variant bg-surface-container-lowest space-y-md">
+          <p className="text-label-sm text-on-surface-variant">{usuarios.length} cuentas · Exactamente una es SuperAdmin · Deshabilitar cierra sus sesiones y preserva el historial.</p>
+          {!cargando && <Paginacion pagina={pag.pagina} totalPaginas={pag.paginas} onCambiar={setPagina} />}
         </div>
       </div>
 

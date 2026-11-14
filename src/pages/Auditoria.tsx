@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import SectionHeader from "../components/SectionHeader";
-import PaginacionSalto from "../components/PaginacionSalto";
+import Paginacion from "../components/Paginacion";
 import Spinner from "../components/Spinner";
 import { useToast } from "../components/ToastProvider";
 import * as auditoriaApi from "../api/auditoria";
@@ -102,7 +102,7 @@ export default function Auditoria() {
         }
       />
 
-      <div className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
+      <div data-lista className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
         <div className="p-lg border-b border-outline-variant bg-surface-bright flex flex-wrap gap-md items-end">
           <Filtro label="Tipo de evento">
             <select value={tipo} onChange={(e) => { setTipo(e.target.value as "" | TipoEventoAuditoria); setPagina(1); }} className={CLS_CONTROL}>
@@ -158,7 +158,7 @@ export default function Auditoria() {
         </div>
         <div className="p-md border-t border-outline-variant bg-surface-container-lowest space-y-md">
           <span className="text-label-sm text-on-surface-variant">{total} eventos · Registro de solo lectura</span>
-          <PaginacionSalto pagina={pagina} totalPaginas={paginas} onCambiar={setPagina} deshabilitado={cargando} />
+          <Paginacion pagina={pagina} totalPaginas={paginas} onCambiar={setPagina} deshabilitado={cargando} />
         </div>
       </div>
     </>

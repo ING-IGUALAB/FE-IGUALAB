@@ -23,6 +23,7 @@ import {
   detallePuntaje,
   etiquetaEstadoGri,
   etiquetaSector,
+  paginarLocal,
   plural,
   puedeValidar,
   textoLegible,
@@ -46,6 +47,7 @@ import type {
 
 const CLS_SELECT =
   "w-full rounded-lg border border-outline-variant bg-surface-container-low py-sm px-md text-body-md focus:border-primary-ink focus:ring-1 focus:ring-primary-ink outline-none";
+const TAM_PAGINA_CODIGOS = 10;
 const CLS_CARD = "bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden";
 
 // Garantiza listas aunque el backend omita alguna, para que la vista nunca se caiga.
@@ -223,7 +225,9 @@ export default function AnalisisGri() {
               />
             </div>
           )}
-          {analisis && <TablaFilas filas={analisis.filas} guardando={guardando} onCambiar={cambiarEstado} />}
+          {analisis && (
+            <TablaFilas key={`${analisis.empresa.id}-${analisis.anio}`} filas={analisis.filas} guardando={guardando} onCambiar={cambiarEstado} />
+          )}
           {analisis && analisis.documentos.length > 0 && (
             <SancionesCard sanciones={analisis.sanciones} resumen={analisis.resumen_sanciones} />
           )}
@@ -337,8 +341,10 @@ function TablaFilas({
   onCambiar,
 }: Readonly<{ filas: FilaGri[]; guardando: string | null; onCambiar: (fila: FilaGri, estado: EstadoGriApi) => void }>) {
   const conEstado = filas.filter((f) => f.estado).length;
+  const [pagina, setPagina] = useState(1);
+  const pag = paginarLocal(filas, pagina, TAM_PAGINA_CODIGOS);
   return (
-    <div className={CLS_CARD}>
+    <div data-lista className={CLS_CARD}>
       <div className="p-lg border-b border-outline-variant bg-surface-bright flex flex-wrap justify-between items-center gap-sm">
         <h3 className="text-title-lg text-on-surface">Códigos GRI</h3>
         <span className="text-label-sm text-on-surface-variant">
@@ -349,9 +355,14 @@ function TablaFilas({
         <p className="p-xl text-center text-body-md text-on-surface-variant">No hay códigos GRI para evaluar.</p>
       ) : (
         <div className="divide-y divide-surface-variant">
-          {filas.map((f) => (
+          {pag.items.map((f) => (
             <FilaItem key={f.identidad} fila={f} guardando={guardando === f.identidad} onCambiar={onCambiar} />
           ))}
+        </div>
+      )}
+      {pag.paginas > 1 && (
+        <div className="p-md border-t border-outline-variant">
+          <Paginacion pagina={pag.pagina} totalPaginas={pag.paginas} onCambiar={setPagina} />
         </div>
       )}
     </div>

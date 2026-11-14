@@ -70,7 +70,7 @@ export default function Descargas() {
         titulo="Descargar reportes"
       />
 
-      <div className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
+      <div data-lista className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
         <div className="p-lg border-b border-outline-variant bg-surface-bright flex flex-col sm:flex-row sm:justify-between sm:items-center gap-md">
           <h3 className="text-title-lg text-on-surface">Versiones emitidas</h3>
           <div className="flex flex-wrap items-center gap-sm">

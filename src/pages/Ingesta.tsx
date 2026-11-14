@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import SectionHeader from "../components/SectionHeader";
-import PaginacionSalto from "../components/PaginacionSalto";
+import Paginacion from "../components/Paginacion";
 import Badge from "../components/Badge";
 import Spinner from "../components/Spinner";
 import Modal from "../components/Modal";
@@ -142,7 +142,7 @@ export default function Ingesta() {
     <>
       <SectionHeader titulo="Ingesta de documentos" />
 
-        <div className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
+        <div data-lista className="bg-surface-container-lowest rounded-xl border border-surface-variant shadow-sm overflow-hidden">
           <div className="p-lg border-b border-outline-variant bg-surface-bright space-y-md">
             <div className="flex flex-wrap items-center justify-between gap-sm">
               <h3 className="text-title-lg text-on-surface">Documentos ingestados</h3>
@@ -232,7 +232,7 @@ export default function Ingesta() {
           </div>
           {totalPaginas > 1 && (
             <div className="p-md border-t border-outline-variant">
-              <PaginacionSalto pagina={paginaActual} totalPaginas={totalPaginas} onCambiar={setPagina} deshabilitado={mostrandoCarga} />
+              <Paginacion pagina={paginaActual} totalPaginas={totalPaginas} onCambiar={setPagina} deshabilitado={mostrandoCarga} />
             </div>
           )}
         </div>
