@@ -435,7 +435,7 @@ function BarraChat({
   );
 }
 
-const TAM_HISTORIAL = 20;
+const TAM_HISTORIAL = 10;
 
 /** Chats guardados del usuario, del más reciente al más antiguo. Al elegir uno se abre en el chat. */
 function PanelHistorial({

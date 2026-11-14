@@ -147,10 +147,13 @@ test.describe("Caso de uso: Gestionar catálogo de empresas", () => {
     await expect(fila).toContainText("Activa");
   });
 
-  test("pagina el catálogo de 5 en 5 y vuelve a la primera página al buscar", async ({ page }) => {
+  test("pagina el catálogo de 10 en 10 y vuelve a la primera página al buscar", async ({ page, api }) => {
+    const base = api.empresas[0];
+    for (let i = 1; i <= 5; i++) api.empresas.push({ ...base, id: `e-extra-${i}`, nombre: `Empresa Extra ${i}` });
+    await page.reload(); // 10 empresas: aún entran en una página
     const filas = page.locator("tbody tr");
     const paginacion = page.getByRole("navigation", { name: "Paginación" });
-    await expect(filas).toHaveCount(5);
+    await expect(filas).toHaveCount(10);
     await expect(paginacion).toHaveCount(0);
 
     await page.getByRole("button", { name: "Agregar empresa" }).click();

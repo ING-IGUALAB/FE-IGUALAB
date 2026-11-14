@@ -10,7 +10,7 @@ import { descargarBlob } from "../lib/descargas";
 import { TIPOS_EVENTO_AUDITORIA, aCsv, finDiaUtc, inicioDiaUtc, totalPaginas } from "../lib/dominio";
 import type { EventoAuditoriaApi, TipoEventoAuditoria, Usuario } from "../types";
 
-const TAM_PAGINA = 20;
+const TAM_PAGINA = 10;
 const CLS_CONTROL =
   "rounded-lg border border-outline-variant bg-surface-container-lowest py-sm px-md text-body-md focus:border-primary-ink focus:ring-1 focus:ring-primary-ink outline-none";
 

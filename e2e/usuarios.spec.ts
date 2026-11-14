@@ -114,25 +114,25 @@ test.describe("Caso de uso: Gestionar usuarios", () => {
     await expect(dialogo.getByText("Ya existe una cuenta con ese correo.")).toBeVisible();
   });
 
-  test("pagina la lista de usuarios de 5 en 5", async ({ page, api }) => {
+  test("pagina la lista de usuarios de 10 en 10", async ({ page, api }) => {
     const base = api.cuentas[2];
     for (let i = 1; i <= 8; i++) {
       api.cuentas.push({ ...base, id: `u-extra-${i}`, nombre: `Usuario Extra ${i}`, correo: `extra${i}@igualab.com` });
     }
     await page.reload();
     const filas = page.locator("tbody tr");
-    await expect(filas).toHaveCount(5);
+    await expect(filas).toHaveCount(10);
     await expect(page.getByText("12 cuentas", { exact: false })).toBeVisible();
 
     const paginacion = page.getByRole("navigation", { name: "Paginación" });
-    await expect(paginacion).toContainText("Página 1 de 3");
+    await expect(paginacion).toContainText("Página 1 de 2");
     await paginacion.getByRole("button", { name: "Última página" }).click();
-    await expect(paginacion).toContainText("Página 3 de 3");
+    await expect(paginacion).toContainText("Página 2 de 2");
     await expect(filas).toHaveCount(2);
     await expect(page.getByRole("row", { name: /Usuario Extra 8/ })).toBeVisible();
   });
 
-  test("con 5 cuentas o menos no se muestra la paginación", async ({ page }) => {
+  test("con 10 cuentas o menos no se muestra la paginación", async ({ page }) => {
     await expect(page.locator("tbody tr")).toHaveCount(4);
     await expect(page.getByRole("navigation", { name: "Paginación" })).toHaveCount(0);
   });
