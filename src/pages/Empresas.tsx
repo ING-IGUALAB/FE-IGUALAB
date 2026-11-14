@@ -10,7 +10,7 @@ import { SECTORES_API, conRecientesPrimero, etiquetaSector, filtrarPorNombre, pa
 import type { EmpresaApi, SectorApi } from "../types";
 
 const SKELETON = ["s1", "s2", "s3", "s4"];
-const TAM_PAGINA = 5;
+const TAM_PAGINA = 10;
 
 export default function Empresas() {
   const toast = useToast();

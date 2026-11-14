@@ -17,7 +17,7 @@ import type { Usuario } from "../types";
 import CampoContrasena from "../components/CampoContrasena";
 import { useCuentaRegresiva } from "../components/useCuentaRegresiva";
 
-const TAM_PAGINA = 5;
+const TAM_PAGINA = 10;
 
 const SKELETON_ROWS = ["r1", "r2", "r3", "r4"];
 const SKELETON_CELLS = [
