@@ -6,15 +6,15 @@ test.describe("Caso de uso: Consultar la auditoría", () => {
     await expect(page.getByRole("heading", { name: "Auditoría de eventos" })).toBeVisible();
   });
 
-  test("lista los eventos con su usuario y pagina de 20 en 20", async ({ page }) => {
+  test("lista los eventos con su usuario y pagina de 10 en 10", async ({ page }) => {
     const filas = page.locator("tbody tr");
-    await expect(filas).toHaveCount(20);
+    await expect(filas).toHaveCount(10);
     await expect(page.getByText("25 eventos · Registro de solo lectura")).toBeVisible();
     await expect(filas.first()).toContainText("Oscar Baldeón");
-    await expect(page.getByText("Página 1 de 2")).toBeVisible();
+    await expect(page.getByText("Página 1 de 3")).toBeVisible();
 
-    await page.getByRole("button", { name: "Siguiente" }).click();
-    await expect(page.getByText("Página 2 de 2")).toBeVisible();
+    await page.getByRole("button", { name: "Última página" }).click();
+    await expect(page.getByText("Página 3 de 3")).toBeVisible();
     await expect(filas).toHaveCount(5);
   });
 
@@ -51,7 +51,7 @@ test.describe("Caso de uso: Consultar la auditoría", () => {
 
 test.describe("Paginación de la auditoría", () => {
   test("muestra la primera, la última y las vecinas de la actual; permite saltar directo", async ({ page, api }) => {
-    api.agregarEventos(295); // 25 + 295 = 320 eventos → 16 páginas de 20
+    api.agregarEventos(135); // 25 + 135 = 160 eventos → 16 páginas de 10
     await entrarComo(page, api, "superadmin", "/auditoria");
     const nav = page.getByRole("navigation", { name: "Paginación" });
     await expect(nav.getByText("Página 1 de 16")).toBeVisible();
@@ -80,7 +80,8 @@ test.describe("Paginación de la auditoría", () => {
   });
 
   test("al cambiar de página desde abajo vuelve al inicio de la lista", async ({ page, api }) => {
-    api.agregarEventos(295);
+    await page.setViewportSize({ width: 1280, height: 600 }); // la lista no entra entera en la pantalla
+    api.agregarEventos(135);
     await entrarComo(page, api, "superadmin", "/auditoria");
     const nav = page.getByRole("navigation", { name: "Paginación" });
     await nav.scrollIntoViewIfNeeded();
@@ -94,15 +95,18 @@ test.describe("Paginación de la auditoría", () => {
 
   test("en pantallas angostas los botones de páginas caben en una sola línea", async ({ page, api }) => {
     await page.setViewportSize({ width: 375, height: 812 });
-    api.agregarEventos(295);
+    api.agregarEventos(135);
     await entrarComo(page, api, "superadmin", "/auditoria");
     const nav = page.getByRole("navigation", { name: "Paginación" });
     // Peor caso: una página en medio, con vecinas y «…» a ambos lados.
     await nav.getByRole("spinbutton", { name: "Ir a la página" }).fill("7");
     await page.keyboard.press("Enter");
     await expect(nav.getByText("Página 7 de 16")).toBeVisible();
-    const anterior = await nav.getByRole("button", { name: "Anterior" }).boundingBox();
-    const siguiente = await nav.getByRole("button", { name: "Siguiente" }).boundingBox();
-    expect(anterior!.y).toBe(siguiente!.y);
+    await expect(page.locator("tbody tr")).toHaveCount(10);
+    // Ambas posiciones en el mismo instante: la página se mueve al cargar las filas.
+    const [anterior, siguiente] = await nav.evaluate((n) =>
+      ["Anterior", "Siguiente"].map((nombre) => n.querySelector(`[aria-label="${nombre}"]`)!.getBoundingClientRect().top),
+    );
+    expect(anterior).toBe(siguiente);
   });
 });

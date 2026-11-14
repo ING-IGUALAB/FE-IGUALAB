@@ -243,6 +243,13 @@ select:not([multiple]):disabled {
 .material-symbols-outlined {
   font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
   user-select: none;
+  /*
+   * Cuadrado de 1em desde el inicio: mientras la fuente carga, el nombre del ícono («chevron_left»)
+   * es invisible pero ocuparía su ancho y movería botones y barras. Así el diseño no salta.
+   */
+  width: 1em;
+  overflow: hidden;
+  flex-shrink: 0;
 }
 .material-symbols-outlined.filled {
   font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;

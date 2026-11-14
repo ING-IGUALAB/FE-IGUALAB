@@ -58,7 +58,7 @@ export default function Paginacion({
     <nav ref={nav} aria-label="Paginación" className="flex flex-wrap md:flex-nowrap items-center justify-between gap-x-md gap-y-sm">
       <span className="text-label-md text-on-surface-variant">Página {pagina} de {totalPaginas}</span>
 
-      <div className="order-last md:order-none w-full md:w-auto flex flex-wrap items-center justify-center gap-xs">
+      <div className="order-last md:order-none w-full md:w-auto flex flex-wrap items-center justify-center gap-[2px] sm:gap-xs">
         <button type="button" onClick={() => irA(1)} disabled={enPrimera} aria-label="Primera página" title="Primera página" className={CLS_EXTREMO}>
           <span className="material-symbols-outlined text-[18px] align-middle" aria-hidden="true">first_page</span>
         </button>
